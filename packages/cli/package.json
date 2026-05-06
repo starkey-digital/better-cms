@@ -4,7 +4,7 @@
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
   "author": "Starkey Digital Ltd",
-  "repository": { "type": "git", "url": "git+https://github.com/jakestarkey/better-cms.git", "directory": "packages/cli" },
+  "repository": { "type": "git", "url": "git+https://github.com/starkey-digital/better-cms.git", "directory": "packages/cli" },
   "description": "better-cms CLI (`bcms`): init, generate, mcp.",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
