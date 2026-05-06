@@ -1,0 +1,35 @@
+{
+  "name": "@better-cms/admin",
+  "version": "0.0.0",
+  "type": "module",
+  "license": "SEE LICENSE IN LICENSE",
+  "author": "Starkey Digital Ltd",
+  "repository": { "type": "git", "url": "git+https://github.com/jakestarkey/better-cms.git", "directory": "packages/admin" },
+  "description": "better-cms drop-in admin UI (Svelte 5).",
+  "exports": {
+    ".": {
+      "types": "./src/lib/index.ts",
+      "svelte": "./src/lib/index.ts",
+      "default": "./src/lib/index.ts"
+    },
+    "./CMSAdmin.svelte": "./src/lib/CMSAdmin.svelte"
+  },
+  "files": ["src/lib"],
+  "scripts": {
+    "typecheck": "svelte-check --tsconfig ./tsconfig.json"
+  },
+  "dependencies": {
+    "@better-cms/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "svelte": "^5.0.0"
+  },
+  "devDependencies": {
+    "svelte": "^5.20.0",
+    "svelte-check": "^4.1.0",
+    "typescript": "^5.6.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

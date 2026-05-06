@@ -1,0 +1,25 @@
+{
+	"$schema": "https://unpkg.com/@changesets/config@3.0.0/schema.json",
+	"changelog": [
+		"@changesets/changelog-github",
+		{ "repo": "jakestarkey/better-cms" }
+	],
+	"commit": false,
+	"fixed": [
+		[
+			"better-cms",
+			"@better-cms/core",
+			"@better-cms/adapter-libsql",
+			"@better-cms/adapter-drizzle",
+			"@better-cms/media-s3",
+			"@better-cms/sveltekit",
+			"@better-cms/admin",
+			"@better-cms/cli"
+		]
+	],
+	"linked": [],
+	"access": "public",
+	"baseBranch": "main",
+	"updateInternalDependencies": "patch",
+	"ignore": []
+}

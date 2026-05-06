@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "better-cms": {
+      "command": "bunx",
+      "args": ["-p", "@better-cms/cli", "bcms", "mcp"],
+      "env": {}
+    }
+  }
+}
