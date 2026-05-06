@@ -2,11 +2,11 @@
   "name": "better-cms",
   "version": "0.0.0",
   "description": "Author and edit better-cms content from Claude Code. Bundles an MCP server bound to your cms.config plus skills for setup, schema editing, content authoring, and CLI workflows.",
-  "author": "better-cms",
+  "author": "Starkey Digital Ltd",
   "homepage": "https://github.com/starkey-digital/better-cms",
   "repository": "https://github.com/starkey-digital/better-cms",
   "keywords": ["cms", "headless-cms", "sveltekit", "drizzle", "libsql", "mcp", "content-management"],
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "mcpServers": "./.mcp.json",
   "skills": [
     "./skills/better-cms-init",
