@@ -7,7 +7,8 @@
   "author": "Starkey Digital Ltd",
   "workspaces": [
     "packages/*",
-    "examples/*"
+    "examples/*",
+    "apps/*"
   ],
   "scripts": {
     "build": "bun run --filter '*' build",
