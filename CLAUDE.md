@@ -75,3 +75,12 @@ import type { Post }      from 'better-cms/types';
 ## Releasing
 
 Changesets in `fixed` group — every published pkg bumps together. CLI ships separately under same version (in same fixed group).
+
+## Release Preferences
+
+- **Tag format:** `v0.1.0` (with `v` prefix)
+- **GitHub releases:** yes — `gh release create` with notes from `changelog/RELEASE_<version>.md`
+- **Issue/PR linking:** yes — append `(#N)` to user-facing changelog entries
+- **Changelog file location:** `changelog/RELEASE_<version>.md`
+- **Version source of truth:** all published `packages/*/package.json` move in lockstep (matches `.changeset/config.json` `fixed` group). Bump 8 files together.
+- **npm publish flow:** `bunx -p @better-cms/cli bcms` shells out separately. Run `npm publish --access public --auth-type=web` per package after tag is pushed (2FA via security key).

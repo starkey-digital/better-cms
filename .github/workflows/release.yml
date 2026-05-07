@@ -37,8 +37,8 @@ jobs:
       - name: Create release PR or publish
         uses: changesets/action@v1
         with:
-          publish: bunx changeset publish
-          version: bunx changeset version
+          publish: bun run release
+          version: bun run version
           commit: 'chore: release'
           title: 'chore: release'
         env:
