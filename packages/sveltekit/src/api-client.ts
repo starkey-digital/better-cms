@@ -13,7 +13,7 @@ import type {
 export interface CollectionApi<T> {
 	list(opts?: FindManyQuery): Promise<T[]>;
 	find(id: string): Promise<T | null>;
-	/** Look up by id first, then by `slug` field if the collection has one. */
+	/** Look up by id, falling back to the collection's slug field if it has one. */
 	get(idOrSlug: string): Promise<T | null>;
 	count(where?: WhereClause): Promise<number>;
 }
@@ -36,11 +36,22 @@ export type CmsClient<C extends CollectionsRecord> = {
 } & { auth: ClientAuthApi };
 
 /**
+ * SSR fetch provider — populated by `better-cms/sveltekit/server`'s init
+ * side-effect to expose SvelteKit's request-scoped `event.fetch`. Browser
+ * builds never import the server entry, so this stays null and we use the
+ * supplied fetcher (typically `globalThis.fetch`).
+ */
+let _ssrFetchProvider: (() => typeof fetch | null) | null = null;
+export function __registerSsrFetchProvider(fn: () => typeof fetch | null): void {
+	_ssrFetchProvider = fn;
+}
+
+/**
  * Build a property-style API that talks to the CMS over HTTP. Browser-safe —
- * no Node imports. During SSR (no `window`), automatically swaps in
- * `event.fetch` from SvelteKit's current request so relative URLs resolve
- * correctly. Pair with the generated `cmsClient` from `bcms generate
- * --target=client` for the zero-boilerplate path.
+ * no Node imports. During SSR, swaps in the request-scoped `event.fetch`
+ * registered by `better-cms/sveltekit/server` so relative URLs resolve.
+ * Pair with the generated `cmsClient` from `bcms generate --target=client`
+ * for the zero-boilerplate path.
  */
 export function createCmsClient<C extends Record<string, CollectionDef>>(
 	clientConfig: ClientCmsConfig<C>,
@@ -49,34 +60,25 @@ export function createCmsClient<C extends Record<string, CollectionDef>>(
 	const basePath = (clientConfig.basePath ?? '/api/cms').replace(/\/$/, '');
 	const wrappedFetch = ssrAwareFetch(fetcher);
 	const out: Record<string, unknown> = { auth: clientAuth(basePath, wrappedFetch) };
-	for (const [name, def] of Object.entries(clientConfig.collections) as [string, CollectionDef][]) {
+	for (const [name, def] of Object.entries(clientConfig.collections) as [string, ClientDef][]) {
 		out[name] =
 			def.kind === 'singleton'
 				? clientSingleton(basePath, name, wrappedFetch)
-				: clientCollection(basePath, name, wrappedFetch);
+				: clientCollection(basePath, name, def.slugField, wrappedFetch);
 	}
 	return out as never;
 }
 
-/**
- * On the server, SvelteKit's global `fetch` rejects relative URLs — callers
- * are expected to use `event.fetch`. We pull the current request event from
- * `@sveltejs/kit/internal/server` (set by SvelteKit's own AsyncLocalStorage
- * around every request) and use its `fetch` instead. In the browser we
- * just delegate to the supplied fetcher.
- */
+interface ClientDef {
+	kind: CollectionDef['kind'];
+	slugField?: string;
+}
+
 function ssrAwareFetch(fetcher: typeof fetch): typeof fetch {
 	if (typeof window !== 'undefined') return fetcher;
 	return (async (input: RequestInfo | URL, init?: RequestInit) => {
-		try {
-			const path = '@sveltejs/kit/internal/server';
-			const mod = (await import(/* @vite-ignore */ path)) as {
-				getRequestEvent?: () => { fetch: typeof fetch };
-			};
-			if (mod.getRequestEvent) return mod.getRequestEvent().fetch(input as never, init);
-		} catch {
-			// fall through to global fetcher — will likely fail on relative URLs
-		}
+		const eventFetch = _ssrFetchProvider?.();
+		if (eventFetch) return eventFetch(input as never, init);
 		return fetcher(input, init);
 	}) as typeof fetch;
 }
@@ -113,9 +115,17 @@ async function jsonOrThrow<T>(res: Response): Promise<T> {
 	return (await res.json()) as T;
 }
 
+function whereParams(where: WhereClause | undefined, target: URLSearchParams): void {
+	if (!where || typeof where !== 'object') return;
+	for (const [k, v] of Object.entries(where as Record<string, unknown>)) {
+		if (v != null) target.set(`where[${k}]`, String(v));
+	}
+}
+
 function clientCollection(
 	basePath: string,
 	name: string,
+	slugField: string | undefined,
 	fetcher: typeof fetch,
 ): CollectionApi<RowOf<CollectionDef>> {
 	return {
@@ -123,11 +133,7 @@ function clientCollection(
 			const params = new URLSearchParams();
 			if (opts?.limit != null) params.set('limit', String(opts.limit));
 			if (opts?.offset != null) params.set('offset', String(opts.offset));
-			if (opts?.where && typeof opts.where === 'object') {
-				for (const [k, v] of Object.entries(opts.where as Record<string, unknown>)) {
-					if (v != null) params.set(`where[${k}]`, String(v));
-				}
-			}
+			whereParams(opts?.where, params);
 			const qs = params.toString();
 			const res = await fetcher(`${basePath}/collections/${name}${qs ? `?${qs}` : ''}`);
 			const body = await jsonOrThrow<{ rows: RowOf<CollectionDef>[] }>(res);
@@ -140,15 +146,21 @@ function clientCollection(
 			return body.row;
 		},
 		async get(idOrSlug) {
-			// Prefer slug lookup when available — keeps the common URL-param case
-			// out of the 404 path and avoids a console error per render.
-			const bySlug = await this.list({ limit: 1, where: { slug: idOrSlug } });
-			if (bySlug[0]) return bySlug[0];
+			// Prefer slug when the collection has a slug field — keeps the common
+			// URL-param case out of the 404 path. Skip the slug round-trip
+			// entirely when the collection has no slug.
+			if (slugField) {
+				const bySlug = await this.list({ limit: 1, where: { [slugField]: idOrSlug } });
+				if (bySlug[0]) return bySlug[0];
+			}
 			return this.find(idOrSlug);
 		},
-		async count(_where) {
-			const all = await this.list({});
-			return all.length;
+		async count(where) {
+			const params = new URLSearchParams({ count: '1' });
+			whereParams(where, params);
+			const res = await fetcher(`${basePath}/collections/${name}?${params.toString()}`);
+			const body = await jsonOrThrow<{ count: number }>(res);
+			return body.count;
 		},
 	};
 }

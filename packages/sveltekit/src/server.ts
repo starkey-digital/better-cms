@@ -11,10 +11,16 @@ import type {
 	SchemaIR,
 } from '@better-cms/core';
 import { createCMS } from '@better-cms/core';
+import { __registerSsrFetchProvider } from './api-client.js';
+import { getCurrentFetch } from './request-context.js';
+
+// Side-effect: hand the browser-safe createCmsClient a way to read the
+// request-scoped event.fetch when it runs during SSR.
+__registerSsrFetchProvider(getCurrentFetch);
 
 export { createCms, type Cms, type ServerAuthApi } from './api.js';
 export { cmsHandle } from './handle.js';
-export { getCurrentRequest, withRequest } from './request-context.js';
+export { getCurrentFetch, getCurrentRequest, withRequest } from './request-context.js';
 
 let _instance: Promise<CmsInstance> | null = null;
 

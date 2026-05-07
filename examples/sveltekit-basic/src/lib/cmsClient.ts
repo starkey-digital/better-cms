@@ -41,7 +41,11 @@ export interface Cms {
 	auth: ClientAuthApi;
 }
 
-/** Schema slice safe to ship to the browser. Pass to <CmsAdmin config={cmsConfig} />. */
+/**
+ * Full schema slice for the admin UI. Pass to <CmsAdmin config={cmsConfig} />.
+ * The runtime client below uses a smaller slice — keeps editor metadata out
+ * of pages that don't render the admin.
+ */
 export const cmsConfig: ClientCmsConfig = {
 	collections: {
 		posts: {
@@ -141,4 +145,12 @@ export const cmsConfig: ClientCmsConfig = {
 	basePath: '/api/cms',
 };
 
-export const cmsClient: Cms = createCmsClient(cmsConfig as never) as unknown as Cms;
+const RUNTIME_CONFIG = {
+	collections: {
+		posts: { kind: 'collection', slugField: 'slug' } as never,
+		settings: { kind: 'singleton' } as never,
+	},
+	basePath: '/api/cms',
+};
+
+export const cmsClient: Cms = createCmsClient(RUNTIME_CONFIG as never) as unknown as Cms;

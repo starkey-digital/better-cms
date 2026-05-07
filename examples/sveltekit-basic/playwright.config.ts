@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
 	testDir: './tests/e2e',
+	testMatch: '**/*.e2e.ts',
 	fullyParallel: false, // tests share a single libsql DB; run serial
 	workers: 1,
 	retries: 0,

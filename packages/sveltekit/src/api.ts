@@ -73,10 +73,14 @@ function collectionOps(config: CmsConfig, name: string): CollectionApi<RowOf<Col
 		},
 		async get(idOrSlug) {
 			const inst = await resolveCms(config);
-			const fields = inst.context.schema.collections[name]?.fields;
-			if (fields && 'slug' in fields) {
+			const fields = (inst.context.schema.collections[name]?.fields ?? {}) as Record<
+				string,
+				{ kind: string }
+			>;
+			const slugField = Object.entries(fields).find(([, f]) => f.kind === 'slug')?.[0];
+			if (slugField) {
 				const [bySlug] = (await inst.context.store.findMany(name, {
-					where: { slug: idOrSlug },
+					where: { [slugField]: idOrSlug },
 					limit: 1,
 				})) as RowOf<CollectionDef>[];
 				if (bySlug) return bySlug;

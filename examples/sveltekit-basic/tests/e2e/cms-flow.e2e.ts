@@ -1,15 +1,15 @@
-import { expect, test } from '@playwright/test';
+import { type APIRequestContext, expect, test } from '@playwright/test';
 
 const BASE = '/api/cms';
 const PASSWORD = 'admin123';
 
-async function login(request: import('@playwright/test').APIRequestContext) {
+async function login(request: APIRequestContext) {
 	const res = await request.post(`${BASE}/login`, { data: { password: PASSWORD } });
 	expect(res.status()).toBe(200);
 }
 
 async function createPost(
-	request: import('@playwright/test').APIRequestContext,
+	request: APIRequestContext,
 	data: { title: string; slug: string; excerpt?: string; published?: boolean },
 ) {
 	const res = await request.post(`${BASE}/ops`, {
