@@ -89,16 +89,28 @@ import type { Post }      from 'better-cms/types';
 
 ## Releasing
 
-**Tag-driven, fully automated.** Push a `v*` tag → CI publishes to npm + deploys docs. Day-to-day commits to main run CI only (typecheck), no publish.
+**Tag-driven GitOps.** Tag = command, CI = effect. Day-to-day commits to main run CI only (typecheck), no publish.
 
 ### Flow
 
-1. `bun run bump <X.Y.Z>` — bumps every published `packages/*/package.json` and `plugins/claude-code/plugin.json` to target version (lockstep, all 8 packages + plugin). Idempotent.
-2. (optional) Write `changelog/RELEASE_v<X.Y.Z>.md` for richer release notes; otherwise GH auto-generates from commits.
-3. `git commit -am "release: vX.Y.Z" && git tag vX.Y.Z && git push --follow-tags`
-4. CI fires:
-   - **`release.yml`** — verifies tag matches `packages/better-cms/package.json` version, builds main pkg, runs `scripts/publish-all.ts` (`bun publish` per non-private workspace), creates GH release.
-   - **`docs.yml`** — builds + deploys `apps/docs/` to GitHub Pages.
+User-side — just write notes and tag:
+
+1. (optional) Write `changelog/RELEASE_v<X.Y.Z>.md` for richer notes (the `/release` skill drafts this). Commit and push it.
+2. Tag and push: `git tag v<X.Y.Z> && git push --follow-tags`. Or do steps 1+2 in one shot via `gh release create v<X.Y.Z> --notes-file changelog/RELEASE_v<X.Y.Z>.md`.
+
+CI-side — `release.yml` on `push: tags: v*`:
+
+3. Checks the tag commit is on main. Derives `<X.Y.Z>` from `${GITHUB_REF_NAME#v}`.
+4. Runs `bun run bump <X.Y.Z>` — bumps every published `packages/*/package.json` and `plugins/claude-code/plugin.json` (lockstep, all 8 packages + plugin).
+5. Refreshes `bun.lock`, commits `release: v<X.Y.Z> [skip ci]`, pushes back to main. The `[skip ci]` token stops GH from re-firing CI on the bump push.
+6. Builds main pkg, runs `scripts/publish-all.ts` (`bun publish` per non-private workspace).
+7. Creates the GitHub release from `changelog/RELEASE_v<X.Y.Z>.md` if present, else `--generate-notes`. Skips if a release at that tag already exists (e.g. user created it via `gh release create`).
+
+In parallel — `docs.yml` on the same tag push builds + deploys `apps/docs/` to GitHub Pages.
+
+### Caveat — tag points pre-bump
+
+The tag points to the user's commit, which still shows the previous version in `package.json`. The bump commit lands on main *after* the tag. Anyone running `git checkout v<X.Y.Z>` sees the old version locally; npm tarballs are always correct (CI bumps before `bun publish`). Standard semantic-release tradeoff.
 
 ### Publishing notes
 
