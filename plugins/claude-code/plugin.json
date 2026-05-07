@@ -1,18 +1,26 @@
 {
-  "name": "better-cms",
-  "version": "0.1.1",
-  "description": "Author and edit better-cms content from Claude Code. Bundles an MCP server bound to your cms.config plus skills for setup, schema editing, content authoring, and CLI workflows.",
-  "author": "Starkey Digital Ltd",
-  "homepage": "https://github.com/starkey-digital/better-cms",
-  "repository": "https://github.com/starkey-digital/better-cms",
-  "keywords": ["cms", "headless-cms", "sveltekit", "drizzle", "libsql", "mcp", "content-management"],
-  "license": "SEE LICENSE IN LICENSE",
-  "mcpServers": "./.mcp.json",
-  "skills": [
-    "./skills/better-cms-init",
-    "./skills/better-cms-generate",
-    "./skills/better-cms-add-collection",
-    "./skills/better-cms-schema",
-    "./skills/better-cms-content"
-  ]
+	"name": "better-cms",
+	"version": "0.2.0",
+	"description": "Author and edit better-cms content from Claude Code. Bundles an MCP server bound to your cms.config plus skills for setup, schema editing, content authoring, and CLI workflows.",
+	"author": "Starkey Digital Ltd",
+	"homepage": "https://github.com/starkey-digital/better-cms",
+	"repository": "https://github.com/starkey-digital/better-cms",
+	"keywords": [
+		"cms",
+		"headless-cms",
+		"sveltekit",
+		"drizzle",
+		"libsql",
+		"mcp",
+		"content-management"
+	],
+	"license": "SEE LICENSE IN LICENSE",
+	"mcpServers": "./.mcp.json",
+	"skills": [
+		"./skills/better-cms-init",
+		"./skills/better-cms-generate",
+		"./skills/better-cms-add-collection",
+		"./skills/better-cms-schema",
+		"./skills/better-cms-content"
+	]
 }

@@ -47,7 +47,7 @@
     },
     "packages/adapter-drizzle": {
       "name": "@better-cms/adapter-drizzle",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "dependencies": {
         "@better-cms/adapter-libsql": "workspace:*",
         "@better-cms/core": "workspace:*",
@@ -65,7 +65,7 @@
     },
     "packages/adapter-libsql": {
       "name": "@better-cms/adapter-libsql",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "dependencies": {
         "@better-cms/core": "workspace:*",
         "@libsql/client": "^0.14.0",
@@ -77,7 +77,7 @@
     },
     "packages/admin": {
       "name": "@better-cms/admin",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "dependencies": {
         "@better-cms/core": "workspace:*",
       },
@@ -92,7 +92,7 @@
     },
     "packages/better-cms": {
       "name": "better-cms",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "dependencies": {
         "@better-cms/adapter-drizzle": "workspace:*",
         "@better-cms/adapter-libsql": "workspace:*",
@@ -127,7 +127,7 @@
     },
     "packages/cli": {
       "name": "@better-cms/cli",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "bin": {
         "bcms": "./src/bin.ts",
       },
@@ -143,7 +143,7 @@
     },
     "packages/core": {
       "name": "@better-cms/core",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "dependencies": {
         "valibot": "^0.42.1",
       },
@@ -154,7 +154,7 @@
     },
     "packages/media-s3": {
       "name": "@better-cms/media-s3",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "dependencies": {
         "@aws-sdk/client-s3": "^3.700.0",
         "@aws-sdk/s3-request-presigner": "^3.700.0",
@@ -167,7 +167,7 @@
     },
     "packages/sveltekit": {
       "name": "@better-cms/sveltekit",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "dependencies": {
         "@better-cms/core": "workspace:*",
       },
