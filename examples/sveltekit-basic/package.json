@@ -11,7 +11,9 @@
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"cms:gen": "bunx -p @better-cms/cli bcms generate",
-		"cms:mcp": "bunx -p @better-cms/cli bcms mcp"
+		"cms:mcp": "bunx -p @better-cms/cli bcms mcp",
+		"test:e2e": "playwright test",
+		"test:e2e:ui": "playwright test --ui"
 	},
 	"dependencies": {
 		"better-cms": "workspace:*",
@@ -20,6 +22,7 @@
 		"dotenv": "^16.4.5"
 	},
 	"devDependencies": {
+		"@playwright/test": "^1.59.1",
 		"@sveltejs/adapter-auto": "^4.0.0",
 		"@sveltejs/kit": "^2.20.0",
 		"@sveltejs/vite-plugin-svelte": "^5.0.0",
