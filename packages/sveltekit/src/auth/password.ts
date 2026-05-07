@@ -1,4 +1,4 @@
-import type { CMSPlugin } from '@better-cms/core';
+import type { CmsPlugin } from '@better-cms/core';
 import {
 	clearCookie,
 	parseTtl,
@@ -47,7 +47,7 @@ export interface PasswordAuthOpts {
 	}) => void;
 }
 
-export interface PasswordAuthResult extends CMSPlugin {
+export interface PasswordAuthResult extends CmsPlugin {
 	getUser: (request: Request) => Promise<{ id: string; role: string } | null>;
 }
 
@@ -88,7 +88,7 @@ export function passwordAuth(opts: PasswordAuthOpts): PasswordAuthResult {
 		return { id: session.uid, role: 'admin' };
 	}
 
-	const plugin: CMSPlugin = {
+	const plugin: CmsPlugin = {
 		id: 'better-cms/password-auth',
 		endpoints: [
 			{

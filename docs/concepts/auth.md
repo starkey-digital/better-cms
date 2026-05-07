@@ -26,7 +26,7 @@ export default defineCMS({
 });
 ```
 
-`passwordAuth(opts)` returns an object that's both a CMSPlugin (mounting `/login`, `/logout`, `/me` endpoints) and exposes `getUser(request)` for reading the session.
+`passwordAuth(opts)` returns an object that's both a CmsPlugin (mounting `/login`, `/logout`, `/me` endpoints) and exposes `getUser(request)` for reading the session.
 
 ### Options
 
@@ -45,7 +45,7 @@ export default defineCMS({
 
 ## Login flow
 
-1. The user opens `/cms`. The admin component (`<CMSAdmin auth />`) calls `GET /api/cms/me` — returns `{ user: null }` until they're signed in.
+1. The user opens `/cms`. The admin component (`<CmsAdmin auth />`) calls `GET /api/cms/me` — returns `{ user: null }` until they're signed in.
 2. The login screen `POST`s `{ password }` to `/api/cms/login`. Successful response sets the `bcms_session` cookie.
 3. The admin re-checks `/me`, sees `user`, and renders the editor. Subsequent ops (`POST /api/cms/ops`) carry the cookie automatically.
 4. `POST /api/cms/logout` clears the cookie.

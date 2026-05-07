@@ -54,19 +54,27 @@ describe('init', () => {
 		await init({ cwd: dir, skipInstall: true });
 		const hooks = readFileSync(join(dir, 'src/hooks.server.ts'), 'utf8');
 		expect(hooks).toContain(`from '$lib/server/cms'`);
-		expect(hooks).toContain('cmsHandle(cms)');
+		expect(hooks).toContain('cmsHandle(config)');
 		expect(hooks).not.toContain('{ env }');
 		expect(hooks).not.toContain('$env/dynamic/private');
 	});
 
-	test('admin route uses clientCMSConfig from a +page.server.ts loader', async () => {
+	test('cms.ts exports both the config and a typed `cms` API', async () => {
+		writePackageJson();
+		await init({ cwd: dir, skipInstall: true });
+		const cfg = readFileSync(join(dir, 'src/lib/server/cms.ts'), 'utf8');
+		expect(cfg).toContain('export default config;');
+		expect(cfg).toContain('export const cms = createCms(config);');
+	});
+
+	test('admin route uses clientCmsConfig from a +page.server.ts loader', async () => {
 		writePackageJson();
 		await init({ cwd: dir, skipInstall: true });
 		const loader = readFileSync(join(dir, 'src/routes/cms/+page.server.ts'), 'utf8');
-		expect(loader).toContain('clientCMSConfig');
+		expect(loader).toContain('clientCmsConfig');
 		expect(loader).toContain(`from '$lib/server/cms'`);
 		const page = readFileSync(join(dir, 'src/routes/cms/+page.svelte'), 'utf8');
-		expect(page).toContain('CMSAdmin');
+		expect(page).toContain('CmsAdmin');
 		expect(page).toContain('config={data.cms}');
 	});
 

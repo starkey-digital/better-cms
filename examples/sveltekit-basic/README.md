@@ -23,7 +23,7 @@ The libsql adapter creates `local.db` and the schema automatically on first requ
 - `src/hooks.server.ts` — `cmsHandle` mounts CMS endpoints under `/cms`
 - `src/routes/+page.server.ts` — typed SSR via `serverApi(ctx).list('posts')`
 - `src/routes/+page.svelte` — renders posts + settings
-- `src/routes/cms/+page.svelte` — drops `<CMSAdmin>` straight in
+- `src/routes/cms/+page.svelte` — drops `<CmsAdmin>` straight in
 
 ## Next steps
 

@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'bun:test';
-import { clientCMSConfig } from './config.js';
+import { clientCmsConfig } from './config.js';
 
-describe('clientCMSConfig', () => {
+describe('clientCmsConfig', () => {
 	test('returns only collections + basePath (no adapter, media, auth)', () => {
 		const fakeAdapter = { findMany: async () => [] } as never;
 		const fakeMedia = { put: async () => {} } as never;
-		const result = clientCMSConfig({
+		const result = clientCmsConfig({
 			collections: { posts: { kind: 'collection', fields: {} } } as never,
 			adapter: fakeAdapter,
 			media: fakeMedia,
@@ -22,7 +22,7 @@ describe('clientCMSConfig', () => {
 	});
 
 	test('omits basePath when not set', () => {
-		const result = clientCMSConfig({
+		const result = clientCmsConfig({
 			collections: { posts: { kind: 'collection', fields: {} } } as never,
 			adapter: {} as never,
 		});

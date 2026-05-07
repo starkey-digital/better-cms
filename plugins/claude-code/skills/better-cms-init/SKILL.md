@@ -9,7 +9,7 @@ Bootstrap a new better-cms project. `bcms init` writes:
 
 - `src/lib/server/cms.ts` — server-only config module (adapter is eager, reads `process.env`)
 - `src/hooks.server.ts` — wires `cmsHandle(cms)`
-- `src/routes/cms/+page.server.ts` + `+page.svelte` — admin route via `clientCMSConfig`
+- `src/routes/cms/+page.server.ts` + `+page.svelte` — admin route via `clientCmsConfig`
 - `.env.example` — DB + S3 vars
 - `drizzle.config.ts` — points at the generated schema
 
@@ -47,4 +47,4 @@ If the user is on a non-SvelteKit framework (React/Next/Astro), tell them the Sv
 - Don't run `drizzle-kit push` automatically — it touches the database.
 - Don't write secrets into `.env` for the user. Show what to put there; let them paste their own credentials.
 - Don't move `cms.ts` out of `src/lib/server/`. The directory is what makes the bundler enforce server-only — moving it under `src/lib/` exposes adapter credentials to the client bundle. If the user insists, warn them and use `*.server.ts` (e.g. `src/lib/cms.server.ts`) which gets the same guard.
-- Don't import `$lib/server/cms` from a `.svelte` component — Vite blocks it. Always go through a `+page.server.ts` or `+layout.server.ts` and pass `clientCMSConfig(cms)` down via `data`.
+- Don't import `$lib/server/cms` from a `.svelte` component — Vite blocks it. Always go through a `+page.server.ts` or `+layout.server.ts` and pass `clientCmsConfig(cms)` down via `data`.

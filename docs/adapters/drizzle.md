@@ -23,4 +23,4 @@ For greenfield SQLite use [libSQL](/adapters/libsql) — fewer moving parts.
 
 ## Schema integration
 
-The adapter exposes the generated Drizzle schema via `getCMSTables(config)`. You can reference CMS tables in your own queries.
+The adapter exposes the generated Drizzle schema via `getCmsTables(config)`. You can reference CMS tables in your own queries.

@@ -1,4 +1,4 @@
-import type { CMSConfig, CollectionsRecord } from '../config.js';
+import type { CmsConfig, CollectionsRecord } from '../config.js';
 import type { CollectionDef, SchemaIR } from './types.js';
 
 const SYSTEM_COLLECTIONS: Record<string, CollectionDef> = {
@@ -35,7 +35,7 @@ const SYSTEM_COLLECTIONS: Record<string, CollectionDef> = {
  * Single source of truth: merge user collections + plugin collections + system collections.
  * Adapters, CLI generators, and the runtime all call this — never reach into config.collections directly.
  */
-export function getCMSTables<C extends CollectionsRecord>(config: CMSConfig<C>): SchemaIR<C> {
+export function getCmsTables<C extends CollectionsRecord>(config: CmsConfig<C>): SchemaIR<C> {
 	const collections: Record<string, CollectionDef> = { ...SYSTEM_COLLECTIONS };
 
 	for (const plugin of config.plugins ?? []) {

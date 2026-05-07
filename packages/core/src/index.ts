@@ -20,7 +20,7 @@ export * from './plugin/index.js';
 export * from './auth/types.js';
 export { generateId } from './util/id.js';
 export { slugify } from './util/slug.js';
-export { CMSError, errors, ok, err, type Result } from './util/result.js';
+export { CmsError, errors, ok, err, type Result } from './util/result.js';
 export { validateRow, serializeRow, deserializeRow } from './util/validate.js';
 export {
 	fieldToJsonSchema,

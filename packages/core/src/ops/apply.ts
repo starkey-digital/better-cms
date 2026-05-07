@@ -1,9 +1,9 @@
 import type { SchemaIR } from '../ir/types.js';
 import type { ContentStore } from '../store/content.js';
 import { generateId } from '../util/id.js';
-import { CMSError, errors } from '../util/result.js';
+import { CmsError, errors } from '../util/result.js';
 import { deserializeRow, serializeRow, validateRow } from '../util/validate.js';
-import type { CMSOp, OpResult } from './types.js';
+import type { CmsOp, OpResult } from './types.js';
 
 export interface ApplyDeps {
 	store: ContentStore;
@@ -11,7 +11,7 @@ export interface ApplyDeps {
 }
 
 /** Apply a single op. Validates, serializes, persists. Wraps errors. */
-export async function applyOp(op: CMSOp, deps: ApplyDeps): Promise<OpResult> {
+export async function applyOp(op: CmsOp, deps: ApplyDeps): Promise<OpResult> {
 	try {
 		const def = deps.schema.collections[op.collection];
 		if (!def) throw errors.notFound(`collection "${op.collection}"`);
@@ -56,14 +56,14 @@ export async function applyOp(op: CMSOp, deps: ApplyDeps): Promise<OpResult> {
 		throw errors.badRequest('unsupported op');
 	} catch (e) {
 		const cms =
-			e instanceof CMSError
+			e instanceof CmsError
 				? e
-				: new CMSError((e as Error).message ?? 'unknown error', 'INTERNAL', 500);
+				: new CmsError((e as Error).message ?? 'unknown error', 'INTERNAL', 500);
 		return { op, ok: false, error: { code: cms.code, message: cms.message } };
 	}
 }
 
-export async function applyOps(ops: CMSOp[], deps: ApplyDeps): Promise<OpResult[]> {
+export async function applyOps(ops: CmsOp[], deps: ApplyDeps): Promise<OpResult[]> {
 	const results: OpResult[] = [];
 	for (const op of ops) results.push(await applyOp(op, deps));
 	return results;
@@ -71,7 +71,7 @@ export async function applyOps(ops: CMSOp[], deps: ApplyDeps): Promise<OpResult[
 
 function applyJsonOp(
 	row: Record<string, unknown>,
-	op: Extract<CMSOp, { op: 'patch' | 'append' | 'remove' | 'move' }>,
+	op: Extract<CmsOp, { op: 'patch' | 'append' | 'remove' | 'move' }>,
 ): Record<string, unknown> {
 	const out = { ...row };
 	const path = 'path' in op ? op.path : undefined;

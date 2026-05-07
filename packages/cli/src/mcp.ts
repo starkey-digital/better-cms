@@ -1,5 +1,5 @@
-import { applyOps, collectionToJsonSchema, getCMSTables } from '@better-cms/core';
-import type { CMSOp } from '@better-cms/core';
+import { applyOps, collectionToJsonSchema, getCmsTables } from '@better-cms/core';
+import type { CmsOp } from '@better-cms/core';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
@@ -17,7 +17,7 @@ export interface McpServerOpts {
 
 const COLLECTION_TOOLS: Record<
 	string,
-	(collection: string, input: Record<string, unknown>) => CMSOp
+	(collection: string, input: Record<string, unknown>) => CmsOp
 > = {
 	cms_create: (collection, input) => ({
 		op: 'create',
@@ -40,7 +40,7 @@ const COLLECTION_TOOLS: Record<
 export async function startMcpServer(opts: McpServerOpts = {}): Promise<void> {
 	const cwd = opts.cwd ?? process.cwd();
 	const { config } = await loadConfig(cwd, opts.configPath);
-	const schema = getCMSTables(config);
+	const schema = getCmsTables(config);
 	const adapter = config.adapter;
 	if (adapter.init) await adapter.init(schema);
 

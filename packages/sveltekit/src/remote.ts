@@ -1,8 +1,8 @@
 import type {
-	CMSConfig,
-	CMSOp,
+	CmsConfig,
+	CmsOp,
 	CollectionsRecord,
-	CreateCMSOpts,
+	CreateCmsOpts,
 	InferRows,
 	OpResult,
 	SchemaIR,
@@ -24,29 +24,29 @@ import { cms, serverApi } from './server.js';
  */
 
 export async function listCollection<C extends CollectionsRecord, K extends keyof C>(
-	config: CMSConfig<C>,
+	config: CmsConfig<C>,
 	collection: K,
 	opts?: { limit?: number; offset?: number; where?: Record<string, unknown> },
-	cmsOpts?: CreateCMSOpts,
+	cmsOpts?: CreateCmsOpts,
 ): Promise<InferRows<SchemaIR<C>>[K][]> {
 	const instance = await cms(config, cmsOpts);
 	return serverApi(instance.context as never).list(collection as never, opts) as Promise<never>;
 }
 
 export async function getRecord<C extends CollectionsRecord, K extends keyof C>(
-	config: CMSConfig<C>,
+	config: CmsConfig<C>,
 	collection: K,
 	id: string,
-	cmsOpts?: CreateCMSOpts,
+	cmsOpts?: CreateCmsOpts,
 ): Promise<InferRows<SchemaIR<C>>[K] | null> {
 	const instance = await cms(config, cmsOpts);
 	return serverApi(instance.context as never).find(collection as never, id) as Promise<never>;
 }
 
 export async function runOps<C extends CollectionsRecord>(
-	config: CMSConfig<C>,
-	ops: CMSOp[],
-	cmsOpts?: CreateCMSOpts,
+	config: CmsConfig<C>,
+	ops: CmsOp[],
+	cmsOpts?: CreateCmsOpts,
 ): Promise<OpResult[]> {
 	const instance = await cms(config, cmsOpts);
 	const results = await applyOps(ops, {
@@ -66,10 +66,10 @@ export async function runOps<C extends CollectionsRecord>(
 }
 
 export async function uploadMedia<C extends CollectionsRecord>(
-	config: CMSConfig<C>,
+	config: CmsConfig<C>,
 	body: Blob | ArrayBuffer | Uint8Array,
 	opts: { folder?: string; mime?: string; key?: string } = {},
-	cmsOpts?: CreateCMSOpts,
+	cmsOpts?: CreateCmsOpts,
 ) {
 	const instance = await cms(config, cmsOpts);
 	if (!instance.context.media) {

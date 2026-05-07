@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import type { CMSConfig } from '@better-cms/core';
+import type { CmsConfig } from '@better-cms/core';
 
 const CANDIDATES = ['src/lib/server/cms', 'src/lib/cms', 'src/cms', 'cms'].flatMap((base) => [
 	`${base}.ts`,
@@ -10,7 +10,7 @@ const CANDIDATES = ['src/lib/server/cms', 'src/lib/cms', 'src/cms', 'cms'].flatM
 export async function loadConfig(
 	cwd: string,
 	hint?: string,
-): Promise<{ config: CMSConfig; path: string }> {
+): Promise<{ config: CmsConfig; path: string }> {
 	const candidates = hint ? [resolve(cwd, hint)] : CANDIDATES.map((p) => resolve(cwd, p));
 
 	const { createJiti } = await import('jiti');
@@ -21,8 +21,8 @@ export async function loadConfig(
 	for (const path of candidates) {
 		if (!hint && !existsSync(path)) continue;
 		try {
-			const mod = (await jiti.import(path)) as { default?: CMSConfig } | CMSConfig;
-			const config = (mod as { default?: CMSConfig }).default ?? (mod as CMSConfig);
+			const mod = (await jiti.import(path)) as { default?: CmsConfig } | CmsConfig;
+			const config = (mod as { default?: CmsConfig }).default ?? (mod as CmsConfig);
 			if (!config || !('collections' in config)) {
 				throw new Error(`config at ${path} did not export a CMS config (default export expected)`);
 			}

@@ -48,22 +48,22 @@ Then call from a client component without a manual `+page.server.ts`.
 ```ts
 // src/routes/cms/+page.server.ts
 import cms from '$lib/server/cms';
-import { clientCMSConfig } from 'better-cms/sveltekit';
+import { clientCmsConfig } from 'better-cms/sveltekit';
 
-export const load = () => ({ cms: clientCMSConfig(cms) });
+export const load = () => ({ cms: clientCmsConfig(cms) });
 ```
 
 ```svelte
 <!-- src/routes/cms/+page.svelte -->
 <script lang="ts">
-	import { CMSAdmin } from 'better-cms/admin';
+	import { CmsAdmin } from 'better-cms/admin';
 	let { data } = $props();
 </script>
 
-<CMSAdmin config={data.cms} />
+<CmsAdmin config={data.cms} />
 ```
 
-`clientCMSConfig` returns the JSON-safe slice the admin actually uses (`{ collections, basePath }`). Adapter, media, auth, and plugins never cross to the browser.
+`clientCmsConfig` returns the JSON-safe slice the admin actually uses (`{ collections, basePath }`). Adapter, media, auth, and plugins never cross to the browser.
 
 ## Reading the session
 

@@ -31,7 +31,7 @@ import { drizzleAdapter } from 'better-cms/adapters/drizzle';
 import { s3Media }        from 'better-cms/media/s3';
 import { cmsHandle, cms, serverApi } from 'better-cms/sveltekit';
 import { listCollection, runOps }    from 'better-cms/sveltekit/remote';
-import { CMSAdmin }       from 'better-cms/admin';
+import { CmsAdmin }       from 'better-cms/admin';
 import type { Post }      from 'better-cms/types';
 ```
 
@@ -68,14 +68,14 @@ import type { Post }      from 'better-cms/types';
 
 ## Architecture invariants
 
-- `getCMSTables(config)` is the single source of truth — CLI, runtime, adapters all call it. Never reach into `config.collections` directly.
+- `getCmsTables(config)` is the single source of truth — CLI, runtime, adapters all call it. Never reach into `config.collections` directly.
 - **Default API basePath is `/api/cms`** — leaves `/cms` free for the user's admin route. Override `config.basePath` only when integrating with a different mount point.
 - **The CMS config is server-only.** It lives at `src/lib/server/cms.ts` (the `src/lib/server/` directory triggers SvelteKit's import-from-client guard). The adapter is constructed eagerly inside that module — `adapter: libsqlAdapter({ url: process.env.X! })`. No factory wrappers, no env injection through the handler.
-- **The admin route loads a JSON-safe slice via `+page.server.ts`.** `clientCMSConfig(cms)` returns `{ collections, basePath }` — adapter, media, auth, plugins never cross to the browser. Pattern: `+page.server.ts` calls `clientCMSConfig(cms)` and returns it as `data.cms`; `+page.svelte` does `<CMSAdmin config={data.cms} />`. Don't import the server module from a Svelte component directly — Vite will (correctly) reject it.
+- **The admin route loads a JSON-safe slice via `+page.server.ts`.** `clientCmsConfig(cms)` returns `{ collections, basePath }` — adapter, media, auth, plugins never cross to the browser. Pattern: `+page.server.ts` calls `clientCmsConfig(cms)` and returns it as `data.cms`; `+page.svelte` does `<CmsAdmin config={data.cms} />`. Don't import the server module from a Svelte component directly — Vite will (correctly) reject it.
 - Storage hint per field: scalars + single relations = column; complex (richText/array/object/image/file/relation many) = JSON column. Core's `serializeRow`/`deserializeRow` handle conversion — adapters receive already-serialized rows.
 - Singletons use fixed id `"default"`. Dedicated `GET/PUT /singletons/:name` routes. Discriminated via `CollectionDef<F, 'singleton'>`.
 - Field types are phantom-typed: `FieldDef<TOut>` carries value type; DSL builders propagate it; `defineCMS<C>` captures verbatim → `serverApi`, remote helpers, admin all gain inference.
-- Three modes (inline edit, admin save, LLM/MCP tool call) all reduce to `CMSOp` → `applyOps()` → live broadcast. One audit trail.
+- Three modes (inline edit, admin save, LLM/MCP tool call) all reduce to `CmsOp` → `applyOps()` → live broadcast. One audit trail.
 
 ## Conventions
 

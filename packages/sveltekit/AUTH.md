@@ -34,11 +34,11 @@ export default defineCMS({
 ```svelte
 <!-- src/routes/cms/+page.svelte -->
 <script>
-  import { CMSAdmin } from 'better-cms/admin';
+  import { CmsAdmin } from 'better-cms/admin';
   import config from '$lib/cms.config';
 </script>
 
-<CMSAdmin config={{ collections: config.collections, basePath: '/api/cms' }} auth />
+<CmsAdmin config={{ collections: config.collections, basePath: '/api/cms' }} auth />
 ```
 
 ## Endpoints
@@ -135,7 +135,7 @@ passwordAuth({
 ```
 
 ```svelte
-<CMSAdmin config={...} auth turnstileSiteKey={env.PUBLIC_TURNSTILE_SITE_KEY} />
+<CmsAdmin config={...} auth turnstileSiteKey={env.PUBLIC_TURNSTILE_SITE_KEY} />
 ```
 
 After 3 failed login attempts per IP, the server requires a valid Turnstile token. Admin UI auto-loads the widget script and submits the token in the next attempt.

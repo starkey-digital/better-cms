@@ -1,12 +1,9 @@
-import cmsConfig from '$lib/server/cms';
-import { cms, serverApi } from 'better-cms/sveltekit';
+import { cms } from '$lib/server/cms';
 
 export async function load() {
-	const instance = await cms(cmsConfig);
-	const api = serverApi(instance.context);
 	const [posts, settings] = await Promise.all([
-		api.list('posts', { limit: 20 }),
-		api.getSingleton('settings'),
+		cms.posts.list({ limit: 20, orderBy: [{ field: 'createdAt', dir: 'desc' }] }),
+		cms.settings.get(),
 	]);
 	return { posts, settings };
 }

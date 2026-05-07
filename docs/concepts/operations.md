@@ -5,10 +5,10 @@ All writes flow through the same op pipeline. Three entry points reduce to one p
 ## The three modes
 
 1. **Inline edit** — admin user clicks a field on a live page, types, blurs.
-2. **Admin save** — record edited in `<CMSAdmin>` form.
+2. **Admin save** — record edited in `<CmsAdmin>` form.
 3. **LLM / MCP tool call** — agent invokes the MCP tool exposed by the CLI.
 
-Each emits `CMSOp` values. `applyOps()` runs them through validation, persistence, and live broadcast.
+Each emits `CmsOp` values. `applyOps()` runs them through validation, persistence, and live broadcast.
 
 ## Why one pipeline
 
@@ -20,7 +20,7 @@ Each emits `CMSOp` values. `applyOps()` runs them through validation, persistenc
 ## Op shape
 
 ```ts
-type CMSOp =
+type CmsOp =
 	| { type: 'create'; collection: string; data: unknown }
 	| { type: 'update'; collection: string; id: string; patch: unknown }
 	| { type: 'delete'; collection: string; id: string }

@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { boolean, collection, defineCMS, image, richText, singleton, slug, text } from 'better-cms';
 import { libsqlAdapter } from 'better-cms/adapters/libsql';
+import { createCms } from 'better-cms/sveltekit';
 import { passwordAuth } from 'better-cms/sveltekit/auth';
 
 function required(name: string): string {
@@ -15,7 +16,7 @@ const auth = passwordAuth({
 	cookieSecure: process.env.NODE_ENV === 'production',
 });
 
-export default defineCMS({
+const config = defineCMS({
 	collections: {
 		posts: collection({
 			fields: {
@@ -41,3 +42,6 @@ export default defineCMS({
 	plugins: [auth],
 	auth: { getUser: auth.getUser },
 });
+
+export default config;
+export const cms = createCms(config);

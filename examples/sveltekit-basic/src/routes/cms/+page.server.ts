@@ -1,4 +1,4 @@
-import cms from '$lib/server/cms';
-import { clientCMSConfig } from 'better-cms/sveltekit';
+import config from '$lib/server/cms';
+import { clientCmsConfig } from 'better-cms/sveltekit';
 
-export const load = () => ({ cms: clientCMSConfig(cms) });
+export const load = () => ({ cms: clientCmsConfig(config) });

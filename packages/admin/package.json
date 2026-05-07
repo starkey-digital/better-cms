@@ -20,11 +20,11 @@
 			"svelte": "./dist/index.js",
 			"default": "./dist/index.js"
 		},
-		"./CMSAdmin.svelte": {
-			"dev-source": "./src/lib/CMSAdmin.svelte",
-			"svelte": "./dist/CMSAdmin.svelte",
-			"types": "./dist/CMSAdmin.svelte.d.ts",
-			"default": "./dist/CMSAdmin.svelte"
+		"./CmsAdmin.svelte": {
+			"dev-source": "./src/lib/CmsAdmin.svelte",
+			"svelte": "./dist/CmsAdmin.svelte",
+			"types": "./dist/CmsAdmin.svelte.d.ts",
+			"default": "./dist/CmsAdmin.svelte"
 		}
 	},
 	"scripts": {

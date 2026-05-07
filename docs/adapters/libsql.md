@@ -21,8 +21,8 @@ Creates a SQLite file in cwd. No external service.
 
 ## Schema
 
-Schema derives from your collections via `getCMSTables(config)` — never reach into `config.collections` directly. The adapter creates tables, columns, and indexes on first run.
+Schema derives from your collections via `getCmsTables(config)` — never reach into `config.collections` directly. The adapter creates tables, columns, and indexes on first run.
 
 ## Migrations
 
-The CLI reads `getCMSTables` and generates migration SQL. See [CLI reference](/reference/cli).
+The CLI reads `getCmsTables` and generates migration SQL. See [CLI reference](/reference/cli).

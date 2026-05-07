@@ -69,22 +69,22 @@ The default base path is `/api/cms`. Override with `cms.basePath` if you need a 
 ```ts
 // src/routes/cms/+page.server.ts
 import cms from '$lib/server/cms';
-import { clientCMSConfig } from 'better-cms/sveltekit';
+import { clientCmsConfig } from 'better-cms/sveltekit';
 
-export const load = () => ({ cms: clientCMSConfig(cms) });
+export const load = () => ({ cms: clientCmsConfig(cms) });
 ```
 
 ```svelte
 <!-- src/routes/cms/+page.svelte -->
 <script lang="ts">
-	import { CMSAdmin } from 'better-cms/admin';
+	import { CmsAdmin } from 'better-cms/admin';
 	let { data } = $props();
 </script>
 
-<CMSAdmin config={data.cms} />
+<CmsAdmin config={data.cms} />
 ```
 
-`clientCMSConfig` strips the server-only fields (adapter, media, auth, plugins) and returns `{ collections, basePath }` — JSON-safe to send through SvelteKit's load → page data flow.
+`clientCmsConfig` strips the server-only fields (adapter, media, auth, plugins) and returns `{ collections, basePath }` — JSON-safe to send through SvelteKit's load → page data flow.
 
 ## 6. Generate the database schema
 

@@ -6,6 +6,7 @@ const CONFIG_TEMPLATE = `import 'dotenv/config';
 import { defineCMS, collection, text, slug, richText, image, boolean } from 'better-cms';
 import { libsqlAdapter } from 'better-cms/adapters/libsql';
 import { s3Media } from 'better-cms/media/s3';
+import { createCms } from 'better-cms/sveltekit';
 
 function required(name: string): string {
 	const v = process.env[name];
@@ -13,7 +14,7 @@ function required(name: string): string {
 	return v;
 }
 
-export default defineCMS({
+const config = defineCMS({
 	collections: {
 		posts: collection({
 			fields: {
@@ -42,6 +43,9 @@ export default defineCMS({
 		getUser: async (_request) => ({ id: 'dev', email: 'dev@example.com', role: 'admin' }),
 	},
 });
+
+export default config;
+export const cms = createCms(config);
 `;
 
 const ENV_TEMPLATE = `DATABASE_URL=file:./local.db
@@ -56,24 +60,24 @@ S3_PUBLIC_URL=
 `;
 
 const HOOKS_TEMPLATE = `import { cmsHandle } from 'better-cms/sveltekit';
-import cms from '$lib/server/cms';
+import config from '$lib/server/cms';
 
-export const handle = cmsHandle(cms);
+export const handle = cmsHandle(config);
 `;
 
-const ADMIN_PAGE_SERVER_TEMPLATE = `import { clientCMSConfig } from 'better-cms/sveltekit';
-import cms from '$lib/server/cms';
+const ADMIN_PAGE_SERVER_TEMPLATE = `import { clientCmsConfig } from 'better-cms/sveltekit';
+import config from '$lib/server/cms';
 
-export const load = () => ({ cms: clientCMSConfig(cms) });
+export const load = () => ({ cms: clientCmsConfig(config) });
 `;
 
 const ADMIN_PAGE_TEMPLATE = `<script lang="ts">
-import { CMSAdmin } from 'better-cms/admin';
+import { CmsAdmin } from 'better-cms/admin';
 
 let { data } = $props();
 </script>
 
-<CMSAdmin config={data.cms} />
+<CmsAdmin config={data.cms} />
 `;
 
 const DRIZZLE_CONFIG_TEMPLATE = `import 'dotenv/config';

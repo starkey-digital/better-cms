@@ -1,13 +1,13 @@
 <script lang="ts">
-import type { CMSOp, CollectionDef } from '@better-cms/core';
-import type { ClientCMSConfig } from '@better-cms/core';
+import type { CmsOp, CollectionDef } from '@better-cms/core';
+import type { ClientCmsConfig } from '@better-cms/core';
 import { onMount } from 'svelte';
 import FieldEditor from './FieldEditor.svelte';
 import LoginScreen from './LoginScreen.svelte';
 import { type AdminApi, httpApi } from './api.js';
 
 type Props = {
-	config: ClientCMSConfig;
+	config: ClientCmsConfig;
 	api?: AdminApi;
 	auth?: boolean;
 	turnstileSiteKey?: string;
@@ -102,7 +102,7 @@ async function save() {
 		if (selectedDef.kind === 'singleton') {
 			await api.saveSingleton(effectiveName, editing);
 		} else {
-			const op: CMSOp =
+			const op: CmsOp =
 				typeof editing.id === 'string'
 					? { op: 'set', collection: effectiveName, id: editing.id, data: editing }
 					: { op: 'create', collection: effectiveName, data: editing };

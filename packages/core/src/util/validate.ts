@@ -12,7 +12,7 @@ function patternRe(p: string): RegExp {
 }
 
 /**
- * Validate a row against a collection's IR. Throws CMSError on first failure.
+ * Validate a row against a collection's IR. Throws CmsError on first failure.
  * `partial` skips required-field checks (for update operations).
  */
 export function validateRow(

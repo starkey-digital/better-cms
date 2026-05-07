@@ -1,10 +1,10 @@
-import type { CMSConfig, CMSContext } from '../config.js';
-import { getCMSTables } from '../ir/tables.js';
+import type { CmsConfig, CmsContext } from '../config.js';
+import { getCmsTables } from '../ir/tables.js';
 import { applyOps } from '../ops/apply.js';
 import { opToEventType } from '../ops/types.js';
-import type { CMSOp } from '../ops/types.js';
+import type { CmsOp } from '../ops/types.js';
 import type { PluginEndpoint } from '../plugin/types.js';
-import { CMSError, errors } from '../util/result.js';
+import { CmsError, errors } from '../util/result.js';
 import { type LiveTransport, inMemoryTransport, sseResponse } from './live.js';
 
 const LIST_RE = /^\/collections\/([^/]+)$/;
@@ -13,14 +13,14 @@ const SINGLETON_RE = /^\/singletons\/([^/]+)$/;
 type RouteKey = `${string} ${string}`;
 export const SINGLETON_ID = 'default';
 
-export interface CMSInstance {
-	context: CMSContext;
+export interface CmsInstance {
+	context: CmsContext;
 	handler: (request: Request) => Promise<Response>;
 	live: LiveTransport;
 	close(): Promise<void>;
 }
 
-export interface CreateCMSOpts {
+export interface CreateCmsOpts {
 	live?: LiveTransport;
 }
 
@@ -30,10 +30,10 @@ export interface CreateCMSOpts {
  *  - handler (Request→Response) for the HTTP boundary
  *  - live transport for SSE broadcasts
  */
-export async function createCMS(config: CMSConfig, opts: CreateCMSOpts = {}): Promise<CMSInstance> {
-	const schema = getCMSTables(config);
+export async function createCMS(config: CmsConfig, opts: CreateCmsOpts = {}): Promise<CmsInstance> {
+	const schema = getCmsTables(config);
 	const live = opts.live ?? inMemoryTransport();
-	const context: CMSContext = {
+	const context: CmsContext = {
 		config,
 		schema,
 		store: config.adapter,
@@ -67,7 +67,7 @@ export async function createCMS(config: CMSConfig, opts: CreateCMSOpts = {}): Pr
 
 			if (sub === '/ops' && request.method === 'POST') {
 				if (!user) throw errors.unauthorized();
-				const body = (await request.json()) as { ops: CMSOp[] };
+				const body = (await request.json()) as { ops: CmsOp[] };
 				const results = await applyOps(body.ops ?? [], { store: context.store, schema });
 				for (const r of results) {
 					if (!r.ok) continue;
@@ -120,7 +120,7 @@ export async function createCMS(config: CMSConfig, opts: CreateCMSOpts = {}): Pr
 					if (!def || def.kind !== 'singleton') throw errors.notFound(`singleton "${name}"`);
 					const body = (await request.json()) as Record<string, unknown>;
 					const existing = await context.store.findOne(name, { id: SINGLETON_ID });
-					const op: CMSOp = existing
+					const op: CmsOp = existing
 						? { op: 'set', collection: name, id: SINGLETON_ID, data: body }
 						: { op: 'create', collection: name, data: { ...body, id: SINGLETON_ID } };
 					const [res] = await applyOps([op], { store: context.store, schema });
@@ -140,7 +140,7 @@ export async function createCMS(config: CMSConfig, opts: CreateCMSOpts = {}): Pr
 
 			return new Response('Not found', { status: 404 });
 		} catch (e) {
-			if (e instanceof CMSError) {
+			if (e instanceof CmsError) {
 				return Response.json(
 					{ error: { code: e.code, message: e.message, details: e.details } },
 					{ status: e.status },

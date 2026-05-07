@@ -1,4 +1,4 @@
-import type { CMSConfig, CollectionsRecord, CreateCMSOpts } from '@better-cms/core';
+import type { CmsConfig, CollectionsRecord, CreateCmsOpts } from '@better-cms/core';
 import type { Handle } from '@sveltejs/kit';
 import { cms } from './server.js';
 
@@ -14,8 +14,8 @@ import { cms } from './server.js';
  *   export const handle = cmsHandle(config, { env });
  */
 export function cmsHandle<C extends CollectionsRecord>(
-	config: CMSConfig<C>,
-	opts?: CreateCMSOpts,
+	config: CmsConfig<C>,
+	opts?: CreateCmsOpts,
 ): Handle {
 	const basePath = (config.basePath ?? '/api/cms').replace(/\/$/, '');
 	const handle: Handle = async ({ event, resolve }) => {

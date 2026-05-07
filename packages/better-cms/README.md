@@ -72,10 +72,10 @@ export const handle = cmsHandle(config);
 ```svelte
 <!-- src/routes/cms/+page.svelte -->
 <script>
-  import { CMSAdmin } from 'better-cms/admin';
+  import { CmsAdmin } from 'better-cms/admin';
   import config from '$lib/cms.config';
 </script>
-<CMSAdmin {config} />
+<CmsAdmin {config} />
 ```
 
 ## Generate drizzle schema
@@ -95,7 +95,7 @@ bunx drizzle-kit push
 | `better-cms/media/s3` | S3-compatible `MediaStore` (R2/Wasabi/B2/MinIO/AWS). |
 | `better-cms/sveltekit` | `cmsHandle` hook + `cms()` lazy singleton + typed `serverApi`. |
 | `better-cms/sveltekit/remote` | Remote-function helpers (`listCollection`, `runOps`, `uploadMedia`, ...). |
-| `better-cms/admin` | `<CMSAdmin>` and `<FieldEditor>` Svelte 5 components. |
+| `better-cms/admin` | `<CmsAdmin>` and `<FieldEditor>` Svelte 5 components. |
 | `better-cms/types` | Re-export of every public type. |
 
 ## CLI

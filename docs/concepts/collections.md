@@ -36,6 +36,6 @@ const homepage = collection({
 
 - `serverApi(config)` — runtime read/write
 - Remote helpers (`listCollection`, `runOps`)
-- `<CMSAdmin>` — fields and previews
+- `<CmsAdmin>` — fields and previews
 
 You don't generate or hand-write types for individual collections.

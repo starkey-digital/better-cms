@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { getCMSTables } from '@better-cms/core';
+import { getCmsTables } from '@better-cms/core';
 import { generateDrizzleSchema, generateTypes } from './generate-drizzle.js';
 import { loadConfig } from './load-config.js';
 
@@ -14,7 +14,7 @@ export interface GenerateOpts {
 export async function generate(opts: GenerateOpts = {}): Promise<{ path: string }> {
 	const cwd = opts.cwd ?? process.cwd();
 	const { config } = await loadConfig(cwd, opts.configPath);
-	const schema = getCMSTables(config);
+	const schema = getCmsTables(config);
 
 	const target = opts.target ?? 'drizzle';
 	const defaultOut = target === 'drizzle' ? 'src/lib/cms-schema.ts' : 'src/lib/cms-types.ts';

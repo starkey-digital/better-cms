@@ -1,26 +1,26 @@
 import type {
-	CMSConfig,
-	CMSContext,
-	CMSInstance,
+	CmsConfig,
+	CmsContext,
+	CmsInstance,
 	CollectionsRecord,
-	CreateCMSOpts,
+	CreateCmsOpts,
 	InferRows,
 	SchemaIR,
 } from '@better-cms/core';
 import { createCMS } from '@better-cms/core';
 
-let _instance: Promise<CMSInstance> | null = null;
+let _instance: Promise<CmsInstance> | null = null;
 
 /** Lazy singleton — first call boots the CMS, every subsequent call reuses it. */
 export function cms<C extends CollectionsRecord>(
-	config: CMSConfig<C>,
-	opts?: CreateCMSOpts,
-): Promise<CMSInstance> {
+	config: CmsConfig<C>,
+	opts?: CreateCmsOpts,
+): Promise<CmsInstance> {
 	if (!_instance) _instance = createCMS(config, opts);
 	return _instance;
 }
 
-export function _resetCMS(): void {
+export function _resetCms(): void {
 	_instance = null;
 }
 
@@ -42,7 +42,7 @@ export interface ServerApi<C extends CollectionsRecord> {
 
 const SINGLETON_ID = 'default';
 
-export function serverApi<C extends CollectionsRecord>(ctx: CMSContext<C>): ServerApi<C> {
+export function serverApi<C extends CollectionsRecord>(ctx: CmsContext<C>): ServerApi<C> {
 	return {
 		find: (c, id) => ctx.store.findOne(c as string, { id }) as Promise<never>,
 		list: (c, o = {}) => ctx.store.findMany(c as string, o) as Promise<never>,

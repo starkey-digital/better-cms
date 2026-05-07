@@ -14,7 +14,7 @@ Scaffold a new `better-cms` setup in an existing SvelteKit project.
 
 ### `bcms generate`
 
-Read your `cmsConfig`, derive tables via `getCMSTables`, emit migration SQL and generated types.
+Read your `cmsConfig`, derive tables via `getCmsTables`, emit migration SQL and generated types.
 
 ### `bcms mcp`
 

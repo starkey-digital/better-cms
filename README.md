@@ -44,7 +44,7 @@ See [`packages/better-cms/README.md`](./packages/better-cms/README.md) for the f
 | `packages/adapter-drizzle` | `@better-cms/adapter-drizzle` | Drizzle ContentStore. |
 | `packages/media-s3` | `@better-cms/media-s3` | S3-compatible MediaStore. |
 | `packages/sveltekit` | `@better-cms/sveltekit` | SvelteKit handle + remote-function helpers. |
-| `packages/admin` | `@better-cms/admin` | `<CMSAdmin>` Svelte 5 admin component. |
+| `packages/admin` | `@better-cms/admin` | `<CmsAdmin>` Svelte 5 admin component. |
 | `packages/cli` | `@better-cms/cli` | `bcms` CLI — init / generate / mcp. |
 | `plugins/claude-code` | (Claude Code plugin) | Skills + MCP server registration. |
 
