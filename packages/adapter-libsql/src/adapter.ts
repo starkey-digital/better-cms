@@ -116,7 +116,7 @@ export function libsqlAdapter(opts: LibsqlAdapterOpts): ContentStore {
 				sql: `SELECT COUNT(*) as c FROM ${quoteIdent(tn)}${w.sql}`,
 				args: w.args as InValue[],
 			});
-			return Number((res.rows[0] as { c: number } | undefined)?.c ?? 0);
+			return Number((res.rows[0] as unknown as { c: number } | undefined)?.c ?? 0);
 		},
 
 		async close() {

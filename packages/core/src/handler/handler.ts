@@ -49,7 +49,7 @@ export async function createCMS(config: CMSConfig, opts: CreateCMSOpts = {}): Pr
 		}
 	}
 
-	const basePath = (config.basePath ?? '/cms').replace(/\/$/, '');
+	const basePath = (config.basePath ?? '/api/cms').replace(/\/$/, '');
 
 	async function handler(request: Request): Promise<Response> {
 		const url = new URL(request.url);

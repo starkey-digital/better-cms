@@ -14,7 +14,7 @@ export function cmsHandle<C extends CollectionsRecord>(
 	config: CMSConfig<C>,
 	opts?: CreateCMSOpts,
 ): Handle {
-	const basePath = (config.basePath ?? '/cms').replace(/\/$/, '');
+	const basePath = (config.basePath ?? '/api/cms').replace(/\/$/, '');
 	const handle: Handle = async ({ event, resolve }) => {
 		const url = new URL(event.request.url);
 		if (url.pathname === basePath || url.pathname.startsWith(`${basePath}/`)) {

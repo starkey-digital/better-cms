@@ -10,7 +10,7 @@
 		api?: AdminApi;
 	};
 
-	const { config, api = httpApi(config.basePath ?? '/cms') }: Props = $props();
+	const { config, api = httpApi(config.basePath ?? '/api/cms') }: Props = $props();
 
 	const entries = $derived(Object.entries(config.collections));
 	const firstName = $derived(entries[0]?.[0] ?? null);

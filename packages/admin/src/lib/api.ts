@@ -9,7 +9,7 @@ export interface AdminApi {
 	uploadMedia(file: File, folder?: string): Promise<{ key: string; url: string }>;
 }
 
-export function httpApi(basePath = '/cms', uploadPath = '/cms/media'): AdminApi {
+export function httpApi(basePath = '/api/cms', uploadPath = '/api/cms/media'): AdminApi {
 	const base = basePath.replace(/\/$/, '');
 	const headers = { 'Content-Type': 'application/json' };
 	return {
