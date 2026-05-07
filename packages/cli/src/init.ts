@@ -7,9 +7,12 @@ import { defineCMS, collection, text, slug, richText, image, boolean } from 'bet
 import { libsqlAdapter } from 'better-cms/adapters/libsql';
 import { s3Media } from 'better-cms/media/s3';
 
-// SERVER-ONLY MODULE. Lives under src/lib/server/ — SvelteKit refuses to
-// import this from client code, so it's safe to read process.env and to
-// instantiate the adapter eagerly.
+function required(name: string): string {
+	const v = process.env[name];
+	if (!v) throw new Error(\`\${name} is required (set it in .env)\`);
+	return v;
+}
+
 export default defineCMS({
 	collections: {
 		posts: collection({
@@ -24,11 +27,11 @@ export default defineCMS({
 		}),
 	},
 	adapter: libsqlAdapter({
-		url: process.env.DATABASE_URL!,
+		url: required('DATABASE_URL'),
 		authToken: process.env.DATABASE_AUTH_TOKEN,
 	}),
 	media: s3Media({
-		bucket: process.env.S3_BUCKET!,
+		bucket: required('S3_BUCKET'),
 		region: process.env.S3_REGION,
 		endpoint: process.env.S3_ENDPOINT,
 		accessKeyId: process.env.S3_ACCESS_KEY_ID,

@@ -45,7 +45,7 @@ describe('init', () => {
 		const cfg = readFileSync(join(dir, 'src/lib/server/cms.ts'), 'utf8');
 		expect(cfg).toMatch(/adapter:\s*libsqlAdapter\(/);
 		expect(cfg).not.toMatch(/adapter:\s*\(\{\s*env\s*\}\)/);
-		expect(cfg).toContain('process.env.DATABASE_URL');
+		expect(cfg).toContain(`required('DATABASE_URL')`);
 		expect(cfg).toContain(`import 'dotenv/config'`);
 	});
 

@@ -29,16 +29,9 @@ export interface PasswordAuthRateLimit {
 }
 
 export interface PasswordAuthOpts {
-	/**
-	 * Plain-text admin password. Hashed once at boot. Most users want this.
-	 * Mutually exclusive with `passwordHash` — pass exactly one.
-	 */
+	/** Plain-text admin password. Hashed once at boot. Mutually exclusive with `passwordHash`. */
 	password?: string;
-	/**
-	 * Pre-hashed admin password (`bcms hash-password <pw>`). Use when you don't
-	 * want the plain credential to ever appear in the process or its env dumps.
-	 * Mutually exclusive with `password` — pass exactly one.
-	 */
+	/** Pre-hashed admin password (`bcms hash-password <pw>`) for users who don't want the plain credential to appear in env dumps. Mutually exclusive with `password`. */
 	passwordHash?: string;
 	secret: string;
 	cookieName?: string;
@@ -62,8 +55,11 @@ const DEFAULT_COOKIE = 'bcms_session';
 const DEFAULT_TTL = '24h';
 
 export function passwordAuth(opts: PasswordAuthOpts): PasswordAuthResult {
-	if (!opts.password === !opts.passwordHash) {
-		throw new Error('passwordAuth: pass exactly one of `password` or `passwordHash`');
+	if (!opts.password && !opts.passwordHash) {
+		throw new Error('passwordAuth: `password` or `passwordHash` required');
+	}
+	if (opts.password && opts.passwordHash) {
+		throw new Error('passwordAuth: pass either `password` or `passwordHash`, not both');
 	}
 	if (!opts.secret || opts.secret.length < 16)
 		throw new Error('passwordAuth: secret required (>=16 chars)');
@@ -102,25 +98,19 @@ export function passwordAuth(opts: PasswordAuthOpts): PasswordAuthResult {
 					const ip = clientIp(request);
 					const ipKey = `login:ip:${ip}`;
 					const globalKey = 'login:global';
+					const fail = (count: number, reason: string) =>
+						opts.onFailedAttempt?.({ ip, count, reason });
 
 					const [ipHit, globalHit] = await Promise.all([
 						store.incr(ipKey, perIpWindow),
 						store.incr(globalKey, globalWindow),
 					]);
 					if (ipHit.count > perIp.max) {
-						opts.onFailedAttempt?.({
-							ip,
-							count: ipHit.count,
-							reason: 'per-ip',
-						});
+						fail(ipHit.count, 'per-ip');
 						return rateLimited(ipHit.resetAt - Date.now() + lockoutMs);
 					}
 					if (globalHit.count > global.max) {
-						opts.onFailedAttempt?.({
-							ip,
-							count: globalHit.count,
-							reason: 'global',
-						});
+						fail(globalHit.count, 'global');
 						return rateLimited(globalHit.resetAt - Date.now());
 					}
 
@@ -134,11 +124,7 @@ export function passwordAuth(opts: PasswordAuthOpts): PasswordAuthResult {
 					if (opts.turnstile && ipHit.count > turnstileAfter) {
 						const tt = await verifyTurnstile(body.turnstileToken, opts.turnstile, ip);
 						if (!tt.success) {
-							opts.onFailedAttempt?.({
-								ip,
-								count: ipHit.count,
-								reason: 'turnstile',
-							});
+							fail(ipHit.count, 'turnstile');
 							return Response.json(
 								{
 									error: {
@@ -151,16 +137,16 @@ export function passwordAuth(opts: PasswordAuthOpts): PasswordAuthResult {
 						}
 					}
 
-					const backoffMs = Math.min(2 ** Math.max(0, ipHit.count - 1) * 250, 8000);
-					if (backoffMs > 0) await sleep(backoffMs);
+					// Exponential backoff applies from the second attempt onward — first
+					// login of a window has no prior failure and shouldn't be slowed.
+					if (ipHit.count > 1) {
+						const backoffMs = Math.min(2 ** (ipHit.count - 2) * 250, 8000);
+						await sleep(backoffMs);
+					}
 
 					const expectedHash = await hashPromise;
 					if (!body.password || !(await verifyPassword(body.password, expectedHash))) {
-						opts.onFailedAttempt?.({
-							ip,
-							count: ipHit.count,
-							reason: 'bad-password',
-						});
+						fail(ipHit.count, 'bad-password');
 						return Response.json(
 							{
 								error: {

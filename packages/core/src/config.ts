@@ -26,9 +26,7 @@ export interface CMSContext<C extends CollectionsRecord = CollectionsRecord> {
 export type InferConfig<Cfg> = Cfg extends CMSConfig<infer C> ? InferRows<SchemaIR<C>> : never;
 
 /**
- * Subset of {@link CMSConfig} that is safe to ship to the browser. Use from a
- * `+page.server.ts` load function:
- *
+ *   // src/routes/cms/+page.server.ts
  *   import cms from '$lib/server/cms';
  *   import { clientCMSConfig } from 'better-cms/sveltekit';
  *   export const load = () => ({ cms: clientCMSConfig(cms) });

@@ -1,10 +1,10 @@
 <script lang="ts">
 import type { CMSOp, CollectionDef } from '@better-cms/core';
+import type { ClientCMSConfig } from '@better-cms/core';
 import { onMount } from 'svelte';
 import FieldEditor from './FieldEditor.svelte';
 import LoginScreen from './LoginScreen.svelte';
 import { type AdminApi, httpApi } from './api.js';
-import type { ClientCMSConfig } from './types.js';
 
 type Props = {
 	config: ClientCMSConfig;
