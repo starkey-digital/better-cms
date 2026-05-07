@@ -1,6 +1,6 @@
 {
   "name": "better-cms",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Author and edit better-cms content from Claude Code. Bundles an MCP server bound to your cms.config plus skills for setup, schema editing, content authoring, and CLI workflows.",
   "author": "Starkey Digital Ltd",
   "homepage": "https://github.com/starkey-digital/better-cms",

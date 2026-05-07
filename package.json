@@ -17,7 +17,7 @@
     "lint": "biome lint .",
     "version": "changeset version && bun run sync:plugin",
     "sync:plugin": "bun scripts/sync-plugin-version.ts",
-    "release": "bun run --filter better-cms build && changeset publish"
+    "release": "bun run --filter better-cms build && bun scripts/publish-all.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
