@@ -14,6 +14,9 @@ packages/
 ├── sveltekit/         # PUBLISHED as `@better-cms/sveltekit`
 ├── admin/             # PUBLISHED as `@better-cms/admin`
 └── cli/               # PUBLISHED as `@better-cms/cli` — bin: bcms
+apps/
+└── docs/              # PRIVATE — SvelteKit static docs site, deployed to GitHub Pages on `v*` tag push
+docs/                  # Public docs source (markdown), read by `apps/docs/` at build via `import.meta.glob`
 plugins/claude-code/   # Claude Code plugin (skills + MCP server registration)
 ```
 
@@ -77,6 +80,12 @@ import type { Post }      from 'better-cms/types';
 - Adapters never re-implement core utilities (`slugify`, `generateId`, `validateRow`, `serializeRow`, `applyOps`, `opToEventType`).
 - `as never` casts banned — use real upstream types (e.g. `InValue` from `@libsql/client`).
 - Per-project plugin config: `.claude/better-cms.local.md` (gitignored). Template in `plugins/claude-code/SETTINGS.md`.
+
+## Documentation
+
+- Live at <https://starkey-digital.github.io/better-cms/>. Source markdown lives in `docs/` at repo root; site code in `apps/docs/` (SvelteKit + adapter-static + Tailwind v4 + Shiki).
+- Deploys via `.github/workflows/docs.yml` on every `v*` tag push and manual dispatch.
+- **When changing public API in `packages/*`, update the matching `.md` in `docs/` in the same PR.** Sync is manual — no CI guard.
 
 ## Releasing
 
