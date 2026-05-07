@@ -53,4 +53,4 @@ If the user is on a non-SvelteKit framework (React/Next/Astro), tell them the Sv
 
 - Don't run `drizzle-kit push` automatically — it touches the database.
 - Don't write secrets into `.env` for the user. Show what to put there; let them paste their own credentials.
-- Don't unwrap the adapter thunks in `cms.config.ts` (`adapter: libsqlAdapter(...)` instead of `adapter: () => libsqlAdapter(...)`). Eager init breaks client bundling because `process.env` reads run in the browser.
+- Don't read `process.env` (or any other server-only API) at module scope inside `cms.config.ts`. The adapter and media fields must be factories of the form `({ env }) => libsqlAdapter({...})`. The handler passes env in via `cmsHandle(config, { env })`. Anything else breaks client bundling because the config is imported by `<CMSAdmin {config}>`.

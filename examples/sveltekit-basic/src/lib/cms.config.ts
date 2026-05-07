@@ -20,10 +20,10 @@ export default defineCMS({
 			},
 		}),
 	},
-	adapter: () =>
+	adapter: ({ env }) =>
 		libsqlAdapter({
-			url: process.env.DATABASE_URL ?? 'file:./local.db',
-			authToken: process.env.DATABASE_AUTH_TOKEN,
+			url: env.DATABASE_URL ?? 'file:./local.db',
+			authToken: env.DATABASE_AUTH_TOKEN,
 		}),
 	auth: {
 		getUser: async () => ({ id: 'dev', email: 'dev@example.com', role: 'admin' }),

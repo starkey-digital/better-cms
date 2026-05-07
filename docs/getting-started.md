@@ -9,9 +9,9 @@ bunx -p @better-cms/cli bcms init
 ```
 
 Writes `src/lib/cms.config.ts`, `src/hooks.server.ts`, `.env.example`,
-`drizzle.config.ts`, then installs `better-cms`, `dotenv`, `drizzle-kit`,
-`@libsql/client`. Pass `--skip-install` to print the install commands instead
-of running them.
+`drizzle.config.ts`, then installs `better-cms` (runtime) and `drizzle-kit`,
+`@libsql/client`, `dotenv` (dev). Pass `--skip-install` to print the install
+commands instead of running them.
 
 ## 2. Define your CMS
 
@@ -32,33 +32,33 @@ export default defineCMS({
 			},
 		}),
 	},
-	adapter: () =>
+	adapter: ({ env }) =>
 		libsqlAdapter({
-			url: process.env.DATABASE_URL!,
-			authToken: process.env.DATABASE_AUTH_TOKEN,
+			url: env.DATABASE_URL!,
+			authToken: env.DATABASE_AUTH_TOKEN,
 		}),
 });
 ```
 
-`adapter` is a thunk — it evaluates only on the server when the runtime boots,
-so this module is safe to import from client code (e.g. `<CMSAdmin {config}>`).
+`adapter` is a factory — it runs only on the server when the runtime boots,
+and receives `{ env }` from the handler. The config module is safe to import
+from client code (e.g. `<CMSAdmin {config}>`) because it never touches
+`process.env` or any other server-only API at module scope.
 
 ## 3. Mount the handler
 
-`bcms init` writes this for you:
-
 ```ts
 // src/hooks.server.ts
-import 'dotenv/config';
+import { env } from '$env/dynamic/private';
 import { cmsHandle } from 'better-cms/sveltekit';
 import config from '$lib/cms.config';
 
-export const handle = cmsHandle(config);
+export const handle = cmsHandle(config, { env });
 ```
 
-`import 'dotenv/config'` populates `process.env` for the adapter thunk during
-local dev — Vite doesn't auto-populate `process.env` from `.env`. Production
-runtimes typically inject env directly, but the dotenv import is harmless.
+`$env/dynamic/private` is SvelteKit's server-only env namespace. It's wired
+through to your adapter factory, so secrets stay out of the client bundle and
+you don't need `dotenv` in the runtime path.
 
 The default base path is `/api/cms`. Override with `config.basePath` if you need a different mount point.
 
@@ -81,6 +81,10 @@ Mount at `/cms` (or anywhere — the admin route is yours). The admin talks to t
 bunx -p @better-cms/cli bcms generate   # emits src/lib/cms-schema.ts
 bunx drizzle-kit push                    # uses ./drizzle.config.ts
 ```
+
+`drizzle.config.ts` is wired with `import 'dotenv/config'` because
+`drizzle-kit` runs as its own CLI and needs `.env` loaded explicitly — that's
+separate from the runtime path above.
 
 ## Next
 

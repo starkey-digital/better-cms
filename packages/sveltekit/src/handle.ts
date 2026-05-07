@@ -3,12 +3,15 @@ import type { Handle } from '@sveltejs/kit';
 import { cms } from './server.js';
 
 /**
- * SvelteKit hook — delegates requests under `config.basePath` (default `/cms`) to the CMS handler.
+ * SvelteKit hook — delegates requests under `config.basePath` (default
+ * `/api/cms`) to the CMS handler. Pass `{ env }` from `$env/dynamic/private`
+ * so adapter factories never have to read `process.env`.
  *
  *   // src/hooks.server.ts
+ *   import { env } from '$env/dynamic/private';
  *   import { cmsHandle } from '@better-cms/sveltekit';
  *   import config from '$lib/cms.config';
- *   export const handle = cmsHandle(config);
+ *   export const handle = cmsHandle(config, { env });
  */
 export function cmsHandle<C extends CollectionsRecord>(
 	config: CMSConfig<C>,

@@ -19,19 +19,19 @@ export default defineCMS({
 			},
 		}),
 	},
-	adapter: () =>
+	adapter: ({ env }) =>
 		libsqlAdapter({
-			url: process.env.DATABASE_URL!,
-			authToken: process.env.DATABASE_AUTH_TOKEN,
+			url: env.DATABASE_URL!,
+			authToken: env.DATABASE_AUTH_TOKEN,
 		}),
-	media: () =>
+	media: ({ env }) =>
 		s3Media({
-			bucket: process.env.S3_BUCKET!,
-			region: process.env.S3_REGION,
-			endpoint: process.env.S3_ENDPOINT,
-			accessKeyId: process.env.S3_ACCESS_KEY_ID,
-			secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
-			publicBaseUrl: process.env.S3_PUBLIC_URL,
+			bucket: env.S3_BUCKET!,
+			region: env.S3_REGION,
+			endpoint: env.S3_ENDPOINT,
+			accessKeyId: env.S3_ACCESS_KEY_ID,
+			secretAccessKey: env.S3_SECRET_ACCESS_KEY,
+			publicBaseUrl: env.S3_PUBLIC_URL,
 		}),
 	auth: {
 		getUser: async (_request) => ({ id: 'dev', email: 'dev@example.com', role: 'admin' }),
@@ -50,11 +50,11 @@ S3_SECRET_ACCESS_KEY=
 S3_PUBLIC_URL=
 `;
 
-const HOOKS_TEMPLATE = `import 'dotenv/config';
+const HOOKS_TEMPLATE = `import { env } from '$env/dynamic/private';
 import { cmsHandle } from 'better-cms/sveltekit';
 import config from '$lib/cms.config';
 
-export const handle = cmsHandle(config);
+export const handle = cmsHandle(config, { env });
 `;
 
 const DRIZZLE_CONFIG_TEMPLATE = `import 'dotenv/config';
@@ -95,23 +95,27 @@ const PM_TABLE: { lockfile: string; pm: PackageManager }[] = [
 		lockfile: 'yarn.lock',
 		pm: { name: 'yarn', add: ['yarn', 'add'], addDev: ['yarn', 'add', '-D'] },
 	},
+	{
+		lockfile: 'package-lock.json',
+		pm: { name: 'npm', add: ['npm', 'install'], addDev: ['npm', 'install', '-D'] },
+	},
 ];
 
-const NPM_FALLBACK: PackageManager = {
-	name: 'npm',
-	add: ['npm', 'install'],
-	addDev: ['npm', 'install', '-D'],
-};
-
-function detectPackageManager(cwd: string): PackageManager {
+/**
+ * Returns the project's package manager based on its lockfile, or `null` if no
+ * lockfile is present. We refuse to guess when no lockfile exists — silently
+ * defaulting to npm in (e.g.) a bun project that hasn't been installed yet
+ * would create a stray package-lock.json and split the dependency graph.
+ */
+function detectPackageManager(cwd: string): PackageManager | null {
 	for (const { lockfile, pm } of PM_TABLE) {
 		if (existsSync(resolve(cwd, lockfile))) return pm;
 	}
-	return NPM_FALLBACK;
+	return null;
 }
 
-const RUNTIME_DEPS = ['better-cms', 'dotenv'];
-const DEV_DEPS = ['drizzle-kit', '@libsql/client'];
+const RUNTIME_DEPS = ['better-cms'];
+const DEV_DEPS = ['drizzle-kit', '@libsql/client', 'dotenv'];
 
 function readInstalled(cwd: string): Set<string> {
 	const pkgJsonPath = resolve(cwd, 'package.json');
@@ -145,6 +149,13 @@ export async function init(
 	const written: string[] = [];
 	const skipped: string[] = [];
 
+	const pkgJsonPath = resolve(cwd, 'package.json');
+	if (!existsSync(pkgJsonPath)) {
+		throw new Error(
+			`[better-cms] no package.json in ${cwd}. Run \`npm init\` (or your package manager's equivalent) and re-run \`bcms init\`.`,
+		);
+	}
+
 	const files: { path: string; content: string }[] = [
 		{ path: resolve(cwd, 'src/lib/cms.config.ts'), content: CONFIG_TEMPLATE },
 		{ path: resolve(cwd, '.env.example'), content: ENV_TEMPLATE },
@@ -174,6 +185,16 @@ export async function init(
 
 	const pm = detectPackageManager(cwd);
 
+	if (!pm) {
+		console.log(
+			`[better-cms] no lockfile detected — install manually:
+  npm install ${missingRuntime.join(' ')}
+  npm install -D ${missingDev.join(' ')}
+(or use bun/pnpm/yarn equivalents). Re-run \`bcms init\` to confirm files are written.`,
+		);
+		return { written, installed, skipped };
+	}
+
 	if (opts.skipInstall) {
 		if (missingRuntime.length) {
 			console.log(`[better-cms] run: ${pm.add.join(' ')} ${missingRuntime.join(' ')}`);
@@ -181,10 +202,11 @@ export async function init(
 		if (missingDev.length) {
 			console.log(`[better-cms] run: ${pm.addDev.join(' ')} ${missingDev.join(' ')}`);
 		}
-	} else {
-		if (runInstall(cwd, pm, missingRuntime, false)) installed.push(...missingRuntime);
-		if (runInstall(cwd, pm, missingDev, true)) installed.push(...missingDev);
+		return { written, installed, skipped };
 	}
+
+	if (runInstall(cwd, pm, missingRuntime, false)) installed.push(...missingRuntime);
+	if (runInstall(cwd, pm, missingDev, true)) installed.push(...missingDev);
 
 	return { written, installed, skipped };
 }

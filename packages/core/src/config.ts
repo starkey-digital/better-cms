@@ -6,16 +6,26 @@ import type { MediaStore } from './store/media.js';
 
 export type CollectionsRecord = Record<string, CollectionDef<any, any>>;
 
-export type LazyAdapter<T> = T | (() => T | Promise<T>);
-
-export async function resolveLazy<T>(value: LazyAdapter<T>): Promise<T> {
-	return typeof value === 'function' ? await (value as () => T | Promise<T>)() : value;
+/**
+ * Runtime context passed into every adapter/media factory. `env` is the
+ * environment the CMS was booted with — populated by `cmsHandle`/`createCMS`
+ * from `$env/dynamic/private` (SvelteKit) or `process.env` (Node) so that
+ * adapter factories never have to read `process.env` themselves.
+ *
+ * Reading `process.env` at config module scope breaks client bundling: the
+ * config module is imported by `<CMSAdmin {config}>`. Forcing the factory
+ * form (and supplying env via context) keeps the module evaluation pure.
+ */
+export interface AdapterContext {
+	env: Record<string, string | undefined>;
 }
+
+export type AdapterFactory<T> = (ctx: AdapterContext) => T | Promise<T>;
 
 export interface CMSConfig<C extends CollectionsRecord = CollectionsRecord> {
 	collections: C;
-	adapter: LazyAdapter<ContentStore>;
-	media?: LazyAdapter<MediaStore>;
+	adapter: AdapterFactory<ContentStore>;
+	media?: AdapterFactory<MediaStore>;
 	auth?: { getUser: GetUserFn };
 	plugins?: CMSPlugin[];
 	basePath?: string;

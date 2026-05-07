@@ -6,17 +6,17 @@ Mount the handler, render the admin, read content from server load functions or 
 
 ```ts
 // src/hooks.server.ts
-import 'dotenv/config';
+import { env } from '$env/dynamic/private';
 import { cmsHandle } from 'better-cms/sveltekit';
 import config from '$lib/cms.config';
 
-export const handle = cmsHandle(config);
+export const handle = cmsHandle(config, { env });
 ```
 
-`import 'dotenv/config'` populates `process.env` so the adapter thunks in
-`cms.config.ts` see `DATABASE_URL` during local dev. SvelteKit's
-`$env/dynamic/private` works inside request handlers but not in modules
-imported outside the request scope.
+`cmsHandle` forwards `env` into every adapter/media factory via the
+`AdapterContext` argument. Use `$env/dynamic/private` so `cms.config.ts`
+never imports a server-only namespace and stays safe to load from client
+components (e.g. `<CMSAdmin {config}>`).
 
 Default mount point: `/api/cms`. Override with `cmsConfig.basePath` if needed. Leaves `/cms` free for the admin page.
 

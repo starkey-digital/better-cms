@@ -1,5 +1,4 @@
-import { resolveLazy } from '../config.js';
-import type { CMSConfig, CMSContext } from '../config.js';
+import type { AdapterContext, CMSConfig, CMSContext } from '../config.js';
 import { getCMSTables } from '../ir/tables.js';
 import { applyOps } from '../ops/apply.js';
 import { opToEventType } from '../ops/types.js';
@@ -23,6 +22,12 @@ export interface CMSInstance {
 
 export interface CreateCMSOpts {
 	live?: LiveTransport;
+	/**
+	 * Environment passed to every adapter/media factory via {@link AdapterContext}.
+	 * Defaults to `process.env`. SvelteKit consumers should pass `$env/dynamic/private`
+	 * so that secrets stay out of the client bundle.
+	 */
+	env?: Record<string, string | undefined>;
 }
 
 /**
@@ -34,8 +39,9 @@ export interface CreateCMSOpts {
 export async function createCMS(config: CMSConfig, opts: CreateCMSOpts = {}): Promise<CMSInstance> {
 	const schema = getCMSTables(config);
 	const live = opts.live ?? inMemoryTransport();
-	const adapter = await resolveLazy(config.adapter);
-	const media = config.media ? await resolveLazy(config.media) : undefined;
+	const adapterCtx: AdapterContext = { env: opts.env ?? process.env };
+	const adapter = await config.adapter(adapterCtx);
+	const media = config.media ? await config.media(adapterCtx) : undefined;
 	const context: CMSContext = {
 		config,
 		schema,
