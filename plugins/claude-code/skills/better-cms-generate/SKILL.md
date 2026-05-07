@@ -1,11 +1,11 @@
 ---
 name: better-cms-generate
-description: Use whenever the user has edited cms.config.ts (added a collection, field, singleton, renamed something, changed validation) and needs the drizzle schema or TypeScript types regenerated. Also triggers on "regenerate cms", "rebuild schema", "update drizzle", "the schema is out of sync", "after changing cms.config".
+description: Use whenever the user has edited src/lib/server/cms.ts (added a collection, field, singleton, renamed something, changed validation) and needs the drizzle schema or TypeScript types regenerated. Also triggers on "regenerate cms", "rebuild schema", "update drizzle", "the schema is out of sync", "after changing cms".
 ---
 
 # better-cms generate
 
-Regenerate output files from the user's `cms.config.ts`. Two targets:
+Regenerate output files from the user's `cms.ts`. Two targets:
 
 | Target | Output | When |
 |---|---|---|
@@ -43,4 +43,4 @@ If the user renamed a field or collection, `drizzle-kit push` will offer to drop
 
 ## When to skip
 
-If `cms.config.ts` hasn't changed since the last generate, regeneration is a no-op (file rewritten with identical content). Safe to run anyway — fast.
+If `cms.ts` hasn't changed since the last generate, regeneration is a no-op (file rewritten with identical content). Safe to run anyway — fast.

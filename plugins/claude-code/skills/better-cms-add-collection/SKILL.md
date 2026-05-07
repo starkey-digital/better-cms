@@ -1,19 +1,22 @@
 ---
 name: better-cms-add-collection
-description: Use when the user wants to add a new collection or singleton to better-cms — phrases like "add a posts collection", "create a team page", "I need a testimonials section", "make a singleton for site settings", "new content type for X". Edit cms.config.ts and run generate. Triggers proactively when the user describes content they want to manage that doesn't yet exist in the schema.
+description: Use when the user wants to add a new collection or singleton to better-cms — phrases like "add a posts collection", "create a team page", "I need a testimonials section", "make a singleton for site settings", "new content type for X". Edit src/lib/server/cms.ts and run generate. Triggers proactively when the user describes content they want to manage that doesn't yet exist in the schema.
 ---
 
 # better-cms add collection
 
-Add a `collection({...})` or `singleton({...})` entry to the user's `cms.config.ts`.
+Add a `collection({...})` or `singleton({...})` entry to the user's CMS module.
 
 ## Locate the config
 
 Try these in order, use the first one that exists:
 
-1. `src/lib/cms.config.ts`
-2. `src/cms.config.ts`
-3. `cms.config.ts`
+1. `src/lib/server/cms.ts` (default — server-only)
+2. `src/lib/cms.ts`
+3. `src/cms.ts`
+4. `cms.ts`
+
+Older projects may still use `cms.config.ts` under the same paths — accept those too.
 
 If none exist, run `better-cms-init` first.
 

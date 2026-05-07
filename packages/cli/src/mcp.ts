@@ -41,7 +41,7 @@ export async function startMcpServer(opts: McpServerOpts = {}): Promise<void> {
 	const cwd = opts.cwd ?? process.cwd();
 	const { config } = await loadConfig(cwd, opts.configPath);
 	const schema = getCMSTables(config);
-	const adapter = await config.adapter({ env: process.env });
+	const adapter = config.adapter;
 	if (adapter.init) await adapter.init(schema);
 
 	const collections = Object.keys(schema.collections);

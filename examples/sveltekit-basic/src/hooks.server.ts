@@ -1,5 +1,4 @@
-import { env } from '$env/dynamic/private';
-import config from '$lib/cms.config';
+import cms from '$lib/server/cms';
 import { cmsHandle } from 'better-cms/sveltekit';
 
-export const handle = cmsHandle(config, { env });
+export const handle = cmsHandle(cms);

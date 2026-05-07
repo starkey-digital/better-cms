@@ -7,7 +7,7 @@ import {
 	signSession,
 	verifySession,
 } from './cookie.js';
-import { verifyPassword } from './crypto.js';
+import { hashPassword, verifyPassword } from './crypto.js';
 import { memoryStore } from './rate-limit/memory.js';
 import type { RateLimitStore } from './rate-limit/types.js';
 import { type TurnstileOpts, verifyTurnstile } from './turnstile.js';
@@ -29,7 +29,17 @@ export interface PasswordAuthRateLimit {
 }
 
 export interface PasswordAuthOpts {
-	passwordHash: string;
+	/**
+	 * Plain-text admin password. Hashed once at boot. Most users want this.
+	 * Mutually exclusive with `passwordHash` — pass exactly one.
+	 */
+	password?: string;
+	/**
+	 * Pre-hashed admin password (`bcms hash-password <pw>`). Use when you don't
+	 * want the plain credential to ever appear in the process or its env dumps.
+	 * Mutually exclusive with `password` — pass exactly one.
+	 */
+	passwordHash?: string;
 	secret: string;
 	cookieName?: string;
 	cookieTtl?: string | number;
@@ -37,7 +47,11 @@ export interface PasswordAuthOpts {
 	userId?: string;
 	rateLimit?: PasswordAuthRateLimit;
 	turnstile?: TurnstileOpts;
-	onFailedAttempt?: (info: { ip: string; count: number; reason: string }) => void;
+	onFailedAttempt?: (info: {
+		ip: string;
+		count: number;
+		reason: string;
+	}) => void;
 }
 
 export interface PasswordAuthResult extends CMSPlugin {
@@ -48,9 +62,15 @@ const DEFAULT_COOKIE = 'bcms_session';
 const DEFAULT_TTL = '24h';
 
 export function passwordAuth(opts: PasswordAuthOpts): PasswordAuthResult {
-	if (!opts.passwordHash) throw new Error('passwordAuth: passwordHash required');
+	if (!opts.password === !opts.passwordHash) {
+		throw new Error('passwordAuth: pass exactly one of `password` or `passwordHash`');
+	}
 	if (!opts.secret || opts.secret.length < 16)
 		throw new Error('passwordAuth: secret required (>=16 chars)');
+
+	const hashPromise: Promise<string> = opts.passwordHash
+		? Promise.resolve(opts.passwordHash)
+		: hashPassword(opts.password!);
 
 	const cookieName = opts.cookieName ?? DEFAULT_COOKIE;
 	const ttlSec = parseTtl(opts.cookieTtl ?? DEFAULT_TTL);
@@ -88,11 +108,19 @@ export function passwordAuth(opts: PasswordAuthOpts): PasswordAuthResult {
 						store.incr(globalKey, globalWindow),
 					]);
 					if (ipHit.count > perIp.max) {
-						opts.onFailedAttempt?.({ ip, count: ipHit.count, reason: 'per-ip' });
+						opts.onFailedAttempt?.({
+							ip,
+							count: ipHit.count,
+							reason: 'per-ip',
+						});
 						return rateLimited(ipHit.resetAt - Date.now() + lockoutMs);
 					}
 					if (globalHit.count > global.max) {
-						opts.onFailedAttempt?.({ ip, count: globalHit.count, reason: 'global' });
+						opts.onFailedAttempt?.({
+							ip,
+							count: globalHit.count,
+							reason: 'global',
+						});
 						return rateLimited(globalHit.resetAt - Date.now());
 					}
 
@@ -106,7 +134,11 @@ export function passwordAuth(opts: PasswordAuthOpts): PasswordAuthResult {
 					if (opts.turnstile && ipHit.count > turnstileAfter) {
 						const tt = await verifyTurnstile(body.turnstileToken, opts.turnstile, ip);
 						if (!tt.success) {
-							opts.onFailedAttempt?.({ ip, count: ipHit.count, reason: 'turnstile' });
+							opts.onFailedAttempt?.({
+								ip,
+								count: ipHit.count,
+								reason: 'turnstile',
+							});
 							return Response.json(
 								{
 									error: {
@@ -122,8 +154,13 @@ export function passwordAuth(opts: PasswordAuthOpts): PasswordAuthResult {
 					const backoffMs = Math.min(2 ** Math.max(0, ipHit.count - 1) * 250, 8000);
 					if (backoffMs > 0) await sleep(backoffMs);
 
-					if (!body.password || !(await verifyPassword(body.password, opts.passwordHash))) {
-						opts.onFailedAttempt?.({ ip, count: ipHit.count, reason: 'bad-password' });
+					const expectedHash = await hashPromise;
+					if (!body.password || !(await verifyPassword(body.password, expectedHash))) {
+						opts.onFailedAttempt?.({
+							ip,
+							count: ipHit.count,
+							reason: 'bad-password',
+						});
 						return Response.json(
 							{
 								error: {
@@ -146,7 +183,10 @@ export function passwordAuth(opts: PasswordAuthOpts): PasswordAuthResult {
 					});
 					return new Response(JSON.stringify({ ok: true }), {
 						status: 200,
-						headers: { 'content-type': 'application/json', 'set-cookie': cookie },
+						headers: {
+							'content-type': 'application/json',
+							'set-cookie': cookie,
+						},
 					});
 				},
 			},
@@ -156,7 +196,10 @@ export function passwordAuth(opts: PasswordAuthOpts): PasswordAuthResult {
 				handler: () =>
 					new Response(JSON.stringify({ ok: true }), {
 						status: 200,
-						headers: { 'content-type': 'application/json', 'set-cookie': clearCookie(cookieName) },
+						headers: {
+							'content-type': 'application/json',
+							'set-cookie': clearCookie(cookieName),
+						},
 					}),
 			},
 			{
@@ -186,11 +229,17 @@ function rateLimited(retryMs: number): Response {
 	const retrySec = Math.max(1, Math.ceil(retryMs / 1000));
 	return new Response(
 		JSON.stringify({
-			error: { code: PASSWORD_AUTH_ERROR_CODES.RATE_LIMITED, message: 'too many attempts' },
+			error: {
+				code: PASSWORD_AUTH_ERROR_CODES.RATE_LIMITED,
+				message: 'too many attempts',
+			},
 		}),
 		{
 			status: 429,
-			headers: { 'content-type': 'application/json', 'retry-after': String(retrySec) },
+			headers: {
+				'content-type': 'application/json',
+				'retry-after': String(retrySec),
+			},
 		},
 	);
 }

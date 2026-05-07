@@ -23,35 +23,51 @@ describe('init', () => {
 		await expect(init({ cwd: dir, skipInstall: true })).rejects.toThrow(/no package\.json/);
 	});
 
-	test('writes the four scaffold files when package.json exists', async () => {
+	test('writes the scaffold into the server-only path', async () => {
 		writePackageJson();
 		const res = await init({ cwd: dir, skipInstall: true });
 		expect(res.written).toEqual(
 			expect.arrayContaining([
-				expect.stringMatching(/src\/lib\/cms\.config\.ts$/),
+				expect.stringMatching(/src\/lib\/server\/cms\.ts$/),
 				expect.stringMatching(/\.env\.example$/),
 				expect.stringMatching(/src\/hooks\.server\.ts$/),
 				expect.stringMatching(/drizzle\.config\.ts$/),
+				expect.stringMatching(/src\/routes\/cms\/\+page\.server\.ts$/),
+				expect.stringMatching(/src\/routes\/cms\/\+page\.svelte$/),
 			]),
 		);
+		expect(res.written.some((p) => /src\/lib\/cms\.config\.ts$/.test(p))).toBe(false);
 	});
 
-	test('emits a factory-form adapter (no eager process.env at module scope)', async () => {
+	test('cms.ts is eager (server-only — process.env at module scope is fine)', async () => {
 		writePackageJson();
 		await init({ cwd: dir, skipInstall: true });
-		const cfg = readFileSync(join(dir, 'src/lib/cms.config.ts'), 'utf8');
-		expect(cfg).toContain('adapter: ({ env }) =>');
-		expect(cfg).not.toMatch(/^\s*adapter:\s*libsqlAdapter/m);
-		expect(cfg).not.toMatch(/process\.env/);
+		const cfg = readFileSync(join(dir, 'src/lib/server/cms.ts'), 'utf8');
+		expect(cfg).toMatch(/adapter:\s*libsqlAdapter\(/);
+		expect(cfg).not.toMatch(/adapter:\s*\(\{\s*env\s*\}\)/);
+		expect(cfg).toContain('process.env.DATABASE_URL');
+		expect(cfg).toContain(`import 'dotenv/config'`);
 	});
 
-	test('hooks template uses $env/dynamic/private (no dotenv at runtime)', async () => {
+	test('hooks template imports the server-only cms module without env injection', async () => {
 		writePackageJson();
 		await init({ cwd: dir, skipInstall: true });
 		const hooks = readFileSync(join(dir, 'src/hooks.server.ts'), 'utf8');
-		expect(hooks).toContain(`from '$env/dynamic/private'`);
-		expect(hooks).toContain('cmsHandle(config, { env })');
-		expect(hooks).not.toContain('dotenv');
+		expect(hooks).toContain(`from '$lib/server/cms'`);
+		expect(hooks).toContain('cmsHandle(cms)');
+		expect(hooks).not.toContain('{ env }');
+		expect(hooks).not.toContain('$env/dynamic/private');
+	});
+
+	test('admin route uses clientCMSConfig from a +page.server.ts loader', async () => {
+		writePackageJson();
+		await init({ cwd: dir, skipInstall: true });
+		const loader = readFileSync(join(dir, 'src/routes/cms/+page.server.ts'), 'utf8');
+		expect(loader).toContain('clientCMSConfig');
+		expect(loader).toContain(`from '$lib/server/cms'`);
+		const page = readFileSync(join(dir, 'src/routes/cms/+page.svelte'), 'utf8');
+		expect(page).toContain('CMSAdmin');
+		expect(page).toContain('config={data.cms}');
 	});
 
 	test('skips files that already exist (no force)', async () => {
@@ -78,8 +94,8 @@ describe('init', () => {
 
 	test('treats already-installed deps as installed (no install attempt)', async () => {
 		writePackageJson({
-			dependencies: { 'better-cms': '^0.0.0' },
-			devDependencies: { 'drizzle-kit': '*', '@libsql/client': '*', dotenv: '*' },
+			dependencies: { 'better-cms': '^0.0.0', dotenv: '*' },
+			devDependencies: { 'drizzle-kit': '*', '@libsql/client': '*' },
 		});
 		writeFileSync(join(dir, 'bun.lock'), '# stub');
 		const res = await init({ cwd: dir });

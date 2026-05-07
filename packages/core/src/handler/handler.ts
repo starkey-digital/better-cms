@@ -1,4 +1,4 @@
-import type { AdapterContext, CMSConfig, CMSContext } from '../config.js';
+import type { CMSConfig, CMSContext } from '../config.js';
 import { getCMSTables } from '../ir/tables.js';
 import { applyOps } from '../ops/apply.js';
 import { opToEventType } from '../ops/types.js';
@@ -22,12 +22,6 @@ export interface CMSInstance {
 
 export interface CreateCMSOpts {
 	live?: LiveTransport;
-	/**
-	 * Environment passed to every adapter/media factory via {@link AdapterContext}.
-	 * Defaults to `process.env`. SvelteKit consumers should pass `$env/dynamic/private`
-	 * so that secrets stay out of the client bundle.
-	 */
-	env?: Record<string, string | undefined>;
 }
 
 /**
@@ -39,17 +33,14 @@ export interface CreateCMSOpts {
 export async function createCMS(config: CMSConfig, opts: CreateCMSOpts = {}): Promise<CMSInstance> {
 	const schema = getCMSTables(config);
 	const live = opts.live ?? inMemoryTransport();
-	const adapterCtx: AdapterContext = { env: opts.env ?? process.env };
-	const adapter = await config.adapter(adapterCtx);
-	const media = config.media ? await config.media(adapterCtx) : undefined;
 	const context: CMSContext = {
 		config,
 		schema,
-		store: adapter,
-		media,
+		store: config.adapter,
+		media: config.media,
 	};
 
-	if (adapter.init) await adapter.init(schema);
+	if (config.adapter.init) await config.adapter.init(schema);
 	const pluginRoutes = new Map<RouteKey, PluginEndpoint>();
 	for (const plugin of config.plugins ?? []) {
 		if (plugin.init) await plugin.init(context);

@@ -2,47 +2,41 @@
 
 Mount the handler, render the admin, read content from server load functions or remote functions.
 
+The CMS config is a server-only module — `src/lib/server/cms.ts` by convention. SvelteKit's bundler rejects any client-side import of files under `src/lib/server/`, so adapter credentials, media keys, and auth secrets stay on the server.
+
 ## Handler
 
 ```ts
 // src/hooks.server.ts
-import { env } from '$env/dynamic/private';
+import cms from '$lib/server/cms';
 import { cmsHandle } from 'better-cms/sveltekit';
-import config from '$lib/cms.config';
 
-export const handle = cmsHandle(config, { env });
+export const handle = cmsHandle(cms);
 ```
-
-`cmsHandle` forwards `env` into every adapter/media factory via the
-`AdapterContext` argument. Use `$env/dynamic/private` so `cms.config.ts`
-never imports a server-only namespace and stays safe to load from client
-components (e.g. `<CMSAdmin {config}>`).
-
-Default mount point: `/api/cms`. Override with `cmsConfig.basePath` if needed. Leaves `/cms` free for the admin page.
 
 ## Reading content (server)
 
 ```ts
 // src/routes/blog/+page.server.ts
-import { serverApi } from 'better-cms/sveltekit';
-import { cmsConfig } from '$lib/cms';
-
-const cms = serverApi(cmsConfig);
+import cmsConfig from '$lib/server/cms';
+import { cms, serverApi } from 'better-cms/sveltekit';
 
 export async function load() {
-	const posts = await cms.posts.list({ orderBy: { createdAt: 'desc' } });
+	const instance = await cms(cmsConfig);
+	const api = serverApi(instance.context);
+	const posts = await api.list('posts', { limit: 20 });
 	return { posts };
 }
 ```
 
-`cms.posts` is fully typed from your collection definition.
+`api.list / api.find / api.count / api.getSingleton` are fully typed from your collection definition.
 
 ## Reading content (remote functions)
 
 ```ts
 // src/routes/blog/data.remote.ts
+import cmsConfig from '$lib/server/cms';
 import { listCollection } from 'better-cms/sveltekit/remote';
-import { cmsConfig } from '$lib/cms';
 
 export const listPosts = listCollection(cmsConfig, 'posts');
 ```
@@ -51,19 +45,25 @@ Then call from a client component without a manual `+page.server.ts`.
 
 ## Admin page
 
+```ts
+// src/routes/cms/+page.server.ts
+import cms from '$lib/server/cms';
+import { clientCMSConfig } from 'better-cms/sveltekit';
+
+export const load = () => ({ cms: clientCMSConfig(cms) });
+```
+
 ```svelte
 <!-- src/routes/cms/+page.svelte -->
 <script lang="ts">
 	import { CMSAdmin } from 'better-cms/admin';
-	import config from '$lib/cms.config';
+	let { data } = $props();
 </script>
 
-<CMSAdmin {config} />
+<CMSAdmin config={data.cms} />
 ```
 
-The config module is safe to import from client code: `adapter` and `media` are
-thunks that fire only on the server (when `cmsHandle()` boots the runtime).
-`process.env` reads stay out of the browser bundle.
+`clientCMSConfig` returns the JSON-safe slice the admin actually uses (`{ collections, basePath }`). Adapter, media, auth, and plugins never cross to the browser.
 
 ## Live updates
 

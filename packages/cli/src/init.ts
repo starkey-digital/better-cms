@@ -2,10 +2,14 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
-const CONFIG_TEMPLATE = `import { defineCMS, collection, text, slug, richText, image, boolean } from 'better-cms';
+const CONFIG_TEMPLATE = `import 'dotenv/config';
+import { defineCMS, collection, text, slug, richText, image, boolean } from 'better-cms';
 import { libsqlAdapter } from 'better-cms/adapters/libsql';
 import { s3Media } from 'better-cms/media/s3';
 
+// SERVER-ONLY MODULE. Lives under src/lib/server/ — SvelteKit refuses to
+// import this from client code, so it's safe to read process.env and to
+// instantiate the adapter eagerly.
 export default defineCMS({
 	collections: {
 		posts: collection({
@@ -19,20 +23,18 @@ export default defineCMS({
 			},
 		}),
 	},
-	adapter: ({ env }) =>
-		libsqlAdapter({
-			url: env.DATABASE_URL!,
-			authToken: env.DATABASE_AUTH_TOKEN,
-		}),
-	media: ({ env }) =>
-		s3Media({
-			bucket: env.S3_BUCKET!,
-			region: env.S3_REGION,
-			endpoint: env.S3_ENDPOINT,
-			accessKeyId: env.S3_ACCESS_KEY_ID,
-			secretAccessKey: env.S3_SECRET_ACCESS_KEY,
-			publicBaseUrl: env.S3_PUBLIC_URL,
-		}),
+	adapter: libsqlAdapter({
+		url: process.env.DATABASE_URL!,
+		authToken: process.env.DATABASE_AUTH_TOKEN,
+	}),
+	media: s3Media({
+		bucket: process.env.S3_BUCKET!,
+		region: process.env.S3_REGION,
+		endpoint: process.env.S3_ENDPOINT,
+		accessKeyId: process.env.S3_ACCESS_KEY_ID,
+		secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
+		publicBaseUrl: process.env.S3_PUBLIC_URL,
+	}),
 	auth: {
 		getUser: async (_request) => ({ id: 'dev', email: 'dev@example.com', role: 'admin' }),
 	},
@@ -50,11 +52,25 @@ S3_SECRET_ACCESS_KEY=
 S3_PUBLIC_URL=
 `;
 
-const HOOKS_TEMPLATE = `import { env } from '$env/dynamic/private';
-import { cmsHandle } from 'better-cms/sveltekit';
-import config from '$lib/cms.config';
+const HOOKS_TEMPLATE = `import { cmsHandle } from 'better-cms/sveltekit';
+import cms from '$lib/server/cms';
 
-export const handle = cmsHandle(config, { env });
+export const handle = cmsHandle(cms);
+`;
+
+const ADMIN_PAGE_SERVER_TEMPLATE = `import { clientCMSConfig } from 'better-cms/sveltekit';
+import cms from '$lib/server/cms';
+
+export const load = () => ({ cms: clientCMSConfig(cms) });
+`;
+
+const ADMIN_PAGE_TEMPLATE = `<script lang="ts">
+import { CMSAdmin } from 'better-cms/admin';
+
+let { data } = $props();
+</script>
+
+<CMSAdmin config={data.cms} />
 `;
 
 const DRIZZLE_CONFIG_TEMPLATE = `import 'dotenv/config';
@@ -114,8 +130,8 @@ function detectPackageManager(cwd: string): PackageManager | null {
 	return null;
 }
 
-const RUNTIME_DEPS = ['better-cms'];
-const DEV_DEPS = ['drizzle-kit', '@libsql/client', 'dotenv'];
+const RUNTIME_DEPS = ['better-cms', 'dotenv'];
+const DEV_DEPS = ['drizzle-kit', '@libsql/client'];
 
 function readInstalled(cwd: string): Set<string> {
 	const pkgJsonPath = resolve(cwd, 'package.json');
@@ -157,10 +173,12 @@ export async function init(
 	}
 
 	const files: { path: string; content: string }[] = [
-		{ path: resolve(cwd, 'src/lib/cms.config.ts'), content: CONFIG_TEMPLATE },
+		{ path: resolve(cwd, 'src/lib/server/cms.ts'), content: CONFIG_TEMPLATE },
 		{ path: resolve(cwd, '.env.example'), content: ENV_TEMPLATE },
 		{ path: resolve(cwd, 'src/hooks.server.ts'), content: HOOKS_TEMPLATE },
 		{ path: resolve(cwd, 'drizzle.config.ts'), content: DRIZZLE_CONFIG_TEMPLATE },
+		{ path: resolve(cwd, 'src/routes/cms/+page.server.ts'), content: ADMIN_PAGE_SERVER_TEMPLATE },
+		{ path: resolve(cwd, 'src/routes/cms/+page.svelte'), content: ADMIN_PAGE_TEMPLATE },
 	];
 
 	for (const file of files) {

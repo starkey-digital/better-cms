@@ -1,11 +1,11 @@
 ---
 name: better-cms-schema
-description: Use whenever the user asks to add, change, rename, or remove fields/collections/singletons in a better-cms project. Triggers on phrases like "add field", "new collection", "rename column", "make singleton", or any edit to cms.config.ts.
+description: Use whenever the user asks to add, change, rename, or remove fields/collections/singletons in a better-cms project. Triggers on phrases like "add field", "new collection", "rename column", "make singleton", or any edit to src/lib/server/cms.ts.
 ---
 
 # better-cms schema editing
 
-When editing `cms.config.ts`:
+When editing `src/lib/server/cms.ts`:
 
 1. **Use the DSL helpers** from `@better-cms/core`. Never write raw IR objects.
    - Collections: `collection({ fields: { ... } })`. Singletons: `singleton({ fields: { ... } })`.

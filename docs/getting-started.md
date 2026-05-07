@@ -8,17 +8,30 @@ Five-minute setup for SvelteKit.
 bunx -p @better-cms/cli bcms init
 ```
 
-Writes `src/lib/cms.config.ts`, `src/hooks.server.ts`, `.env.example`,
-`drizzle.config.ts`, then installs `better-cms` (runtime) and `drizzle-kit`,
-`@libsql/client`, `dotenv` (dev). Pass `--skip-install` to print the install
-commands instead of running them.
+Writes:
 
-## 2. Define your CMS
+- `src/lib/server/cms.ts` — server-only config module
+- `src/hooks.server.ts` — wires `cmsHandle(cms)`
+- `src/routes/cms/+page.server.ts` + `+page.svelte` — admin route
+- `.env.example` — DB + S3 vars
+- `drizzle.config.ts`
 
-`bcms init` writes a starter `src/lib/cms.config.ts`. Edit collections to taste:
+Then installs `better-cms`, `dotenv` (runtime) and `drizzle-kit`,
+`@libsql/client` (dev). `--skip-install` prints the install commands instead.
+
+## 2. Why `src/lib/server/`
+
+SvelteKit refuses to import anything under `src/lib/server/` from client code.
+That's the whole reason the CMS config lives there — the adapter holds your
+DB credentials, and the type system + bundler enforce that they never cross
+to the browser. You can read `process.env` at the top of `cms.ts` without
+fear.
+
+## 3. Edit your config
 
 ```ts
-// src/lib/cms.config.ts
+// src/lib/server/cms.ts
+import 'dotenv/config';
 import { defineCMS, collection, text, richText } from 'better-cms';
 import { libsqlAdapter } from 'better-cms/adapters/libsql';
 
@@ -32,59 +45,53 @@ export default defineCMS({
 			},
 		}),
 	},
-	adapter: ({ env }) =>
-		libsqlAdapter({
-			url: env.DATABASE_URL!,
-			authToken: env.DATABASE_AUTH_TOKEN,
-		}),
+	adapter: libsqlAdapter({
+		url: process.env.DATABASE_URL!,
+		authToken: process.env.DATABASE_AUTH_TOKEN,
+	}),
 });
 ```
 
-`adapter` is a factory — it runs only on the server when the runtime boots,
-and receives `{ env }` from the handler. The config module is safe to import
-from client code (e.g. `<CMSAdmin {config}>`) because it never touches
-`process.env` or any other server-only API at module scope.
-
-## 3. Mount the handler
+## 4. Mount the handler
 
 ```ts
 // src/hooks.server.ts
-import { env } from '$env/dynamic/private';
+import cms from '$lib/server/cms';
 import { cmsHandle } from 'better-cms/sveltekit';
-import config from '$lib/cms.config';
 
-export const handle = cmsHandle(config, { env });
+export const handle = cmsHandle(cms);
 ```
 
-`$env/dynamic/private` is SvelteKit's server-only env namespace. It's wired
-through to your adapter factory, so secrets stay out of the client bundle and
-you don't need `dotenv` in the runtime path.
+The default base path is `/api/cms`. Override with `cms.basePath` if you need a different mount point.
 
-The default base path is `/api/cms`. Override with `config.basePath` if you need a different mount point.
+## 5. Render the admin UI
 
-## 4. Render the admin UI
+```ts
+// src/routes/cms/+page.server.ts
+import cms from '$lib/server/cms';
+import { clientCMSConfig } from 'better-cms/sveltekit';
+
+export const load = () => ({ cms: clientCMSConfig(cms) });
+```
 
 ```svelte
+<!-- src/routes/cms/+page.svelte -->
 <script lang="ts">
 	import { CMSAdmin } from 'better-cms/admin';
-	import config from '$lib/cms.config';
+	let { data } = $props();
 </script>
 
-<CMSAdmin {config} />
+<CMSAdmin config={data.cms} />
 ```
 
-Mount at `/cms` (or anywhere — the admin route is yours). The admin talks to the handler at `/api/cms`.
+`clientCMSConfig` strips the server-only fields (adapter, media, auth, plugins) and returns `{ collections, basePath }` — JSON-safe to send through SvelteKit's load → page data flow.
 
-## 5. Generate the database schema
+## 6. Generate the database schema
 
 ```bash
 bunx -p @better-cms/cli bcms generate   # emits src/lib/cms-schema.ts
 bunx drizzle-kit push                    # uses ./drizzle.config.ts
 ```
-
-`drizzle.config.ts` is wired with `import 'dotenv/config'` because
-`drizzle-kit` runs as its own CLI and needs `.env` loaded explicitly — that's
-separate from the runtime path above.
 
 ## Next
 

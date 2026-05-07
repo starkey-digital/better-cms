@@ -1,24 +1,31 @@
 import { describe, expect, test } from 'bun:test';
-import type { AdapterContext, AdapterFactory } from './config.js';
+import { clientCMSConfig } from './config.js';
 
-const ctx: AdapterContext = { env: { DATABASE_URL: 'file:./test.db' } };
-
-describe('AdapterFactory', () => {
-	test('synchronous factory yields the constructed adapter', async () => {
-		const factory: AdapterFactory<{ url?: string }> = (c) => ({ url: c.env.DATABASE_URL });
-		expect(await factory(ctx)).toEqual({ url: 'file:./test.db' });
-	});
-
-	test('async factory is awaited', async () => {
-		const factory: AdapterFactory<{ url?: string; async: boolean }> = async (c) => ({
-			url: c.env.DATABASE_URL,
-			async: true,
+describe('clientCMSConfig', () => {
+	test('returns only collections + basePath (no adapter, media, auth)', () => {
+		const fakeAdapter = { findMany: async () => [] } as never;
+		const fakeMedia = { put: async () => {} } as never;
+		const result = clientCMSConfig({
+			collections: { posts: { kind: 'collection', fields: {} } } as never,
+			adapter: fakeAdapter,
+			media: fakeMedia,
+			auth: { getUser: async () => null },
+			basePath: '/cms-api',
 		});
-		expect(await factory(ctx)).toEqual({ url: 'file:./test.db', async: true });
+		expect(result).toEqual({
+			collections: { posts: { kind: 'collection', fields: {} } } as never,
+			basePath: '/cms-api',
+		});
+		expect('adapter' in result).toBe(false);
+		expect('media' in result).toBe(false);
+		expect('auth' in result).toBe(false);
 	});
 
-	test('factory sees an empty env when context env is empty', async () => {
-		const factory: AdapterFactory<string[]> = (c) => Object.keys(c.env);
-		expect(await factory({ env: {} })).toEqual([]);
+	test('omits basePath when not set', () => {
+		const result = clientCMSConfig({
+			collections: { posts: { kind: 'collection', fields: {} } } as never,
+			adapter: {} as never,
+		});
+		expect(result.basePath).toBeUndefined();
 	});
 });

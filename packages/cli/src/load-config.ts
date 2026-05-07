@@ -3,12 +3,14 @@ import { resolve } from 'node:path';
 import type { CMSConfig } from '@better-cms/core';
 
 const CANDIDATES = [
-	'cms.config.ts',
-	'cms.config.js',
-	'src/cms.config.ts',
-	'src/cms.config.js',
-	'src/lib/cms.config.ts',
-	'src/lib/cms.config.js',
+	'src/lib/server/cms.ts',
+	'src/lib/server/cms.js',
+	'src/lib/cms.ts',
+	'src/lib/cms.js',
+	'src/cms.ts',
+	'src/cms.js',
+	'cms.ts',
+	'cms.js',
 ];
 
 export async function loadConfig(
@@ -40,11 +42,11 @@ export async function loadConfig(
 	if (errors.length) {
 		const detail = errors.map(({ path, error }) => `  ${path}\n    → ${error.message}`).join('\n');
 		throw new Error(
-			`[better-cms] Found cms.config file(s) but they failed to load:\n${detail}\n\nPass --config <path> to override.`,
+			`[better-cms] Found cms file(s) but they failed to load:\n${detail}\n\nPass --config <path> to override.`,
 		);
 	}
 
 	throw new Error(
-		`[better-cms] No cms.config found. Checked: ${CANDIDATES.join(', ')}. Pass --config <path> to override.`,
+		`[better-cms] No cms config found. Checked: ${CANDIDATES.join(', ')}. Pass --config <path> to override.`,
 	);
 }

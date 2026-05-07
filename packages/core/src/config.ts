@@ -6,26 +6,10 @@ import type { MediaStore } from './store/media.js';
 
 export type CollectionsRecord = Record<string, CollectionDef<any, any>>;
 
-/**
- * Runtime context passed into every adapter/media factory. `env` is the
- * environment the CMS was booted with — populated by `cmsHandle`/`createCMS`
- * from `$env/dynamic/private` (SvelteKit) or `process.env` (Node) so that
- * adapter factories never have to read `process.env` themselves.
- *
- * Reading `process.env` at config module scope breaks client bundling: the
- * config module is imported by `<CMSAdmin {config}>`. Forcing the factory
- * form (and supplying env via context) keeps the module evaluation pure.
- */
-export interface AdapterContext {
-	env: Record<string, string | undefined>;
-}
-
-export type AdapterFactory<T> = (ctx: AdapterContext) => T | Promise<T>;
-
 export interface CMSConfig<C extends CollectionsRecord = CollectionsRecord> {
 	collections: C;
-	adapter: AdapterFactory<ContentStore>;
-	media?: AdapterFactory<MediaStore>;
+	adapter: ContentStore;
+	media?: MediaStore;
 	auth?: { getUser: GetUserFn };
 	plugins?: CMSPlugin[];
 	basePath?: string;
@@ -40,3 +24,22 @@ export interface CMSContext<C extends CollectionsRecord = CollectionsRecord> {
 }
 
 export type InferConfig<Cfg> = Cfg extends CMSConfig<infer C> ? InferRows<SchemaIR<C>> : never;
+
+/**
+ * Subset of {@link CMSConfig} that is safe to ship to the browser. Use from a
+ * `+page.server.ts` load function:
+ *
+ *   import cms from '$lib/server/cms';
+ *   import { clientCMSConfig } from 'better-cms/sveltekit';
+ *   export const load = () => ({ cms: clientCMSConfig(cms) });
+ */
+export interface ClientCMSConfig {
+	collections: Record<string, CollectionDef>;
+	basePath?: string;
+}
+
+export function clientCMSConfig<C extends CollectionsRecord>(
+	config: CMSConfig<C>,
+): ClientCMSConfig {
+	return { collections: config.collections, basePath: config.basePath };
+}
