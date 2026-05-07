@@ -1,13 +1,4 @@
-import {
-	boolean,
-	collection,
-	defineCMS,
-	image,
-	richText,
-	singleton,
-	slug,
-	text,
-} from 'better-cms';
+import { boolean, collection, defineCMS, image, richText, singleton, slug, text } from 'better-cms';
 import { libsqlAdapter } from 'better-cms/adapters/libsql';
 
 const url = process.env.DATABASE_URL ?? 'file:./local.db';

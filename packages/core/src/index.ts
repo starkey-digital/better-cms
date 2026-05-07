@@ -1,6 +1,14 @@
 export * from './config.js';
 export * from './ir/index.js';
-export type { RowOf, InferRows, FieldOf, FieldsRecord, CollectionDef, CollectionKind, FieldDef } from './ir/types.js';
+export type {
+	RowOf,
+	InferRows,
+	FieldOf,
+	FieldsRecord,
+	CollectionDef,
+	CollectionKind,
+	FieldDef,
+} from './ir/types.js';
 export * from './dsl/index.js';
 export * from './dsl/define.js';
 export * from './store/index.js';

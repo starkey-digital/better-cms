@@ -1,5 +1,5 @@
-import type { ContentStore } from '@better-cms/core';
 import { libsqlAdapter } from '@better-cms/adapter-libsql';
+import type { ContentStore } from '@better-cms/core';
 import type { Client } from '@libsql/client';
 
 export interface DrizzleAdapterOpts<DB> {

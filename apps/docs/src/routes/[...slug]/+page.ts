@@ -1,6 +1,6 @@
-import { error } from '@sveltejs/kit';
 import { base } from '$app/paths';
 import { docs, getDoc, renderMarkdown } from '$lib/content';
+import { error } from '@sveltejs/kit';
 
 export const prerender = true;
 

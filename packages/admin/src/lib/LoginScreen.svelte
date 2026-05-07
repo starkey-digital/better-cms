@@ -1,64 +1,64 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import type { AdminApi } from './api.js';
+import { onMount } from 'svelte';
+import type { AdminApi } from './api.js';
 
-	type Props = {
-		api: AdminApi;
-		turnstileSiteKey?: string;
-		onLogin: () => void;
-	};
+type Props = {
+	api: AdminApi;
+	turnstileSiteKey?: string;
+	onLogin: () => void;
+};
 
-	const { api, turnstileSiteKey, onLogin }: Props = $props();
+const { api, turnstileSiteKey, onLogin }: Props = $props();
 
-	const TURNSTILE_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
-	let scriptLoaded = false;
+const TURNSTILE_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+let scriptLoaded = false;
 
-	function loadTurnstile() {
-		if (scriptLoaded || typeof document === 'undefined') return;
-		if (document.querySelector(`script[src="${TURNSTILE_SRC}"]`)) {
-			scriptLoaded = true;
+function loadTurnstile() {
+	if (scriptLoaded || typeof document === 'undefined') return;
+	if (document.querySelector(`script[src="${TURNSTILE_SRC}"]`)) {
+		scriptLoaded = true;
+		return;
+	}
+	const s = document.createElement('script');
+	s.src = TURNSTILE_SRC;
+	s.async = true;
+	s.defer = true;
+	document.head.appendChild(s);
+	scriptLoaded = true;
+}
+
+onMount(() => {
+	if (turnstileSiteKey) loadTurnstile();
+});
+
+let password = $state('');
+let submitting = $state(false);
+let error = $state<string | null>(null);
+let needsTurnstile = $state(false);
+
+async function submit(e: SubmitEvent) {
+	e.preventDefault();
+	if (!password) return;
+	const form = e.currentTarget as HTMLFormElement;
+	const fd = new FormData(form);
+	const turnstileToken = (fd.get('cf-turnstile-response') as string | null) ?? undefined;
+	submitting = true;
+	error = null;
+	try {
+		const res = await api.login(password, turnstileToken);
+		if (res.ok) {
+			password = '';
+			onLogin();
 			return;
 		}
-		const s = document.createElement('script');
-		s.src = TURNSTILE_SRC;
-		s.async = true;
-		s.defer = true;
-		document.head.appendChild(s);
-		scriptLoaded = true;
+		error = res.message;
+		if (res.code === 'TURNSTILE_REQUIRED') needsTurnstile = true;
+	} catch (e) {
+		error = (e as Error).message;
+	} finally {
+		submitting = false;
 	}
-
-	onMount(() => {
-		if (turnstileSiteKey) loadTurnstile();
-	});
-
-	let password = $state('');
-	let submitting = $state(false);
-	let error = $state<string | null>(null);
-	let needsTurnstile = $state(false);
-
-	async function submit(e: SubmitEvent) {
-		e.preventDefault();
-		if (!password) return;
-		const form = e.currentTarget as HTMLFormElement;
-		const fd = new FormData(form);
-		const turnstileToken = (fd.get('cf-turnstile-response') as string | null) ?? undefined;
-		submitting = true;
-		error = null;
-		try {
-			const res = await api.login(password, turnstileToken);
-			if (res.ok) {
-				password = '';
-				onLogin();
-				return;
-			}
-			error = res.message;
-			if (res.code === 'TURNSTILE_REQUIRED') needsTurnstile = true;
-		} catch (e) {
-			error = (e as Error).message;
-		} finally {
-			submitting = false;
-		}
-	}
+}
 </script>
 
 <div class="bcms-login">

@@ -1,142 +1,142 @@
 <script lang="ts">
-	import type { CMSOp, CollectionDef } from '@better-cms/core';
-	import { onMount } from 'svelte';
-	import { type AdminApi, httpApi } from './api.js';
-	import FieldEditor from './FieldEditor.svelte';
-	import LoginScreen from './LoginScreen.svelte';
-	import type { ClientCMSConfig } from './types.js';
+import type { CMSOp, CollectionDef } from '@better-cms/core';
+import { onMount } from 'svelte';
+import FieldEditor from './FieldEditor.svelte';
+import LoginScreen from './LoginScreen.svelte';
+import { type AdminApi, httpApi } from './api.js';
+import type { ClientCMSConfig } from './types.js';
 
-	type Props = {
-		config: ClientCMSConfig;
-		api?: AdminApi;
-		auth?: boolean;
-		turnstileSiteKey?: string;
-	};
+type Props = {
+	config: ClientCMSConfig;
+	api?: AdminApi;
+	auth?: boolean;
+	turnstileSiteKey?: string;
+};
 
-	const {
-		config,
-		api = httpApi(config.basePath ?? '/api/cms'),
-		auth = false,
-		turnstileSiteKey,
-	}: Props = $props();
+const {
+	config,
+	api = httpApi(config.basePath ?? '/api/cms'),
+	auth = false,
+	turnstileSiteKey,
+}: Props = $props();
 
-	let user = $state<{ id: string; role: string } | null>(null);
-	let authChecked = $state(false);
-	const gateOpen = $derived(!auth || (authChecked && user !== null));
+let user = $state<{ id: string; role: string } | null>(null);
+let authChecked = $state(false);
+const gateOpen = $derived(!auth || (authChecked && user !== null));
 
-	async function checkAuth() {
-		try {
-			user = await api.me();
-		} catch {
-			user = null;
-		} finally {
-			authChecked = true;
-		}
-	}
-
-	async function logout() {
-		await api.logout();
+async function checkAuth() {
+	try {
+		user = await api.me();
+	} catch {
 		user = null;
-		rows = [];
+	} finally {
+		authChecked = true;
+	}
+}
+
+async function logout() {
+	await api.logout();
+	user = null;
+	rows = [];
+	editing = null;
+}
+
+const entries = $derived(Object.entries(config.collections));
+const firstName = $derived(entries[0]?.[0] ?? null);
+let selectedName = $state<string | null>(null);
+const effectiveName = $derived(selectedName ?? firstName);
+const selectedDef = $derived(effectiveName ? config.collections[effectiveName] : null);
+const selectedKind = $derived(selectedDef?.kind ?? null);
+
+let rows = $state<Record<string, unknown>[]>([]);
+let editing = $state<Record<string, unknown> | null>(null);
+let saving = $state(false);
+let error = $state<string | null>(null);
+
+onMount(() => {
+	if (auth) {
+		void checkAuth().then(() => {
+			if (user && effectiveName && selectedDef) void load(effectiveName, selectedDef.kind);
+		});
+	} else if (effectiveName && selectedDef) {
+		void load(effectiveName, selectedDef.kind);
+	}
+});
+
+function select(name: string, def: CollectionDef) {
+	if (selectedName === name) return;
+	selectedName = name;
+	void load(name, def.kind);
+}
+
+async function load(name: string, kind: 'collection' | 'singleton') {
+	error = null;
+	editing = null;
+	try {
+		if (kind === 'singleton') {
+			rows = [];
+			const row = await api.getSingleton(name);
+			editing = row ?? {};
+		} else {
+			rows = await api.list(name, { limit: 50 });
+		}
+	} catch (e) {
+		error = (e as Error).message;
+	}
+}
+
+function newRecord() {
+	if (!selectedDef) return;
+	editing = {};
+}
+
+function pick(row: Record<string, unknown>) {
+	editing = { ...row };
+}
+
+async function save() {
+	if (!effectiveName || !selectedDef || !editing) return;
+	saving = true;
+	error = null;
+	try {
+		if (selectedDef.kind === 'singleton') {
+			await api.saveSingleton(effectiveName, editing);
+		} else {
+			const op: CMSOp =
+				typeof editing.id === 'string'
+					? { op: 'set', collection: effectiveName, id: editing.id, data: editing }
+					: { op: 'create', collection: effectiveName, data: editing };
+			const [res] = await api.runOps([op]);
+			if (!res?.ok) throw new Error(res?.error ?? 'save failed');
+			editing = res.row ?? null;
+		}
+		await load(effectiveName, selectedDef.kind);
+	} catch (e) {
+		error = (e as Error).message;
+	} finally {
+		saving = false;
+	}
+}
+
+async function remove() {
+	if (!effectiveName || !selectedDef || !editing || typeof editing.id !== 'string') return;
+	if (selectedDef.kind === 'singleton') return;
+	saving = true;
+	try {
+		await api.runOps([{ op: 'remove', collection: effectiveName, id: editing.id }]);
 		editing = null;
+		await load(effectiveName, selectedDef.kind);
+	} catch (e) {
+		error = (e as Error).message;
+	} finally {
+		saving = false;
 	}
+}
 
-	const entries = $derived(Object.entries(config.collections));
-	const firstName = $derived(entries[0]?.[0] ?? null);
-	let selectedName = $state<string | null>(null);
-	const effectiveName = $derived(selectedName ?? firstName);
-	const selectedDef = $derived(effectiveName ? config.collections[effectiveName] : null);
-	const selectedKind = $derived(selectedDef?.kind ?? null);
-
-	let rows = $state<Record<string, unknown>[]>([]);
-	let editing = $state<Record<string, unknown> | null>(null);
-	let saving = $state(false);
-	let error = $state<string | null>(null);
-
-	onMount(() => {
-		if (auth) {
-			void checkAuth().then(() => {
-				if (user && effectiveName && selectedDef) void load(effectiveName, selectedDef.kind);
-			});
-		} else if (effectiveName && selectedDef) {
-			void load(effectiveName, selectedDef.kind);
-		}
-	});
-
-	function select(name: string, def: CollectionDef) {
-		if (selectedName === name) return;
-		selectedName = name;
-		void load(name, def.kind);
-	}
-
-	async function load(name: string, kind: 'collection' | 'singleton') {
-		error = null;
-		editing = null;
-		try {
-			if (kind === 'singleton') {
-				rows = [];
-				const row = await api.getSingleton(name);
-				editing = row ?? {};
-			} else {
-				rows = await api.list(name, { limit: 50 });
-			}
-		} catch (e) {
-			error = (e as Error).message;
-		}
-	}
-
-	function newRecord() {
-		if (!selectedDef) return;
-		editing = {};
-	}
-
-	function pick(row: Record<string, unknown>) {
-		editing = { ...row };
-	}
-
-	async function save() {
-		if (!effectiveName || !selectedDef || !editing) return;
-		saving = true;
-		error = null;
-		try {
-			if (selectedDef.kind === 'singleton') {
-				await api.saveSingleton(effectiveName, editing);
-			} else {
-				const op: CMSOp =
-					typeof editing.id === 'string'
-						? { op: 'set', collection: effectiveName, id: editing.id, data: editing }
-						: { op: 'create', collection: effectiveName, data: editing };
-				const [res] = await api.runOps([op]);
-				if (!res?.ok) throw new Error(res?.error ?? 'save failed');
-				editing = res.row ?? null;
-			}
-			await load(effectiveName, selectedDef.kind);
-		} catch (e) {
-			error = (e as Error).message;
-		} finally {
-			saving = false;
-		}
-	}
-
-	async function remove() {
-		if (!effectiveName || !selectedDef || !editing || typeof editing.id !== 'string') return;
-		if (selectedDef.kind === 'singleton') return;
-		saving = true;
-		try {
-			await api.runOps([{ op: 'remove', collection: effectiveName, id: editing.id }]);
-			editing = null;
-			await load(effectiveName, selectedDef.kind);
-		} catch (e) {
-			error = (e as Error).message;
-		} finally {
-			saving = false;
-		}
-	}
-
-	function setField(name: string, value: unknown) {
-		if (!editing) return;
-		editing = { ...editing, [name]: value };
-	}
+function setField(name: string, value: unknown) {
+	if (!editing) return;
+	editing = { ...editing, [name]: value };
+}
 </script>
 
 {#if auth && !authChecked}

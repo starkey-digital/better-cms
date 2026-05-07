@@ -11,7 +11,10 @@ const CANDIDATES = [
 	'src/lib/cms.config.js',
 ];
 
-export async function loadConfig(cwd: string, hint?: string): Promise<{ config: CMSConfig; path: string }> {
+export async function loadConfig(
+	cwd: string,
+	hint?: string,
+): Promise<{ config: CMSConfig; path: string }> {
 	const candidates = hint ? [resolve(cwd, hint)] : CANDIDATES.map((p) => resolve(cwd, p));
 
 	const { createJiti } = await import('jiti');

@@ -6,7 +6,7 @@
  *
  * Usage: bun scripts/bump-version.ts 0.2.0
  */
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const target = process.argv[2];

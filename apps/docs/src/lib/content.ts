@@ -1,5 +1,5 @@
 import { Marked } from 'marked';
-import { createHighlighter, type Highlighter } from 'shiki';
+import { type Highlighter, createHighlighter } from 'shiki';
 
 const rawModules = import.meta.glob('../../../../docs/**/*.md', {
 	query: '?raw',

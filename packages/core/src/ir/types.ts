@@ -139,7 +139,9 @@ export interface PermissionContext {
 }
 
 /** Compiled, normalized schema. The single source of truth. */
-export interface SchemaIR<C extends Record<string, CollectionDef<any, any>> = Record<string, CollectionDef<any, any>>> {
+export interface SchemaIR<
+	C extends Record<string, CollectionDef<any, any>> = Record<string, CollectionDef<any, any>>,
+> {
 	collections: C;
 }
 

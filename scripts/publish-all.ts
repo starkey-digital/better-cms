@@ -7,7 +7,7 @@
  * partial reruns after a bad publish without throwing on "version exists".
  */
 import { spawnSync } from 'node:child_process';
-import { readdirSync, readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const root = resolve(import.meta.dir, '..');
@@ -32,7 +32,14 @@ for (const dir of dirs) {
 	const enc = encodeURIComponent(pkg.name);
 	const headRes = spawnSync(
 		'curl',
-		['-s', '-o', '/dev/null', '-w', '%{http_code}', `https://registry.npmjs.org/${enc}/${pkg.version}`],
+		[
+			'-s',
+			'-o',
+			'/dev/null',
+			'-w',
+			'%{http_code}',
+			`https://registry.npmjs.org/${enc}/${pkg.version}`,
+		],
 		{ encoding: 'utf8' },
 	);
 	if (headRes.stdout?.trim() === '200') {
@@ -52,4 +59,4 @@ if (failures.length) {
 	console.error(`\n${failures.length} failed: ${failures.join(', ')}`);
 	process.exit(1);
 }
-console.log(`\n✓ all packages handled`);
+console.log('\n✓ all packages handled');

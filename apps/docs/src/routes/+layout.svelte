@@ -1,23 +1,23 @@
 <script lang="ts">
-	import '../app.css';
-	import { base } from '$app/paths';
-	import { buildNav } from '$lib/content';
-	import { getTheme, toggleTheme, type Theme } from '$lib/theme';
-	import { onMount } from 'svelte';
-	import type { Snippet } from 'svelte';
+import '../app.css';
+import { base } from '$app/paths';
+import { buildNav } from '$lib/content';
+import { type Theme, getTheme, toggleTheme } from '$lib/theme';
+import { onMount } from 'svelte';
+import type { Snippet } from 'svelte';
 
-	let { children }: { children: Snippet } = $props();
+const { children }: { children: Snippet } = $props();
 
-	const nav = buildNav();
-	let theme = $state<Theme>('light');
+const nav = buildNav();
+let theme = $state<Theme>('light');
 
-	onMount(() => {
-		theme = getTheme();
-	});
+onMount(() => {
+	theme = getTheme();
+});
 
-	function onToggle() {
-		theme = toggleTheme();
-	}
+function onToggle() {
+	theme = toggleTheme();
+}
 </script>
 
 <div class="grid min-h-screen md:grid-cols-[260px_1fr]">

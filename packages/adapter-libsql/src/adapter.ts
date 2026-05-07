@@ -1,12 +1,6 @@
-import type {
-	ContentStore,
-	FindManyQuery,
-	Row,
-	SchemaIR,
-	WhereClause,
-} from '@better-cms/core';
+import type { ContentStore, FindManyQuery, Row, SchemaIR, WhereClause } from '@better-cms/core';
 import { errors } from '@better-cms/core';
-import { type Client, createClient, type InValue } from '@libsql/client';
+import { type Client, type InValue, createClient } from '@libsql/client';
 import { compileWhere, ddlForSchema, quoteIdent, tableName } from './sql.js';
 
 export interface LibsqlAdapterOpts {
@@ -20,8 +14,7 @@ export interface LibsqlAdapterOpts {
  * For users who don't want a drizzle build step.
  */
 export function libsqlAdapter(opts: LibsqlAdapterOpts): ContentStore {
-	const client =
-		opts.client ?? createClient({ url: opts.url, authToken: opts.authToken });
+	const client = opts.client ?? createClient({ url: opts.url, authToken: opts.authToken });
 	let schema: SchemaIR | null = null;
 
 	function defOf(collection: string) {

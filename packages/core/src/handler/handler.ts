@@ -5,7 +5,7 @@ import { opToEventType } from '../ops/types.js';
 import type { CMSOp } from '../ops/types.js';
 import type { PluginEndpoint } from '../plugin/types.js';
 import { CMSError, errors } from '../util/result.js';
-import { inMemoryTransport, type LiveTransport, sseResponse } from './live.js';
+import { type LiveTransport, inMemoryTransport, sseResponse } from './live.js';
 
 const LIST_RE = /^\/collections\/([^/]+)$/;
 const ONE_RE = /^\/collections\/([^/]+)\/([^/]+)$/;
@@ -105,8 +105,7 @@ export async function createCMS(config: CMSConfig, opts: CreateCMSOpts = {}): Pr
 				if (singletonMatch) {
 					const name = singletonMatch[1]!;
 					const def = schema.collections[name];
-					if (!def || def.kind !== 'singleton')
-						throw errors.notFound(`singleton "${name}"`);
+					if (!def || def.kind !== 'singleton') throw errors.notFound(`singleton "${name}"`);
 					const row = await context.store.findOne(name, { id: SINGLETON_ID });
 					return Response.json({ row });
 				}
@@ -118,16 +117,14 @@ export async function createCMS(config: CMSConfig, opts: CreateCMSOpts = {}): Pr
 					if (!user) throw errors.unauthorized();
 					const name = singletonMatch[1]!;
 					const def = schema.collections[name];
-					if (!def || def.kind !== 'singleton')
-						throw errors.notFound(`singleton "${name}"`);
+					if (!def || def.kind !== 'singleton') throw errors.notFound(`singleton "${name}"`);
 					const body = (await request.json()) as Record<string, unknown>;
 					const existing = await context.store.findOne(name, { id: SINGLETON_ID });
 					const op: CMSOp = existing
 						? { op: 'set', collection: name, id: SINGLETON_ID, data: body }
 						: { op: 'create', collection: name, data: { ...body, id: SINGLETON_ID } };
 					const [res] = await applyOps([op], { store: context.store, schema });
-					if (!res?.ok)
-						throw errors.validation(res?.error?.message ?? 'singleton write failed');
+					if (!res?.ok) throw errors.validation(res?.error?.message ?? 'singleton write failed');
 					await live.publish({
 						type: opToEventType(res.op),
 						collection: name,

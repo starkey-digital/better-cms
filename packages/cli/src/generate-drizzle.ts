@@ -44,10 +44,8 @@ function drizzleColumnFn(field: FieldDef): string {
 }
 
 function drizzleColumnOpts(_name: string, field: FieldDef): string | null {
-	if (field.scalarType === 'boolean')
-		return `{ mode: 'boolean' }`;
-	if (field.scalarType === 'date')
-		return `{ mode: 'timestamp_ms' }`;
+	if (field.scalarType === 'boolean') return `{ mode: 'boolean' }`;
+	if (field.scalarType === 'date') return `{ mode: 'timestamp_ms' }`;
 	if (field.kind === 'select' && field.validation?.enum) {
 		const en = field.validation.enum.map((v) => JSON.stringify(v)).join(', ');
 		return `{ enum: [${en}] as const }`;
@@ -79,8 +77,7 @@ function tsFields(def: CollectionDef, indent: string): string {
 }
 
 function tsType(field: FieldDef): string {
-	if (field.kind === 'array' && field.array)
-		return `Array<${tsType(field.array.of)}>`;
+	if (field.kind === 'array' && field.array) return `Array<${tsType(field.array.of)}>`;
 	if (field.kind === 'object' && field.object) {
 		const inner = Object.entries(field.object.fields)
 			.map(([n, f]) => `${n}${f.validation?.required ? '' : '?'}: ${tsType(f)}`)
@@ -88,7 +85,7 @@ function tsType(field: FieldDef): string {
 		return `{ ${inner} }`;
 	}
 	if (field.kind === 'image' || field.kind === 'file')
-		return `{ key: string; url: string; mime?: string; size?: number; width?: number; height?: number; alt?: string }`;
+		return '{ key: string; url: string; mime?: string; size?: number; width?: number; height?: number; alt?: string }';
 	if (field.kind === 'richText') return 'unknown';
 	if (field.kind === 'json') return 'unknown';
 	if (field.kind === 'relation' && field.relation)

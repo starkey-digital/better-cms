@@ -1,28 +1,28 @@
 <script lang="ts">
-	import type { FieldDef } from '@better-cms/core';
-	import type { AdminApi } from './api.js';
+import type { FieldDef } from '@better-cms/core';
+import type { AdminApi } from './api.js';
 
-	type Props = {
-		field: FieldDef;
-		name: string;
-		value: unknown;
-		api: AdminApi;
-		onchange: (next: unknown) => void;
-	};
+type Props = {
+	field: FieldDef;
+	name: string;
+	value: unknown;
+	api: AdminApi;
+	onchange: (next: unknown) => void;
+};
 
-	const { field, name, value, api, onchange }: Props = $props();
+const { field, name, value, api, onchange }: Props = $props();
 
-	let busy = $state(false);
+let busy = $state(false);
 
-	async function uploadImage(file: File) {
-		busy = true;
-		try {
-			const res = await api.uploadMedia(file, name);
-			onchange({ key: res.key, url: res.url });
-		} finally {
-			busy = false;
-		}
+async function uploadImage(file: File) {
+	busy = true;
+	try {
+		const res = await api.uploadMedia(file, name);
+		onchange({ key: res.key, url: res.url });
+	} finally {
+		busy = false;
 	}
+}
 </script>
 
 <label class="bcms-field">

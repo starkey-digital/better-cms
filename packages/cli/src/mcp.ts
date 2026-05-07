@@ -15,7 +15,10 @@ export interface McpServerOpts {
 	configPath?: string;
 }
 
-const COLLECTION_TOOLS: Record<string, (collection: string, input: Record<string, unknown>) => CMSOp> = {
+const COLLECTION_TOOLS: Record<
+	string,
+	(collection: string, input: Record<string, unknown>) => CMSOp
+> = {
 	cms_create: (collection, input) => ({
 		op: 'create',
 		collection,
@@ -168,7 +171,11 @@ export async function startMcpServer(opts: McpServerOpts = {}): Promise<void> {
 			}
 			const builder = COLLECTION_TOOLS[name];
 			if (builder) {
-				const op = { ...builder(collection, args), source: 'mcp' as const, at: new Date().toISOString() };
+				const op = {
+					...builder(collection, args),
+					source: 'mcp' as const,
+					at: new Date().toISOString(),
+				};
 				const [res] = await applyOps([op], { store: config.adapter, schema });
 				if (!res?.ok) {
 					return textResult({ error: res?.error?.message ?? 'unknown' }, true);

@@ -1,7 +1,7 @@
 import type { SchemaIR } from '../ir/types.js';
 import type { ContentStore } from '../store/content.js';
-import { CMSError, errors } from '../util/result.js';
 import { generateId } from '../util/id.js';
+import { CMSError, errors } from '../util/result.js';
 import { deserializeRow, serializeRow, validateRow } from '../util/validate.js';
 import type { CMSOp, OpResult } from './types.js';
 
@@ -34,11 +34,7 @@ export async function applyOp(op: CMSOp, deps: ApplyDeps): Promise<OpResult> {
 		if (op.op === 'set') {
 			const data = { ...op.data, updatedAt: now };
 			validateRow(op.collection, def, data, true);
-			const row = await deps.store.update(
-				op.collection,
-				{ id: op.id },
-				serializeRow(def, data),
-			);
+			const row = await deps.store.update(op.collection, { id: op.id }, serializeRow(def, data));
 			return { op, ok: true, row: deserializeRow(def, row) };
 		}
 
@@ -53,15 +49,11 @@ export async function applyOp(op: CMSOp, deps: ApplyDeps): Promise<OpResult> {
 			const merged = applyJsonOp(deserializeRow(def, current), op);
 			merged.updatedAt = now;
 			validateRow(op.collection, def, merged, true);
-			const row = await deps.store.update(
-				op.collection,
-				{ id: op.id },
-				serializeRow(def, merged),
-			);
+			const row = await deps.store.update(op.collection, { id: op.id }, serializeRow(def, merged));
 			return { op, ok: true, row: deserializeRow(def, row) };
 		}
 
-		throw errors.badRequest(`unsupported op`);
+		throw errors.badRequest('unsupported op');
 	} catch (e) {
 		const cms =
 			e instanceof CMSError
@@ -93,7 +85,11 @@ function applyJsonOp(
 	if (op.op === 'remove' && segs.length) {
 		if (typeof op.index === 'number') {
 			const arr = (getIn(out, segs) as unknown[] | undefined) ?? [];
-			return setIn(out, segs, arr.filter((_, i) => i !== op.index));
+			return setIn(
+				out,
+				segs,
+				arr.filter((_, i) => i !== op.index),
+			);
 		}
 		return unsetIn(out, segs);
 	}

@@ -1,5 +1,5 @@
-import { cms, serverApi } from 'better-cms/sveltekit';
 import config from '$lib/cms.config';
+import { cms, serverApi } from 'better-cms/sveltekit';
 
 export async function load() {
 	const instance = await cms(config);

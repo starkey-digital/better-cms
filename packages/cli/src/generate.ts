@@ -1,8 +1,8 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { getCMSTables } from '@better-cms/core';
-import { loadConfig } from './load-config.js';
 import { generateDrizzleSchema, generateTypes } from './generate-drizzle.js';
+import { loadConfig } from './load-config.js';
 
 export interface GenerateOpts {
 	cwd?: string;

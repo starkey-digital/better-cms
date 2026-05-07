@@ -61,7 +61,7 @@ export function serializeCookie(opts: CookieSerializeOpts): string {
 		`${opts.name}=${opts.value}`,
 		`Path=${opts.path ?? '/'}`,
 		`Max-Age=${opts.maxAge}`,
-		`HttpOnly`,
+		'HttpOnly',
 		`SameSite=${opts.sameSite ?? 'Lax'}`,
 	];
 	if (opts.secure ?? true) parts.push('Secure');

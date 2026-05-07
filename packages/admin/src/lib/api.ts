@@ -1,14 +1,20 @@
 import type { CMSOp } from '@better-cms/core';
 
 export interface AdminApi {
-	list(collection: string, opts?: { limit?: number; offset?: number }): Promise<Record<string, unknown>[]>;
+	list(
+		collection: string,
+		opts?: { limit?: number; offset?: number },
+	): Promise<Record<string, unknown>[]>;
 	get(collection: string, id: string): Promise<Record<string, unknown> | null>;
 	getSingleton(name: string): Promise<Record<string, unknown> | null>;
 	saveSingleton(name: string, data: Record<string, unknown>): Promise<Record<string, unknown>>;
 	runOps(ops: CMSOp[]): Promise<{ ok: boolean; row?: Record<string, unknown>; error?: string }[]>;
 	uploadMedia(file: File, folder?: string): Promise<{ key: string; url: string }>;
 	me(): Promise<{ id: string; role: string } | null>;
-	login(password: string, turnstileToken?: string): Promise<{ ok: true } | { ok: false; code: string; message: string }>;
+	login(
+		password: string,
+		turnstileToken?: string,
+	): Promise<{ ok: true } | { ok: false; code: string; message: string }>;
 	logout(): Promise<void>;
 }
 

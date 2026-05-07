@@ -47,7 +47,6 @@ export function serverApi<C extends CollectionsRecord>(ctx: CMSContext<C>): Serv
 		find: (c, id) => ctx.store.findOne(c as string, { id }) as Promise<never>,
 		list: (c, o = {}) => ctx.store.findMany(c as string, o) as Promise<never>,
 		count: (c, where) => ctx.store.count(c as string, where),
-		getSingleton: (c) =>
-			ctx.store.findOne(c as string, { id: SINGLETON_ID }) as Promise<never>,
+		getSingleton: (c) => ctx.store.findOne(c as string, { id: SINGLETON_ID }) as Promise<never>,
 	};
 }

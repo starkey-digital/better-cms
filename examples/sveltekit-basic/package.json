@@ -1,30 +1,30 @@
 {
-  "name": "@better-cms-examples/sveltekit-basic",
-  "version": "0.0.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "prepare": "svelte-kit sync || echo ''",
-    "dev": "vite dev",
-    "build": "vite build",
-    "preview": "vite preview",
-    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "cms:gen": "bunx -p @better-cms/cli bcms generate",
-    "cms:mcp": "bunx -p @better-cms/cli bcms mcp"
-  },
-  "dependencies": {
-    "better-cms": "workspace:*",
-    "@better-cms/cli": "workspace:*",
-    "@libsql/client": "^0.14.0"
-  },
-  "devDependencies": {
-    "@sveltejs/adapter-auto": "^4.0.0",
-    "@sveltejs/kit": "^2.20.0",
-    "@sveltejs/vite-plugin-svelte": "^5.0.0",
-    "svelte": "^5.20.0",
-    "svelte-check": "^4.1.0",
-    "typescript": "^5.6.3",
-    "vite": "^6.0.0"
-  }
+	"name": "@better-cms-examples/sveltekit-basic",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"prepare": "svelte-kit sync || echo ''",
+		"dev": "vite dev",
+		"build": "vite build",
+		"preview": "vite preview",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"cms:gen": "bunx -p @better-cms/cli bcms generate",
+		"cms:mcp": "bunx -p @better-cms/cli bcms mcp"
+	},
+	"dependencies": {
+		"better-cms": "workspace:*",
+		"@better-cms/cli": "workspace:*",
+		"@libsql/client": "^0.14.0"
+	},
+	"devDependencies": {
+		"@sveltejs/adapter-auto": "^4.0.0",
+		"@sveltejs/kit": "^2.20.0",
+		"@sveltejs/vite-plugin-svelte": "^5.0.0",
+		"svelte": "^5.20.0",
+		"svelte-check": "^4.1.0",
+		"typescript": "^5.6.3",
+		"vite": "^6.0.0"
+	}
 }

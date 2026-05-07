@@ -1,6 +1,6 @@
 <script lang="ts">
-	let { data } = $props();
-	const settings = $derived(data.settings as { siteTitle?: string; tagline?: string } | null);
+const { data } = $props();
+const settings = $derived(data.settings as { siteTitle?: string; tagline?: string } | null);
 </script>
 
 <svelte:head>

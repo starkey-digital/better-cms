@@ -18,9 +18,7 @@
 		},
 		"./CMSAdmin.svelte": "./src/lib/CMSAdmin.svelte"
 	},
-	"files": [
-		"src/lib"
-	],
+	"files": ["src/lib"],
 	"scripts": {
 		"typecheck": "svelte-check --tsconfig ./tsconfig.json"
 	},

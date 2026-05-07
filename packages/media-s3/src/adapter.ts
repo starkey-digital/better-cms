@@ -1,5 +1,3 @@
-import type { MediaListPage, MediaObject, MediaPutOpts, MediaStore } from '@better-cms/core';
-import { generateId } from '@better-cms/core';
 import {
 	DeleteObjectCommand,
 	GetObjectCommand,
@@ -9,6 +7,8 @@ import {
 	type S3ClientConfig,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import type { MediaListPage, MediaObject, MediaPutOpts, MediaStore } from '@better-cms/core';
+import { generateId } from '@better-cms/core';
 
 export interface S3MediaOpts {
 	bucket: string;
@@ -45,7 +45,11 @@ export function s3Media(opts: S3MediaOpts): MediaStore {
 		return `https://${opts.bucket}.s3.${opts.region ?? 'us-east-1'}.amazonaws.com/${key}`;
 	}
 
-	function buildKey(givenKey: string | undefined, folder: string | undefined, mime: string): string {
+	function buildKey(
+		givenKey: string | undefined,
+		folder: string | undefined,
+		mime: string,
+	): string {
 		if (givenKey) return givenKey;
 		const ext = mime.split('/')[1]?.replace(/[^a-z0-9]/gi, '') || 'bin';
 		const f = folder ?? opts.defaultFolder;
@@ -53,9 +57,7 @@ export function s3Media(opts: S3MediaOpts): MediaStore {
 		return f ? `${f.replace(/\/$/, '')}/${id}.${ext}` : `${id}.${ext}`;
 	}
 
-	function describeBody(
-		body: Blob | ArrayBuffer | Uint8Array | ReadableStream<Uint8Array>,
-	): {
+	function describeBody(body: Blob | ArrayBuffer | Uint8Array | ReadableStream<Uint8Array>): {
 		Body: Uint8Array | Blob | ReadableStream<Uint8Array>;
 		ContentLength?: number;
 		mime?: string;
@@ -88,7 +90,12 @@ export function s3Media(opts: S3MediaOpts): MediaStore {
 					ACL: putOpts.publicRead ? 'public-read' : undefined,
 				}),
 			);
-			return { key, url: publicUrl(key), mime, size: desc.ContentLength ?? 0 } satisfies MediaObject;
+			return {
+				key,
+				url: publicUrl(key),
+				mime,
+				size: desc.ContentLength ?? 0,
+			} satisfies MediaObject;
 		},
 
 		async delete(key) {

@@ -11,21 +11,12 @@
 	},
 	"homepage": "https://github.com/starkey-digital/better-cms",
 	"description": "Drop-in headless CMS for SvelteKit. BYO database, BYO storage. Single install, subpath imports.",
-	"keywords": [
-		"cms",
-		"headless-cms",
-		"sveltekit",
-		"drizzle",
-		"libsql",
-		"content-management"
-	],
+	"keywords": ["cms", "headless-cms", "sveltekit", "drizzle", "libsql", "content-management"],
 	"sideEffects": false,
 	"main": "./dist/index.mjs",
 	"module": "./dist/index.mjs",
 	"types": "./dist/index.d.mts",
-	"files": [
-		"dist"
-	],
+	"files": ["dist"],
 	"exports": {
 		".": {
 			"dev-source": "./src/index.ts",
@@ -76,30 +67,14 @@
 	},
 	"typesVersions": {
 		"*": {
-			"adapters/libsql": [
-				"./dist/adapters/libsql.d.mts"
-			],
-			"adapters/drizzle": [
-				"./dist/adapters/drizzle.d.mts"
-			],
-			"media/s3": [
-				"./dist/media/s3.d.mts"
-			],
-			"sveltekit": [
-				"./dist/sveltekit/index.d.mts"
-			],
-			"sveltekit/remote": [
-				"./dist/sveltekit/remote.d.mts"
-			],
-			"sveltekit/auth": [
-				"./dist/sveltekit/auth.d.mts"
-			],
-			"admin": [
-				"./dist/admin/index.d.mts"
-			],
-			"types": [
-				"./dist/types.d.mts"
-			]
+			"adapters/libsql": ["./dist/adapters/libsql.d.mts"],
+			"adapters/drizzle": ["./dist/adapters/drizzle.d.mts"],
+			"media/s3": ["./dist/media/s3.d.mts"],
+			"sveltekit": ["./dist/sveltekit/index.d.mts"],
+			"sveltekit/remote": ["./dist/sveltekit/remote.d.mts"],
+			"sveltekit/auth": ["./dist/sveltekit/auth.d.mts"],
+			"admin": ["./dist/admin/index.d.mts"],
+			"types": ["./dist/types.d.mts"]
 		}
 	},
 	"scripts": {
