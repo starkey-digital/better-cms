@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { generate } from './generate.js';
+import { genSecret, hashPasswordCli } from './hash-password.js';
 import { init } from './init.js';
 import { startMcpServer } from './mcp.js';
 
@@ -22,6 +23,8 @@ Commands:
   generate                   Emit drizzle schema file from cms.config.ts
   generate --target=types    Emit TypeScript interfaces for collections
   mcp                        Run MCP server (stdio) — for Claude Code / Desktop
+  hash-password [pw]         PBKDF2 hash for CMS_PASSWORD_HASH (prompts if omitted)
+  gen-secret [bytes]         Random hex secret for CMS_AUTH_SECRET (default 32 bytes)
 
 Flags:
   --config <path>            Path to cms.config (default: auto-detected)
@@ -50,6 +53,17 @@ async function main() {
 			}
 			case 'mcp': {
 				await startMcpServer({ configPath: flag('config') });
+				break;
+			}
+			case 'hash-password': {
+				const hash = await hashPasswordCli(args[1]);
+				console.log(hash);
+				break;
+			}
+			case 'gen-secret': {
+				const bytes = args[1] ? Number(args[1]) : 32;
+				if (!Number.isFinite(bytes) || bytes < 16) throw new Error('bytes must be ≥16');
+				console.log(genSecret(bytes));
 				break;
 			}
 			default:

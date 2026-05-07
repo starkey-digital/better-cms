@@ -44,6 +44,11 @@
       "types": "./dist/sveltekit/remote.d.mts",
       "default": "./dist/sveltekit/remote.mjs"
     },
+    "./sveltekit/auth": {
+      "dev-source": "./src/sveltekit/auth.ts",
+      "types": "./dist/sveltekit/auth.d.mts",
+      "default": "./dist/sveltekit/auth.mjs"
+    },
     "./admin": {
       "dev-source": "./src/admin/index.ts",
       "types": "./dist/admin/index.d.mts",
@@ -63,6 +68,7 @@
       "media/s3": ["./dist/media/s3.d.mts"],
       "sveltekit": ["./dist/sveltekit/index.d.mts"],
       "sveltekit/remote": ["./dist/sveltekit/remote.d.mts"],
+      "sveltekit/auth": ["./dist/sveltekit/auth.d.mts"],
       "admin": ["./dist/admin/index.d.mts"],
       "types": ["./dist/types.d.mts"]
     }

@@ -11,6 +11,7 @@ export default defineConfig({
 		'./src/media/s3.ts',
 		'./src/sveltekit/index.ts',
 		'./src/sveltekit/remote.ts',
+		'./src/sveltekit/auth.ts',
 		'./src/admin/index.ts',
 	],
 	treeshake: true,

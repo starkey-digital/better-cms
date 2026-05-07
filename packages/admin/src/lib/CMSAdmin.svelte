@@ -3,14 +3,43 @@
 	import { onMount } from 'svelte';
 	import { type AdminApi, httpApi } from './api.js';
 	import FieldEditor from './FieldEditor.svelte';
+	import LoginScreen from './LoginScreen.svelte';
 	import type { ClientCMSConfig } from './types.js';
 
 	type Props = {
 		config: ClientCMSConfig;
 		api?: AdminApi;
+		auth?: boolean;
+		turnstileSiteKey?: string;
 	};
 
-	const { config, api = httpApi(config.basePath ?? '/api/cms') }: Props = $props();
+	const {
+		config,
+		api = httpApi(config.basePath ?? '/api/cms'),
+		auth = false,
+		turnstileSiteKey,
+	}: Props = $props();
+
+	let user = $state<{ id: string; role: string } | null>(null);
+	let authChecked = $state(false);
+	const gateOpen = $derived(!auth || (authChecked && user !== null));
+
+	async function checkAuth() {
+		try {
+			user = await api.me();
+		} catch {
+			user = null;
+		} finally {
+			authChecked = true;
+		}
+	}
+
+	async function logout() {
+		await api.logout();
+		user = null;
+		rows = [];
+		editing = null;
+	}
 
 	const entries = $derived(Object.entries(config.collections));
 	const firstName = $derived(entries[0]?.[0] ?? null);
@@ -25,7 +54,13 @@
 	let error = $state<string | null>(null);
 
 	onMount(() => {
-		if (effectiveName && selectedDef) void load(effectiveName, selectedDef.kind);
+		if (auth) {
+			void checkAuth().then(() => {
+				if (user && effectiveName && selectedDef) void load(effectiveName, selectedDef.kind);
+			});
+		} else if (effectiveName && selectedDef) {
+			void load(effectiveName, selectedDef.kind);
+		}
 	});
 
 	function select(name: string, def: CollectionDef) {
@@ -104,9 +139,25 @@
 	}
 </script>
 
+{#if auth && !authChecked}
+	<div class="bcms-loading">loading…</div>
+{:else if auth && !gateOpen}
+	<LoginScreen
+		{api}
+		{turnstileSiteKey}
+		onLogin={() => {
+			void checkAuth().then(() => {
+				if (effectiveName && selectedDef) void load(effectiveName, selectedDef.kind);
+			});
+		}}
+	/>
+{:else}
 <div class="bcms">
 	<aside class="bcms-sidebar">
 		<h1>better-cms</h1>
+		{#if auth && user}
+			<button type="button" class="bcms-logout" onclick={logout}>sign out</button>
+		{/if}
 		<nav>
 			{#each entries as [name, def] (name)}
 				<button
@@ -180,8 +231,33 @@
 		{/if}
 	</main>
 </div>
+{/if}
 
 <style>
+	.bcms-loading {
+		display: grid;
+		place-items: center;
+		min-height: 100vh;
+		color: #71717a;
+		font-family: system-ui, -apple-system, sans-serif;
+	}
+	.bcms-logout {
+		display: block;
+		width: 100%;
+		margin-bottom: 0.75rem;
+		padding: 0.375rem 0.625rem;
+		background: transparent;
+		color: #71717a;
+		border: 1px solid #e4e4e7;
+		border-radius: 6px;
+		text-align: left;
+		cursor: pointer;
+		font: inherit;
+		font-size: 0.8125rem;
+	}
+	.bcms-logout:hover {
+		background: #f4f4f5;
+	}
 	.bcms {
 		display: grid;
 		grid-template-columns: 240px 1fr;
