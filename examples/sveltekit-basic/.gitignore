@@ -8,3 +8,5 @@ build
 *.db
 *.db-shm
 *.db-wal
+test-results
+playwright-report
