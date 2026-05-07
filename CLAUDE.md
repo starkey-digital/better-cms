@@ -89,22 +89,29 @@ import type { Post }      from 'better-cms/types';
 
 ## Releasing
 
-Changesets in `fixed` group — every published pkg bumps together. CLI ships separately under same version (in same fixed group).
+**Tag-driven, fully automated.** Push a `v*` tag → CI publishes to npm + deploys docs. Day-to-day commits to main run CI only (typecheck), no publish.
 
-## Publishing
+### Flow
 
-- **Publish via `bun publish`, NOT `changeset publish`.** `changeset publish` spawns `npm publish` which leaves `workspace:*` literal in published tarballs → installs fail. `scripts/publish-all.ts` iterates non-private workspace pkgs calling `bun publish` (rewrites workspace protocol). `release` script uses it.
-- **Bun reads `.npmrc` literally — no `${VAR}` expansion.** CI must write the literal token: `echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > .npmrc`. The `${NODE_AUTH_TOKEN}` template setup-node generates is ignored by `bun publish`.
+1. `bun run bump <X.Y.Z>` — bumps every published `packages/*/package.json` and `plugins/claude-code/plugin.json` to target version (lockstep, all 8 packages + plugin). Idempotent.
+2. (optional) Write `changelog/RELEASE_v<X.Y.Z>.md` for richer release notes; otherwise GH auto-generates from commits.
+3. `git commit -am "release: vX.Y.Z" && git tag vX.Y.Z && git push --follow-tags`
+4. CI fires:
+   - **`release.yml`** — verifies tag matches `packages/better-cms/package.json` version, builds main pkg, runs `scripts/publish-all.ts` (`bun publish` per non-private workspace), creates GH release.
+   - **`docs.yml`** — builds + deploys `apps/docs/` to GitHub Pages.
+
+### Publishing notes
+
+- **Publish via `bun publish`, NOT `npm publish`.** `npm publish` leaves `workspace:*` literal in published tarballs → installs fail. `scripts/publish-all.ts` iterates non-private workspace pkgs calling `bun publish` (rewrites workspace protocol).
+- **Bun reads `.npmrc` literally — no `${VAR}` expansion.** CI writes the literal token: `echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > .npmrc`. The `${NODE_AUTH_TOKEN}` template setup-node generates is ignored by `bun publish`.
 - **For "did it actually publish?", use `curl -s https://registry.npmjs.org/<encoded-name>` not `npm view`.** `npm view` has aggressive registry cache and lies right after a publish. Encode `/` → `%2F` for scoped packages.
 - **Granular npm tokens need org-level access** to create new scoped packages. The token's "Packages and scopes" list alone isn't enough — add the `better-cms` org under "Organizations: Read and write" too.
 - **Trusted publishing is per-existing-package.** Bootstrap first publish with a short-lived `NPM_TOKEN` granular token, then configure trusted publishers per-package, then delete the token.
-- Plugin version stays in lockstep — `bun run version` runs `changeset version && sync:plugin` (writes `plugins/claude-code/plugin.json` from `packages/better-cms/package.json` version).
 
-## Release Preferences
+### Release Preferences
 
-- **Tag format:** `v0.1.0` (with `v` prefix)
-- **GitHub releases:** yes — `gh release create` with notes from `changelog/RELEASE_<version>.md`
-- **Issue/PR linking:** yes — append `(#N)` to user-facing changelog entries
-- **Changelog file location:** `changelog/RELEASE_<version>.md`
-- **Version source of truth:** all published `packages/*/package.json` move in lockstep (matches `.changeset/config.json` `fixed` group). Bump 8 files together.
-- **npm publish flow:** `bunx -p @better-cms/cli bcms` shells out separately. Run `npm publish --access public --auth-type=web` per package after tag is pushed (2FA via security key).
+- **Tag format:** `v0.1.0` (with `v` prefix). Tag = single source of truth — must match `packages/better-cms/package.json` version (CI verifies).
+- **Version lockstep:** all 8 published packages + `plugins/claude-code/plugin.json` move together via `bun run bump`.
+- **GitHub releases:** auto-created by `release.yml` — uses `changelog/RELEASE_<tag>.md` if present, else `--generate-notes`.
+- **Issue/PR linking:** append `(#N)` to user-facing changelog entries.
+- **Changelog file location:** `changelog/RELEASE_<tag>.md` (e.g. `RELEASE_v0.2.0.md`).
