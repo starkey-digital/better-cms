@@ -6,10 +6,12 @@ import type { MediaStore } from './store/media.js';
 
 export type CollectionsRecord = Record<string, CollectionDef<any, any>>;
 
+export type LazyAdapter<T> = T | (() => T | Promise<T>);
+
 export interface CMSConfig<C extends CollectionsRecord = CollectionsRecord> {
 	collections: C;
-	adapter: ContentStore;
-	media?: MediaStore;
+	adapter: LazyAdapter<ContentStore>;
+	media?: LazyAdapter<MediaStore>;
 	auth?: { getUser: GetUserFn };
 	plugins?: CMSPlugin[];
 	basePath?: string;

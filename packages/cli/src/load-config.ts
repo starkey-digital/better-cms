@@ -20,6 +20,8 @@ export async function loadConfig(
 	const { createJiti } = await import('jiti');
 	const jiti = createJiti(import.meta.url, { interopDefault: true });
 
+	const errors: { path: string; error: Error }[] = [];
+
 	for (const path of candidates) {
 		if (!hint && !existsSync(path)) continue;
 		try {
@@ -31,7 +33,15 @@ export async function loadConfig(
 			return { config, path };
 		} catch (e) {
 			if (hint) throw e;
+			errors.push({ path, error: e as Error });
 		}
+	}
+
+	if (errors.length) {
+		const detail = errors.map(({ path, error }) => `  ${path}\n    → ${error.message}`).join('\n');
+		throw new Error(
+			`[better-cms] Found cms.config file(s) but they failed to load:\n${detail}\n\nPass --config <path> to override.`,
+		);
 	}
 
 	throw new Error(

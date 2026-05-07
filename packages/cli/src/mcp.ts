@@ -1,5 +1,5 @@
 import { applyOps, collectionToJsonSchema, getCMSTables } from '@better-cms/core';
-import type { CMSOp } from '@better-cms/core';
+import type { CMSOp, ContentStore, LazyAdapter } from '@better-cms/core';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
@@ -37,11 +37,16 @@ const COLLECTION_TOOLS: Record<
 	}),
 };
 
+async function resolveAdapter(value: LazyAdapter<ContentStore>): Promise<ContentStore> {
+	return typeof value === 'function' ? await value() : value;
+}
+
 export async function startMcpServer(opts: McpServerOpts = {}): Promise<void> {
 	const cwd = opts.cwd ?? process.cwd();
 	const { config } = await loadConfig(cwd, opts.configPath);
 	const schema = getCMSTables(config);
-	if (config.adapter.init) await config.adapter.init(schema);
+	const adapter = await resolveAdapter(config.adapter);
+	if (adapter.init) await adapter.init(schema);
 
 	const collections = Object.keys(schema.collections);
 
@@ -159,14 +164,14 @@ export async function startMcpServer(opts: McpServerOpts = {}): Promise<void> {
 			}
 			const collection = args.collection as string;
 			if (name === 'cms_list') {
-				const rows = await config.adapter.findMany(collection, {
+				const rows = await adapter.findMany(collection, {
 					limit: (args.limit as number) ?? 50,
 					offset: (args.offset as number) ?? 0,
 				});
 				return textResult(rows);
 			}
 			if (name === 'cms_get') {
-				const row = await config.adapter.findOne(collection, { id: args.id as string });
+				const row = await adapter.findOne(collection, { id: args.id as string });
 				return textResult(row);
 			}
 			const builder = COLLECTION_TOOLS[name];
@@ -176,7 +181,7 @@ export async function startMcpServer(opts: McpServerOpts = {}): Promise<void> {
 					source: 'mcp' as const,
 					at: new Date().toISOString(),
 				};
-				const [res] = await applyOps([op], { store: config.adapter, schema });
+				const [res] = await applyOps([op], { store: adapter, schema });
 				if (!res?.ok) {
 					return textResult({ error: res?.error?.message ?? 'unknown' }, true);
 				}

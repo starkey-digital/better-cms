@@ -30,15 +30,24 @@ Flags:
   --config <path>            Path to cms.config (default: auto-detected)
   --out <path>               Output file
   --force                    Overwrite existing files
+  --skip-install             init: skip installing deps, print commands to run
 `;
 
 async function main() {
 	try {
 		switch (cmd) {
 			case 'init': {
-				const res = await init({ force: bool('force') });
+				const res = await init({ force: bool('force'), skipInstall: bool('skip-install') });
 				for (const p of res.written) console.log(`✓ wrote ${p}`);
-				if (res.written.length === 0) console.log('nothing written');
+				for (const p of res.installed) console.log(`✓ installed ${p}`);
+				if (res.skipped.length) {
+					console.log(
+						`(${res.skipped.length} file(s) already existed — pass --force to overwrite)`,
+					);
+				}
+				if (res.written.length === 0 && res.installed.length === 0) {
+					console.log('nothing to do');
+				}
 				break;
 			}
 			case 'generate': {

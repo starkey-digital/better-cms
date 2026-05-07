@@ -6,10 +6,14 @@ Mount the handler, render the admin, read content from server load functions or 
 
 ```ts
 // src/hooks.server.ts
+// dotenv populates process.env so the adapter thunks in cms.config.ts can
+// read DATABASE_URL etc. during local dev. SvelteKit's $env/dynamic/private
+// works in route code but not in modules imported outside the request scope.
+import 'dotenv/config';
 import { cmsHandle } from 'better-cms/sveltekit';
-import { cmsConfig } from '$lib/cms';
+import config from '$lib/cms.config';
 
-export const handle = cmsHandle(cmsConfig);
+export const handle = cmsHandle(config);
 ```
 
 Default mount point: `/api/cms`. Override with `cmsConfig.basePath` if needed. Leaves `/cms` free for the admin page.
@@ -49,11 +53,15 @@ Then call from a client component without a manual `+page.server.ts`.
 <!-- src/routes/cms/+page.svelte -->
 <script lang="ts">
 	import { CMSAdmin } from 'better-cms/admin';
-	import { cmsConfig } from '$lib/cms';
+	import config from '$lib/cms.config';
 </script>
 
-<CMSAdmin config={cmsConfig} />
+<CMSAdmin {config} />
 ```
+
+The config module is safe to import from client code: `adapter` and `media` are
+thunks that fire only on the server (when `cmsHandle()` boots the runtime).
+`process.env` reads stay out of the browser bundle.
 
 ## Live updates
 

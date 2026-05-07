@@ -30,17 +30,23 @@ export interface CreateCMSOpts {
  *  - handler (Request→Response) for the HTTP boundary
  *  - live transport for SSE broadcasts
  */
+async function resolveLazy<T>(value: T | (() => T | Promise<T>)): Promise<T> {
+	return typeof value === 'function' ? await (value as () => T | Promise<T>)() : value;
+}
+
 export async function createCMS(config: CMSConfig, opts: CreateCMSOpts = {}): Promise<CMSInstance> {
 	const schema = getCMSTables(config);
 	const live = opts.live ?? inMemoryTransport();
+	const adapter = await resolveLazy(config.adapter);
+	const media = config.media ? await resolveLazy(config.media) : undefined;
 	const context: CMSContext = {
 		config,
 		schema,
-		store: config.adapter,
-		media: config.media,
+		store: adapter,
+		media,
 	};
 
-	if (config.adapter.init) await config.adapter.init(schema);
+	if (adapter.init) await adapter.init(schema);
 	const pluginRoutes = new Map<RouteKey, PluginEndpoint>();
 	for (const plugin of config.plugins ?? []) {
 		if (plugin.init) await plugin.init(context);

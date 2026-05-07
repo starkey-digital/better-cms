@@ -1,8 +1,6 @@
 import { boolean, collection, defineCMS, image, richText, singleton, slug, text } from 'better-cms';
 import { libsqlAdapter } from 'better-cms/adapters/libsql';
 
-const url = process.env.DATABASE_URL ?? 'file:./local.db';
-
 export default defineCMS({
 	collections: {
 		posts: collection({
@@ -22,7 +20,11 @@ export default defineCMS({
 			},
 		}),
 	},
-	adapter: libsqlAdapter({ url, authToken: process.env.DATABASE_AUTH_TOKEN }),
+	adapter: () =>
+		libsqlAdapter({
+			url: process.env.DATABASE_URL ?? 'file:./local.db',
+			authToken: process.env.DATABASE_AUTH_TOKEN,
+		}),
 	auth: {
 		getUser: async () => ({ id: 'dev', email: 'dev@example.com', role: 'admin' }),
 	},
