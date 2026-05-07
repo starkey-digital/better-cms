@@ -58,13 +58,3 @@ Then call from a client component without a manual `+page.server.ts`.
 ## Live updates
 
 Operations broadcast via the handler. Admin and any subscribed page update without a refresh.
-
-## Vite SSR caveat (workspace dev only)
-
-Workspace `.ts` packages get externalized by default → `ERR_MODULE_NOT_FOUND` at SSR. Add to `vite.config.ts`:
-
-```ts
-ssr: { noExternal: ['better-cms', /^@better-cms\//] }
-```
-
-Not needed once consumed from npm.

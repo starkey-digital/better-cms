@@ -70,8 +70,8 @@ jobs:
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Build
-        run: bun run --filter better-cms build
+      - name: Build all packages
+        run: bun run --filter './packages/*' build
 
       - name: Publish to npm
         run: bun scripts/publish-all.ts

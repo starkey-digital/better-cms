@@ -10,15 +10,40 @@
 		"directory": "packages/core"
 	},
 	"description": "better-cms core: IR, DSL, contracts, ops kernel, request handler.",
-	"main": "./src/index.ts",
-	"types": "./src/index.ts",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"files": ["dist"],
 	"exports": {
-		".": "./src/index.ts",
-		"./ir": "./src/ir/index.ts",
-		"./store": "./src/store/index.ts",
-		"./ops": "./src/ops/index.ts",
-		"./handler": "./src/handler/index.ts",
-		"./plugin": "./src/plugin/index.ts"
+		".": {
+			"dev-source": "./src/index.ts",
+			"types": "./dist/index.d.ts",
+			"default": "./dist/index.js"
+		},
+		"./ir": {
+			"dev-source": "./src/ir/index.ts",
+			"types": "./dist/ir/index.d.ts",
+			"default": "./dist/ir/index.js"
+		},
+		"./store": {
+			"dev-source": "./src/store/index.ts",
+			"types": "./dist/store/index.d.ts",
+			"default": "./dist/store/index.js"
+		},
+		"./ops": {
+			"dev-source": "./src/ops/index.ts",
+			"types": "./dist/ops/index.d.ts",
+			"default": "./dist/ops/index.js"
+		},
+		"./handler": {
+			"dev-source": "./src/handler/index.ts",
+			"types": "./dist/handler/index.d.ts",
+			"default": "./dist/handler/index.js"
+		},
+		"./plugin": {
+			"dev-source": "./src/plugin/index.ts",
+			"types": "./dist/plugin/index.d.ts",
+			"default": "./dist/plugin/index.js"
+		}
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit",

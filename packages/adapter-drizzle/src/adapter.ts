@@ -1,5 +1,5 @@
 import { libsqlAdapter } from '@better-cms/adapter-libsql';
-import type { ContentStore } from '@better-cms/core';
+import type { ContentStore, SchemaIR } from '@better-cms/core';
 import type { Client } from '@libsql/client';
 
 export interface DrizzleAdapterOpts<DB> {
@@ -23,7 +23,7 @@ export function drizzleAdapter<DB>(opts: DrizzleAdapterOpts<DB>): DrizzleAdapter
 	return {
 		...inner,
 		db: opts.db,
-		async init(schema) {
+		async init(schema: SchemaIR) {
 			if (skipDDL) return;
 			await inner.init?.(schema);
 		},

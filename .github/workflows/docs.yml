@@ -28,8 +28,8 @@ jobs:
       - name: Install
         run: bun install --frozen-lockfile
 
-      - name: Build main pkg (subpath types)
-        run: bun run --filter better-cms build
+      - name: Build all packages (subpath types)
+        run: bun run --filter './packages/*' build
 
       - name: Build docs
         env:

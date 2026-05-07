@@ -41,17 +41,7 @@ export const handle = cmsHandle(cmsConfig);
 
 The default base path is `/api/cms`. Override with `config.basePath` if you need a different mount point.
 
-## 4. Add `ssr.noExternal` (workspace-only)
-
-If consuming `better-cms` from a workspace before publishing, add to `vite.config.ts`:
-
-```ts
-ssr: { noExternal: ['better-cms', /^@better-cms\//] }
-```
-
-Once installed from npm with built `dist/`, this is unnecessary.
-
-## 5. Render the admin UI
+## 4. Render the admin UI
 
 ```svelte
 <script lang="ts">

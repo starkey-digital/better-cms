@@ -8,6 +8,7 @@ export type {
 	CollectionDef,
 	CollectionKind,
 	FieldDef,
+	SchemaIR,
 } from './ir/types.js';
 export * from './dsl/index.js';
 export * from './dsl/define.js';

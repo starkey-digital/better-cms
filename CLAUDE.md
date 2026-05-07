@@ -54,8 +54,9 @@ import type { Post }      from 'better-cms/types';
 `packages/better-cms/tsdown.config.ts` uses `unbundle: true` + per-entry — emits one `.mjs` per subpath. Subpath isolation: importing `better-cms/sveltekit` does NOT pull svelte/react/drizzle code.
 
 - **`dts: true`** in tsdown config (NOT `dts: { build: true, incremental: true }` — project-reference mode fails on workspace re-export shells).
-- **CI runs `bun run --filter better-cms build` before typecheck.** Examples reference subpath types from `dist/` — typecheck fails on a fresh checkout otherwise.
-- **SvelteKit consumers need `ssr.noExternal: ['better-cms', /^@better-cms\//]` in `vite.config.ts`.** Vite externalizes workspace `.ts` packages by default → `ERR_MODULE_NOT_FOUND` at SSR. (Once consumers install from npm with proper `dist/`, this becomes unnecessary.)
+- **All internal `@better-cms/*` packages publish built `dist/` (not raw `.ts`).** `core`, `sveltekit`, `adapter-libsql`, `adapter-drizzle`, `media-s3`, `cli` use `tsc -p tsconfig.build.json`. `admin` uses `svelte-package` (preserves `.svelte`, compiles `.ts`). Each `package.json` `exports` map carries a `dev-source` condition pointing at `./src/*.ts` for tooling that opts in, plus `types`/`default` pointing at `./dist/`.
+- **CI runs `bun run --filter './packages/*' build` before typecheck.** Cross-pkg type resolution + example typecheck both depend on `dist/` existing. Bun honours topological order via `--filter`.
+- **SvelteKit consumers do NOT need `ssr.noExternal` for `better-cms` / `@better-cms/*`** — published artifacts are `.js` and externalize cleanly.
 - **SvelteKit example pkgs need `"prepare": "svelte-kit sync || true"`** so `.svelte-kit/tsconfig.json` exists before svelte-check.
 
 `peerDependenciesMeta.<x>.optional: true` on every framework/db/SDK peer. User installs only what their imports require.

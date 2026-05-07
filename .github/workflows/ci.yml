@@ -22,8 +22,8 @@ jobs:
       - name: Install
         run: bun install --frozen-lockfile
 
-      - name: Build main pkg (provides dist for examples to typecheck against)
-        run: bun run --filter better-cms build
+      - name: Build all packages (dist required for cross-pkg + example typecheck)
+        run: bun run --filter './packages/*' build
 
       - name: Typecheck
         run: bun run --filter '*' typecheck

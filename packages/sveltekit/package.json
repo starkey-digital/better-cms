@@ -10,13 +10,30 @@
 		"directory": "packages/sveltekit"
 	},
 	"description": "better-cms SvelteKit handle hook + remote-function helpers.",
-	"main": "./src/index.ts",
-	"types": "./src/index.ts",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"files": ["dist"],
 	"exports": {
-		".": "./src/index.ts",
-		"./server": "./src/server.ts",
-		"./remote": "./src/remote.ts",
-		"./auth": "./src/auth/index.ts"
+		".": {
+			"dev-source": "./src/index.ts",
+			"types": "./dist/index.d.ts",
+			"default": "./dist/index.js"
+		},
+		"./server": {
+			"dev-source": "./src/server.ts",
+			"types": "./dist/server.d.ts",
+			"default": "./dist/server.js"
+		},
+		"./remote": {
+			"dev-source": "./src/remote.ts",
+			"types": "./dist/remote.d.ts",
+			"default": "./dist/remote.js"
+		},
+		"./auth": {
+			"dev-source": "./src/auth/index.ts",
+			"types": "./dist/auth/index.d.ts",
+			"default": "./dist/auth/index.js"
+		}
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit",
