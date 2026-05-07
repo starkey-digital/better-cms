@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { generate } from './generate.js';
+import { type GenerateTarget, generate } from './generate.js';
 import { genSecret, hashPasswordCli } from './hash-password.js';
 import { init } from './init.js';
 import { startMcpServer } from './mcp.js';
@@ -8,6 +8,9 @@ const args = process.argv.slice(2);
 const cmd = args[0];
 
 function flag(name: string): string | undefined {
+	for (const a of args) {
+		if (a.startsWith(`--${name}=`)) return a.slice(name.length + 3);
+	}
 	const i = args.indexOf(`--${name}`);
 	return i >= 0 ? args[i + 1] : undefined;
 }
@@ -19,15 +22,16 @@ function bool(name: string): boolean {
 const HELP = `better-cms <command>
 
 Commands:
-  init                       Scaffold cms.config.ts and .env.example
-  generate                   Emit drizzle schema file from cms.config.ts
+  init                       Scaffold cms.ts, hooks, .env.example, drizzle config
+  generate                   Emit drizzle schema (default)
   generate --target=types    Emit TypeScript interfaces for collections
+  generate --target=client   Emit src/lib/cmsClient.ts (typed client API)
   mcp                        Run MCP server (stdio) — for Claude Code / Desktop
   hash-password [pw]         PBKDF2 hash for CMS_PASSWORD_HASH (prompts if omitted)
   gen-secret [bytes]         Random hex secret for CMS_AUTH_SECRET (default 32 bytes)
 
 Flags:
-  --config <path>            Path to cms.config (default: auto-detected)
+  --config <path>            Path to cms config (default: auto-detected)
   --out <path>               Output file
   --force                    Overwrite existing files
   --skip-install             init: skip installing deps, print commands to run
@@ -51,7 +55,9 @@ async function main() {
 				break;
 			}
 			case 'generate': {
-				const target = flag('target') === 'types' ? 'types' : 'drizzle';
+				const raw = flag('target');
+				const target: GenerateTarget =
+					raw === 'types' || raw === 'client' || raw === 'drizzle' ? raw : 'drizzle';
 				const res = await generate({
 					configPath: flag('config'),
 					out: flag('out'),

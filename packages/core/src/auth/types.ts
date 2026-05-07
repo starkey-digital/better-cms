@@ -1,8 +1,8 @@
-export interface CMSUser {
+export interface CmsUser {
 	id: string;
 	email?: string;
 	role?: string;
 	[key: string]: unknown;
 }
 
-export type GetUserFn = (request: Request) => Promise<CMSUser | null> | CMSUser | null;
+export type GetUserFn = (request: Request) => Promise<CmsUser | null> | CmsUser | null;

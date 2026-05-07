@@ -90,7 +90,16 @@ export async function createCMS(config: CmsConfig, opts: CreateCmsOpts = {}): Pr
 					if (def.kind === 'singleton') throw errors.badRequest(`${name} is a singleton`);
 					const limit = Number(url.searchParams.get('limit') ?? '50');
 					const offset = Number(url.searchParams.get('offset') ?? '0');
-					const rows = await context.store.findMany(name, { limit, offset });
+					const where: Record<string, unknown> = {};
+					for (const [key, value] of url.searchParams.entries()) {
+						const m = key.match(/^where\[(.+)\]$/);
+						if (m) where[m[1]!] = value;
+					}
+					const rows = await context.store.findMany(name, {
+						limit,
+						offset,
+						...(Object.keys(where).length ? { where } : {}),
+					});
 					return Response.json({ rows });
 				}
 				const oneMatch = ONE_RE.exec(sub);

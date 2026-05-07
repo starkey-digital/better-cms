@@ -6,7 +6,7 @@ const CONFIG_TEMPLATE = `import 'dotenv/config';
 import { defineCMS, collection, text, slug, richText, image, boolean } from 'better-cms';
 import { libsqlAdapter } from 'better-cms/adapters/libsql';
 import { s3Media } from 'better-cms/media/s3';
-import { createCms } from 'better-cms/sveltekit';
+import { createCms } from 'better-cms/sveltekit/server';
 
 function required(name: string): string {
 	const v = process.env[name];
@@ -59,7 +59,7 @@ S3_SECRET_ACCESS_KEY=
 S3_PUBLIC_URL=
 `;
 
-const HOOKS_TEMPLATE = `import { cmsHandle } from 'better-cms/sveltekit';
+const HOOKS_TEMPLATE = `import { cmsHandle } from 'better-cms/sveltekit/server';
 import config from '$lib/server/cms';
 
 export const handle = cmsHandle(config);

@@ -1,6 +1,6 @@
-import config from '$lib/server/cms';
+import { cms } from '$lib/server/cms';
 
-export async function load({ request }) {
-	const user = (await config.auth?.getUser(request)) ?? null;
+export async function load() {
+	const user = await cms.auth.getUser();
 	return { user };
 }

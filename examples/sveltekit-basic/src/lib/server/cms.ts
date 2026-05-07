@@ -1,8 +1,8 @@
 import 'dotenv/config';
 import { boolean, collection, defineCMS, image, richText, singleton, slug, text } from 'better-cms';
 import { libsqlAdapter } from 'better-cms/adapters/libsql';
-import { createCms } from 'better-cms/sveltekit';
 import { passwordAuth } from 'better-cms/sveltekit/auth';
+import { createCms } from 'better-cms/sveltekit/server';
 
 function required(name: string): string {
 	const v = process.env[name];

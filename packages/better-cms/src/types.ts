@@ -7,7 +7,7 @@ export type {
 	CollectionsRecord,
 	CmsOp,
 	CmsPlugin,
-	CMSUser,
+	CmsUser,
 	FieldDef,
 	FieldKind,
 	FieldOf,

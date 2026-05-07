@@ -1,7 +1,6 @@
 <script lang="ts">
+import { cmsConfig } from '$lib/cmsClient';
 import { CmsAdmin } from 'better-cms/admin';
-
-const { data } = $props();
 </script>
 
-<CmsAdmin config={data.cms} auth />
+<CmsAdmin config={cmsConfig} auth />

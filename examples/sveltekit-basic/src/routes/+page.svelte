@@ -20,7 +20,7 @@ const settings = $derived(data.settings as { siteTitle?: string; tagline?: strin
 		<ul>
 			{#each data.posts as post (post.id)}
 				<li>
-					<strong>{post.title}</strong>
+					<a href="/posts/{post.slug}"><strong>{post.title}</strong></a>
 					{#if post.published === false}<small>(draft)</small>{/if}
 					{#if post.excerpt}<p>{post.excerpt}</p>{/if}
 				</li>

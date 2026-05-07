@@ -43,6 +43,11 @@
 			"types": "./dist/sveltekit/index.d.mts",
 			"default": "./dist/sveltekit/index.mjs"
 		},
+		"./sveltekit/server": {
+			"dev-source": "./src/sveltekit/server.ts",
+			"types": "./dist/sveltekit/server.d.mts",
+			"default": "./dist/sveltekit/server.mjs"
+		},
 		"./sveltekit/remote": {
 			"dev-source": "./src/sveltekit/remote.ts",
 			"types": "./dist/sveltekit/remote.d.mts",
@@ -71,6 +76,7 @@
 			"adapters/drizzle": ["./dist/adapters/drizzle.d.mts"],
 			"media/s3": ["./dist/media/s3.d.mts"],
 			"sveltekit": ["./dist/sveltekit/index.d.mts"],
+			"sveltekit/server": ["./dist/sveltekit/server.d.mts"],
 			"sveltekit/remote": ["./dist/sveltekit/remote.d.mts"],
 			"sveltekit/auth": ["./dist/sveltekit/auth.d.mts"],
 			"admin": ["./dist/admin/index.d.mts"],

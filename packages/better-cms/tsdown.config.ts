@@ -10,6 +10,7 @@ export default defineConfig({
 		'./src/adapters/drizzle.ts',
 		'./src/media/s3.ts',
 		'./src/sveltekit/index.ts',
+		'./src/sveltekit/server.ts',
 		'./src/sveltekit/remote.ts',
 		'./src/sveltekit/auth.ts',
 		'./src/admin/index.ts',

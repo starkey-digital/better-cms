@@ -1,10 +1,10 @@
-export { cmsHandle } from '@better-cms/sveltekit';
-export { cms, _resetCms, serverApi, type ServerApi } from '@better-cms/sveltekit';
+// Browser-safe surface. Server-only helpers re-export from
+// `better-cms/sveltekit/server` (see ../sveltekit-server/index.ts).
 export { clientCmsConfig, type ClientCmsConfig } from '@better-cms/sveltekit';
 export {
-	createCms,
 	createCmsClient,
-	type Cms,
+	type CmsClient,
+	type ClientAuthApi,
 	type CollectionApi,
 	type SingletonApi,
 } from '@better-cms/sveltekit';

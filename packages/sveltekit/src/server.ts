@@ -1,3 +1,6 @@
+// Server-only entry. Imports node:async_hooks via request-context, so do
+// not import this module from client bundles. The browser-safe surface
+// lives in the package root (`better-cms/sveltekit`).
 import type {
 	CmsConfig,
 	CmsContext,
@@ -8,6 +11,10 @@ import type {
 	SchemaIR,
 } from '@better-cms/core';
 import { createCMS } from '@better-cms/core';
+
+export { createCms, type Cms, type ServerAuthApi } from './api.js';
+export { cmsHandle } from './handle.js';
+export { getCurrentRequest, withRequest } from './request-context.js';
 
 let _instance: Promise<CmsInstance> | null = null;
 
