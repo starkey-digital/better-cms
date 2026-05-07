@@ -4,11 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "prepare": "svelte-kit sync || echo ''",
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview",
-    "check": "svelte-check --tsconfig ./tsconfig.json",
-    "typecheck": "svelte-check --tsconfig ./tsconfig.json",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "cms:gen": "bunx -p @better-cms/cli bcms generate",
     "cms:mcp": "bunx -p @better-cms/cli bcms mcp"
   },
