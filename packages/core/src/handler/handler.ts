@@ -1,3 +1,4 @@
+import { resolveLazy } from '../config.js';
 import type { CMSConfig, CMSContext } from '../config.js';
 import { getCMSTables } from '../ir/tables.js';
 import { applyOps } from '../ops/apply.js';
@@ -30,10 +31,6 @@ export interface CreateCMSOpts {
  *  - handler (Request→Response) for the HTTP boundary
  *  - live transport for SSE broadcasts
  */
-async function resolveLazy<T>(value: T | (() => T | Promise<T>)): Promise<T> {
-	return typeof value === 'function' ? await (value as () => T | Promise<T>)() : value;
-}
-
 export async function createCMS(config: CMSConfig, opts: CreateCMSOpts = {}): Promise<CMSInstance> {
 	const schema = getCMSTables(config);
 	const live = opts.live ?? inMemoryTransport();

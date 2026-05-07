@@ -6,9 +6,6 @@ const CONFIG_TEMPLATE = `import { defineCMS, collection, text, slug, richText, i
 import { libsqlAdapter } from 'better-cms/adapters/libsql';
 import { s3Media } from 'better-cms/media/s3';
 
-// Adapter + media are wrapped in thunks so the config module is safe to import
-// from client code (e.g. <CMSAdmin {config}>). Thunks fire only on the server,
-// when cmsHandle() boots the runtime — process.env reads stay out of the browser.
 export default defineCMS({
 	collections: {
 		posts: collection({
@@ -42,11 +39,7 @@ export default defineCMS({
 });
 `;
 
-const ENV_TEMPLATE = `# Loaded by SvelteKit's $env/dynamic/private. For raw process.env access
-# (e.g. inside cms.config.ts adapter thunks during local dev), add
-# \`import 'dotenv/config'\` to src/hooks.server.ts.
-
-DATABASE_URL=file:./local.db
+const ENV_TEMPLATE = `DATABASE_URL=file:./local.db
 DATABASE_AUTH_TOKEN=
 
 S3_BUCKET=
@@ -57,10 +50,7 @@ S3_SECRET_ACCESS_KEY=
 S3_PUBLIC_URL=
 `;
 
-const HOOKS_TEMPLATE = `// dotenv populates process.env so the adapter thunks in cms.config.ts can
-// read DATABASE_URL etc. during local dev. SvelteKit's $env/dynamic/private
-// works in route code but not in modules imported outside the request scope.
-import 'dotenv/config';
+const HOOKS_TEMPLATE = `import 'dotenv/config';
 import { cmsHandle } from 'better-cms/sveltekit';
 import config from '$lib/cms.config';
 
@@ -94,33 +84,49 @@ interface PackageManager {
 	addDev: string[];
 }
 
+const PM_TABLE: { lockfile: string; pm: PackageManager }[] = [
+	{ lockfile: 'bun.lock', pm: { name: 'bun', add: ['bun', 'add'], addDev: ['bun', 'add', '-d'] } },
+	{ lockfile: 'bun.lockb', pm: { name: 'bun', add: ['bun', 'add'], addDev: ['bun', 'add', '-d'] } },
+	{
+		lockfile: 'pnpm-lock.yaml',
+		pm: { name: 'pnpm', add: ['pnpm', 'add'], addDev: ['pnpm', 'add', '-D'] },
+	},
+	{
+		lockfile: 'yarn.lock',
+		pm: { name: 'yarn', add: ['yarn', 'add'], addDev: ['yarn', 'add', '-D'] },
+	},
+];
+
+const NPM_FALLBACK: PackageManager = {
+	name: 'npm',
+	add: ['npm', 'install'],
+	addDev: ['npm', 'install', '-D'],
+};
+
 function detectPackageManager(cwd: string): PackageManager {
-	if (existsSync(resolve(cwd, 'bun.lock')) || existsSync(resolve(cwd, 'bun.lockb'))) {
-		return { name: 'bun', add: ['bun', 'add'], addDev: ['bun', 'add', '-d'] };
+	for (const { lockfile, pm } of PM_TABLE) {
+		if (existsSync(resolve(cwd, lockfile))) return pm;
 	}
-	if (existsSync(resolve(cwd, 'pnpm-lock.yaml'))) {
-		return { name: 'pnpm', add: ['pnpm', 'add'], addDev: ['pnpm', 'add', '-D'] };
-	}
-	if (existsSync(resolve(cwd, 'yarn.lock'))) {
-		return { name: 'yarn', add: ['yarn', 'add'], addDev: ['yarn', 'add', '-D'] };
-	}
-	return { name: 'npm', add: ['npm', 'install'], addDev: ['npm', 'install', '-D'] };
+	return NPM_FALLBACK;
 }
 
 const RUNTIME_DEPS = ['better-cms', 'dotenv'];
 const DEV_DEPS = ['drizzle-kit', '@libsql/client'];
 
-function alreadyInstalled(cwd: string, pkg: string): boolean {
+function readInstalled(cwd: string): Set<string> {
 	const pkgJsonPath = resolve(cwd, 'package.json');
-	if (!existsSync(pkgJsonPath)) return false;
+	if (!existsSync(pkgJsonPath)) return new Set();
 	try {
 		const json = JSON.parse(readFileSync(pkgJsonPath, 'utf8')) as {
 			dependencies?: Record<string, string>;
 			devDependencies?: Record<string, string>;
 		};
-		return Boolean(json.dependencies?.[pkg] ?? json.devDependencies?.[pkg]);
+		return new Set([
+			...Object.keys(json.dependencies ?? {}),
+			...Object.keys(json.devDependencies ?? {}),
+		]);
 	} catch {
-		return false;
+		return new Set();
 	}
 }
 
@@ -157,20 +163,25 @@ export async function init(
 		written.push(file.path);
 	}
 
+	const installedDeps = readInstalled(cwd);
+	const missingRuntime = RUNTIME_DEPS.filter((d) => !installedDeps.has(d));
+	const missingDev = DEV_DEPS.filter((d) => !installedDeps.has(d));
 	const installed: string[] = [];
-	const missingRuntime = RUNTIME_DEPS.filter((d) => !alreadyInstalled(cwd, d));
-	const missingDev = DEV_DEPS.filter((d) => !alreadyInstalled(cwd, d));
+
+	if (missingRuntime.length === 0 && missingDev.length === 0) {
+		return { written, installed, skipped };
+	}
+
+	const pm = detectPackageManager(cwd);
 
 	if (opts.skipInstall) {
-		const pm = detectPackageManager(cwd);
 		if (missingRuntime.length) {
 			console.log(`[better-cms] run: ${pm.add.join(' ')} ${missingRuntime.join(' ')}`);
 		}
 		if (missingDev.length) {
 			console.log(`[better-cms] run: ${pm.addDev.join(' ')} ${missingDev.join(' ')}`);
 		}
-	} else if (missingRuntime.length || missingDev.length) {
-		const pm = detectPackageManager(cwd);
+	} else {
 		if (runInstall(cwd, pm, missingRuntime, false)) installed.push(...missingRuntime);
 		if (runInstall(cwd, pm, missingDev, true)) installed.push(...missingDev);
 	}

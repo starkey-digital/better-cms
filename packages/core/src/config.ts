@@ -8,6 +8,10 @@ export type CollectionsRecord = Record<string, CollectionDef<any, any>>;
 
 export type LazyAdapter<T> = T | (() => T | Promise<T>);
 
+export async function resolveLazy<T>(value: LazyAdapter<T>): Promise<T> {
+	return typeof value === 'function' ? await (value as () => T | Promise<T>)() : value;
+}
+
 export interface CMSConfig<C extends CollectionsRecord = CollectionsRecord> {
 	collections: C;
 	adapter: LazyAdapter<ContentStore>;

@@ -7,10 +7,10 @@ description: Use when the user wants to set up, scaffold, install, bootstrap, or
 
 Bootstrap a new better-cms project. `bcms init` writes:
 
-- `src/lib/cms.config.ts` — example `posts` collection + lazy adapter/media thunks
+- `src/lib/cms.config.ts` — example `posts` collection
 - `src/hooks.server.ts` — wires `cmsHandle(config)` and imports `dotenv/config`
 - `.env.example` — DB + S3 vars
-- `drizzle.config.ts` — points at the generated schema, reads env via dotenv
+- `drizzle.config.ts` — points at the generated schema
 
 It also installs `better-cms`, `dotenv` (runtime) and `drizzle-kit`, `@libsql/client` (dev) using the project's package manager (auto-detects bun / pnpm / yarn / npm via lockfile).
 
@@ -46,7 +46,6 @@ Tell the user, in this order:
    </script>
    <CMSAdmin {config} />
    ```
-   Importing `cms.config` from a client component is safe — `adapter` and `media` are thunks that fire only on the server.
 
 If the user is on a non-SvelteKit framework (React/Next/Astro), tell them the SvelteKit bridge is the only one shipped today — point them to `@better-cms/core`'s `createCMS()` if they want to wire it up manually.
 

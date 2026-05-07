@@ -1,5 +1,5 @@
-import { applyOps, collectionToJsonSchema, getCMSTables } from '@better-cms/core';
-import type { CMSOp, ContentStore, LazyAdapter } from '@better-cms/core';
+import { applyOps, collectionToJsonSchema, getCMSTables, resolveLazy } from '@better-cms/core';
+import type { CMSOp } from '@better-cms/core';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
@@ -37,15 +37,11 @@ const COLLECTION_TOOLS: Record<
 	}),
 };
 
-async function resolveAdapter(value: LazyAdapter<ContentStore>): Promise<ContentStore> {
-	return typeof value === 'function' ? await value() : value;
-}
-
 export async function startMcpServer(opts: McpServerOpts = {}): Promise<void> {
 	const cwd = opts.cwd ?? process.cwd();
 	const { config } = await loadConfig(cwd, opts.configPath);
 	const schema = getCMSTables(config);
-	const adapter = await resolveAdapter(config.adapter);
+	const adapter = await resolveLazy(config.adapter);
 	if (adapter.init) await adapter.init(schema);
 
 	const collections = Object.keys(schema.collections);
