@@ -1,0 +1,14 @@
+{
+	"name": "better-cms",
+	"owner": {
+		"name": "Starkey Digital",
+		"url": "https://github.com/starkey-digital"
+	},
+	"plugins": [
+		{
+			"name": "better-cms",
+			"source": "./plugins/claude-code",
+			"description": "Author and edit better-cms content from Claude Code. Bundles an MCP server bound to your cms.config plus skills for setup, schema editing, content authoring, and CLI workflows."
+		}
+	]
+}
