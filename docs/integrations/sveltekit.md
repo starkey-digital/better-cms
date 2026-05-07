@@ -8,40 +8,96 @@ The CMS config is a server-only module — `src/lib/server/cms.ts` by convention
 
 ```ts
 // src/hooks.server.ts
-import cms from '$lib/server/cms';
+import config from '$lib/server/cms';
 import { cmsHandle } from 'better-cms/sveltekit';
 
-export const handle = cmsHandle(cms);
+export const handle = cmsHandle(config);
 ```
 
-## Reading content (server)
+## The `cms` API — server side
+
+`bcms init` writes a `cms.ts` that exports both the raw `config` (default) and a typed property-style API (named export `cms`):
+
+```ts
+// src/lib/server/cms.ts
+import { defineCMS, ... } from 'better-cms';
+import { createCms } from 'better-cms/sveltekit';
+
+const config = defineCMS({ ... });
+
+export default config;
+export const cms = createCms(config);
+```
+
+Use it from any server load function, hook, or remote function:
 
 ```ts
 // src/routes/blog/+page.server.ts
-import cmsConfig from '$lib/server/cms';
-import { cms, serverApi } from 'better-cms/sveltekit';
+import { cms } from '$lib/server/cms';
 
 export async function load() {
-	const instance = await cms(cmsConfig);
-	const api = serverApi(instance.context);
-	const posts = await api.list('posts', { limit: 20 });
+	const posts = await cms.posts.list({ limit: 20 });
 	return { posts };
 }
 ```
 
-`api.list / api.find / api.count / api.getSingleton` are fully typed from your collection definition.
-
-## Reading content (remote functions)
-
 ```ts
-// src/routes/blog/data.remote.ts
-import cmsConfig from '$lib/server/cms';
-import { listCollection } from 'better-cms/sveltekit/remote';
+// src/routes/blog/[slug]/+page.server.ts
+import { cms } from '$lib/server/cms';
+import { error } from '@sveltejs/kit';
 
-export const listPosts = listCollection(cmsConfig, 'posts');
+export async function load({ params }) {
+	const post = await cms.posts.get(params.slug);  // tries id, then slug field
+	if (!post) throw error(404);
+	return { post };
+}
 ```
 
-Then call from a client component without a manual `+page.server.ts`.
+Each collection key has `list / find / get / count`; each singleton has `get / set`. Methods are typed from your collection definitions — `cms.posts.list()` returns `Post[]`, `cms.settings.get()` returns `Settings | null`. The first call lazily boots the CMS singleton; subsequent calls reuse it.
+
+## The `cms` API — client side (in components)
+
+`cms` is server-only (lives under `src/lib/server/`). Components can't import it. Instead, ship the JSON-safe slice through a layout loader and let the component build its own client API:
+
+```ts
+// src/routes/+layout.server.ts
+import config from '$lib/server/cms';
+import { clientCmsConfig } from 'better-cms/sveltekit';
+
+export const load = () => ({ cmsConfig: clientCmsConfig(config) });
+```
+
+```svelte
+<!-- src/routes/blog/[slug]/+page.svelte -->
+<script lang="ts">
+import { page } from '$app/state';
+import { createCmsClient } from 'better-cms/sveltekit';
+
+let { data } = $props();
+const cms = $derived(createCmsClient(data.cmsConfig));
+const post = $derived(await cms.posts.get(page.params.slug));
+</script>
+
+{#if post}
+  <h1>{post.title}</h1>
+{/if}
+```
+
+Same property shape as the server `cms`, same types (flowing through `ClientCmsConfig<C>`), but methods talk to the CMS over HTTP. Use it for client-side queries triggered by URL params, search-as-you-type, anything that wants to refetch without a navigation.
+
+## Remote functions (typed RPC)
+
+For server-resident queries you want to call from anywhere — components, event handlers, etc. — use SvelteKit's remote functions. better-cms ships helpers that call into the same singleton without going through HTTP, so latency stays in-process:
+
+```ts
+// src/lib/cms.remote.ts
+import { query, command } from '$app/server';
+import { listCollection, runOps } from 'better-cms/sveltekit/remote';
+import config from '$lib/server/cms';
+
+export const posts = query(async () => listCollection(config, 'posts'));
+export const save = command(async (ops) => runOps(config, ops));
+```
 
 ## Admin page
 
