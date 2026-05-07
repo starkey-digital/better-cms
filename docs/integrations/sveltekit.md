@@ -65,6 +65,52 @@ export const load = () => ({ cms: clientCMSConfig(cms) });
 
 `clientCMSConfig` returns the JSON-safe slice the admin actually uses (`{ collections, basePath }`). Adapter, media, auth, and plugins never cross to the browser.
 
+## Reading the session
+
+`passwordAuth` sets a signed cookie (`bcms_session`) on successful login. Once a user is signed in, you can check the session anywhere on the server — useful for conditional UI like an "Admin" link in your nav.
+
+The simplest pattern is a root `+layout.server.ts` that resolves the user once per request and exposes it to every child page via `data`:
+
+```ts
+// src/routes/+layout.server.ts
+import cms from '$lib/server/cms';
+
+export async function load({ request }) {
+	const user = (await cms.auth?.getUser(request)) ?? null;
+	return { user };
+}
+```
+
+```svelte
+<!-- src/routes/+layout.svelte -->
+<script lang="ts">
+	let { data, children } = $props();
+</script>
+
+<nav>
+	<a href="/">Home</a>
+	{#if data.user}
+		<a href="/cms">Admin</a>
+		<form method="POST" action="/api/cms/logout"><button>Sign out</button></form>
+	{:else}
+		<a href="/cms">Sign in</a>
+	{/if}
+</nav>
+
+{@render children()}
+```
+
+Every child route gets `data.user` for free. No extra fetch, no client-side waterfall — the cookie is verified on the server during the same request that renders the page.
+
+If you can't add a layout loader (e.g. a static-prerendered route that hydrates), call the `/api/cms/me` endpoint from the client:
+
+```ts
+const r = await fetch('/api/cms/me');
+const { user } = (await r.json()) as { user: { id: string; role: string } | null };
+```
+
+`/me` is part of the `passwordAuth` plugin and returns `{ user: null }` when no valid session cookie is present — never throws, safe for unauthenticated callers.
+
 ## Live updates
 
 Operations broadcast via the handler. Admin and any subscribed page update without a refresh.

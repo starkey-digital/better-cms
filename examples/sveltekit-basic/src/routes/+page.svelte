@@ -7,15 +7,12 @@ const settings = $derived(data.settings as { siteTitle?: string; tagline?: strin
 	<title>{settings?.siteTitle ?? 'better-cms example'}</title>
 </svelte:head>
 
-<header>
-	<h1>{settings?.siteTitle ?? 'better-cms example'}</h1>
-	{#if settings?.tagline}<p class="tagline">{settings.tagline}</p>{/if}
-	<nav>
-		<a href="/cms">Open admin →</a>
-	</nav>
-</header>
-
 <main>
+	<header>
+		<h1>{settings?.siteTitle ?? 'better-cms example'}</h1>
+		{#if settings?.tagline}<p class="tagline">{settings.tagline}</p>{/if}
+	</header>
+
 	<h2>Posts</h2>
 	{#if data.posts.length === 0}
 		<p>No posts yet. <a href="/cms">Create one in the admin</a>.</p>
@@ -39,7 +36,9 @@ const settings = $derived(data.settings as { siteTitle?: string; tagline?: strin
 			-apple-system,
 			sans-serif;
 		margin: 0;
-		padding: 2rem;
+	}
+	main {
+		padding: 1rem 2rem;
 		max-width: 720px;
 		margin-inline: auto;
 	}
@@ -49,13 +48,6 @@ const settings = $derived(data.settings as { siteTitle?: string; tagline?: strin
 	.tagline {
 		color: #71717a;
 		margin-top: 0;
-	}
-	nav a {
-		display: inline-block;
-		margin-block: 0.5rem 1.5rem;
-		color: #18181b;
-		text-decoration: none;
-		border-bottom: 1px solid currentColor;
 	}
 	main h2 {
 		margin-top: 2rem;
