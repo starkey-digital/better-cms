@@ -1,12 +1,10 @@
 <script lang="ts">
 import type { CmsMeta, CmsMetaCollection } from '@better-cms/sveltekit';
 import { onMount } from 'svelte';
-import FieldEditor from './FieldEditor.svelte';
+import EditView from './EditView.svelte';
+import ListView from './ListView.svelte';
 import LoginScreen from './LoginScreen.svelte';
 
-// Loose client shape — admin doesn't care about typed collections, just
-// dispatches by name through the runtime Proxy. Caller passes a typed
-// `CmsClient<C, Ctx>`; TS accepts it as a subtype of this.
 type AnyClient = {
 	auth: {
 		context(): Promise<unknown | null>;
@@ -26,10 +24,46 @@ type Props = {
 
 const { client, auth = false, turnstileSiteKey }: Props = $props();
 
+type Route =
+	| { kind: 'home' }
+	| { kind: 'list'; name: string }
+	| { kind: 'new'; name: string }
+	| { kind: 'edit'; name: string; id: string }
+	| { kind: 'singleton'; name: string };
+
 let ctx = $state<unknown | null>(null);
 let authChecked = $state(false);
 let meta = $state<CmsMeta | null>(null);
+let hash = $state(typeof location === 'undefined' ? '' : location.hash);
+let error = $state<string | null>(null);
 const gateOpen = $derived(!auth || (authChecked && ctx !== null));
+
+const route: Route = $derived.by(() => {
+	if (!meta) return { kind: 'home' };
+	const parts = hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
+	const name = parts[0];
+	if (!name) return { kind: 'home' };
+	const def = meta.collections[name];
+	if (!def) return { kind: 'home' };
+	if (def.kind === 'singleton') return { kind: 'singleton', name };
+	if (parts.length === 1) return { kind: 'list', name };
+	if (parts[1] === 'new') return { kind: 'new', name };
+	return { kind: 'edit', name, id: parts[1]! };
+});
+
+const entries = $derived(meta ? Object.entries(meta.collections) : []);
+const activeName = $derived(route.kind === 'home' ? null : route.name);
+
+function navigate(path: string, replace = false) {
+	if (typeof location === 'undefined') return;
+	const h = `#/${path.replace(/^\/+/, '')}`;
+	if (replace) {
+		history.replaceState(null, '', `${location.pathname}${location.search}${h}`);
+		hash = h;
+	} else {
+		location.hash = h;
+	}
+}
 
 async function checkAuth() {
 	try {
@@ -52,122 +86,33 @@ async function loadMeta() {
 async function logout() {
 	await client.auth.logout();
 	ctx = null;
-	rows = [];
-	editing = null;
 }
 
-const entries = $derived(meta ? Object.entries(meta.collections) : []);
-const firstName = $derived(entries[0]?.[0] ?? null);
-let selectedName = $state<string | null>(null);
-const effectiveName = $derived(selectedName ?? firstName);
-const selectedDef = $derived<CmsMetaCollection | null>(
-	effectiveName && meta ? (meta.collections[effectiveName] ?? null) : null,
-);
-const selectedKind = $derived(selectedDef?.kind ?? null);
-
-let rows = $state<Record<string, unknown>[]>([]);
-let editing = $state<Record<string, unknown> | null>(null);
-let saving = $state(false);
-let error = $state<string | null>(null);
+function selectFromSidebar(name: string) {
+	navigate(name);
+}
 
 onMount(() => {
+	const onHash = () => {
+		hash = location.hash;
+	};
+	window.addEventListener('hashchange', onHash);
 	void (async () => {
-		// /auth/context and /_meta are independent — fetch in parallel.
 		await Promise.all([auth ? checkAuth() : Promise.resolve(), loadMeta()]);
-		if (auth && !ctx) return;
-		if (effectiveName && selectedDef) await load(effectiveName, selectedDef.kind);
+		if (!location.hash && meta) {
+			const first = Object.keys(meta.collections)[0];
+			if (first) navigate(first, true);
+		}
+		hash = location.hash;
 	})();
+	return () => window.removeEventListener('hashchange', onHash);
 });
-
-function select(name: string, def: CmsMetaCollection) {
-	if (selectedName === name) return;
-	selectedName = name;
-	void load(name, def.kind);
-}
-
-// Type-erased view of the cmsClient's per-collection/singleton API. The
-// runtime Proxy always exposes both shapes; the kind discriminator decides
-// which methods are valid to call.
-type ApiMethods = {
-	get(idOrSlug?: string): Promise<Record<string, unknown> | null>;
-	list(opts?: { limit?: number }): Promise<Record<string, unknown>[]>;
-	set(data: Record<string, unknown>): Promise<Record<string, unknown>>;
-	create(data: Record<string, unknown>): Promise<Record<string, unknown>>;
-	update(id: string, data: Record<string, unknown>): Promise<Record<string, unknown>>;
-	delete(id: string): Promise<void>;
-};
-
-const apiOf = (name: string) => client[name] as unknown as ApiMethods;
-
-async function load(name: string, kind: 'collection' | 'singleton') {
-	error = null;
-	editing = null;
-	try {
-		const api = apiOf(name);
-		if (kind === 'singleton') {
-			rows = [];
-			editing = (await api.get()) ?? {};
-		} else {
-			rows = await api.list({ limit: 50 });
-		}
-	} catch (e) {
-		error = (e as Error).message;
-	}
-}
-
-function newRecord() {
-	if (!selectedDef) return;
-	editing = {};
-}
-
-function pick(row: Record<string, unknown>) {
-	editing = { ...row };
-}
-
-async function save() {
-	if (!effectiveName || !selectedDef || !editing) return;
-	saving = true;
-	error = null;
-	try {
-		const api = apiOf(effectiveName);
-		if (selectedDef.kind === 'singleton') {
-			await api.set(editing);
-		} else if (typeof editing.id === 'string') {
-			await api.update(editing.id, editing);
-		} else {
-			editing = await api.create(editing);
-		}
-		await load(effectiveName, selectedDef.kind);
-	} catch (e) {
-		error = (e as Error).message;
-	} finally {
-		saving = false;
-	}
-}
-
-async function remove() {
-	if (!effectiveName || !selectedDef || !editing || typeof editing.id !== 'string') return;
-	if (selectedDef.kind === 'singleton') return;
-	saving = true;
-	try {
-		await apiOf(effectiveName).delete(editing.id);
-		editing = null;
-		await load(effectiveName, selectedDef.kind);
-	} catch (e) {
-		error = (e as Error).message;
-	} finally {
-		saving = false;
-	}
-}
-
-function setField(name: string, value: unknown) {
-	if (!editing) return;
-	editing = { ...editing, [name]: value };
-}
 </script>
 
 {#if auth && !authChecked}
-	<div class="bcms-loading">loading…</div>
+	<div class="bcms-loading">
+		<div class="bcms-spinner" aria-hidden="true"></div>
+	</div>
 {:else if auth && !gateOpen}
 	<LoginScreen
 		{client}
@@ -177,243 +122,365 @@ function setField(name: string, value: unknown) {
 				await checkAuth();
 				if (!ctx) return;
 				if (!meta) await loadMeta();
-				if (effectiveName && selectedDef) await load(effectiveName, selectedDef.kind);
 			})();
 		}}
 	/>
 {:else if !meta}
-	<div class="bcms-loading">loading…</div>
+	<div class="bcms-loading">
+		<div class="bcms-spinner" aria-hidden="true"></div>
+	</div>
 {:else}
-<div class="bcms">
-	<aside class="bcms-sidebar">
-		<h1>better-cms</h1>
-		{#if auth && ctx}
-			<button type="button" class="bcms-logout" onclick={logout}>sign out</button>
-		{/if}
-		<nav>
-			{#each entries as [name, def] (name)}
-				{@const d = def as CmsMetaCollection}
-				<button
-					type="button"
-					class:active={effectiveName === name}
-					onclick={() => select(name, d)}
-				>
-					<span>{name}</span>
-					<small>{d.kind}</small>
-				</button>
-			{/each}
-		</nav>
-	</aside>
+	<div class="bcms bcms-shell">
+		<aside class="bcms-sidebar">
+			<h1 class="bcms-brand">
+				<span class="bcms-brand-dot" aria-hidden="true"></span>
+				<span class="bcms-brand-name">better-cms</span>
+			</h1>
 
-	<main class="bcms-main">
-		{#if error}<div class="bcms-error">{error}</div>{/if}
+			<nav>
+				{#each entries as [name, def] (name)}
+					{@const d = def as CmsMetaCollection}
+					<button
+						type="button"
+						class:active={activeName === name}
+						onclick={() => selectFromSidebar(name)}
+					>
+						<span class="bcms-nav-name">{name}</span>
+						<small>{d.kind === 'singleton' ? 'single' : 'list'}</small>
+					</button>
+				{/each}
+			</nav>
 
-		{#if selectedName && selectedDef}
-			<header>
-				<h2>{selectedName}</h2>
-				{#if selectedKind === 'collection'}
-					<button type="button" onclick={newRecord}>+ new</button>
+			<div class="bcms-sidebar-footer">
+				{#if auth && ctx}
+					<button type="button" class="bcms-logout" onclick={logout}>sign out</button>
 				{/if}
-			</header>
+			</div>
+		</aside>
 
-			{#if selectedKind === 'collection'}
-				<div class="bcms-list">
-					{#each rows as row (row.id)}
-						{@const r = row as { id?: string; title?: string; name?: string; slug?: string }}
-						<button type="button" onclick={() => pick(row)} class="bcms-row">
-							<strong>{r.title ?? r.name ?? r.slug ?? r.id}</strong>
-							<small>{r.id}</small>
-						</button>
-					{:else}
-						<p>no records</p>
-					{/each}
+		<main class="bcms-main">
+			{#if error}<div class="bcms-error">{error}</div>{/if}
+
+			{#if route.kind === 'home'}
+				<div class="bcms-empty">
+					<h2>No collections</h2>
+					<p>Define a collection in your CMS config to get started.</p>
 				</div>
+			{:else if route.kind === 'list'}
+				{@const def = meta.collections[route.name]}
+				{#if def}
+					<ListView
+						{client}
+						name={route.name}
+						{def}
+						onnew={() => navigate(`${route.name}/new`)}
+						onpick={(id) => navigate(`${route.name}/${encodeURIComponent(id)}`)}
+					/>
+				{/if}
+			{:else if route.kind === 'new'}
+				{@const def = meta.collections[route.name]}
+				{#if def}
+					<EditView
+						{client}
+						name={route.name}
+						{def}
+						mode="new"
+						onback={() => navigate(route.name)}
+						onsaved={(id) =>
+							navigate(`${route.name}/${encodeURIComponent(id)}`, true)}
+						ondeleted={() => navigate(route.name)}
+					/>
+				{/if}
+			{:else if route.kind === 'edit'}
+				{@const def = meta.collections[route.name]}
+				{#if def}
+					<EditView
+						{client}
+						name={route.name}
+						id={route.id}
+						{def}
+						mode="edit"
+						onback={() => navigate(route.name)}
+						onsaved={() => {}}
+						ondeleted={() => navigate(route.name)}
+					/>
+				{/if}
+			{:else if route.kind === 'singleton'}
+				{@const def = meta.collections[route.name]}
+				{#if def}
+					<EditView
+						{client}
+						name={route.name}
+						{def}
+						mode="singleton"
+						onback={() => {}}
+						onsaved={() => {}}
+						ondeleted={() => {}}
+					/>
+				{/if}
 			{/if}
-
-			{#if editing && selectedDef}
-				<form
-					class="bcms-form"
-					onsubmit={(e) => {
-						e.preventDefault();
-						void save();
-					}}
-				>
-					{#each Object.entries(selectedDef.fields) as [fname, field] (fname)}
-						{#if fname !== 'id' && fname !== 'createdAt' && fname !== 'updatedAt'}
-							<FieldEditor
-								{client}
-								name={fname}
-								{field}
-								value={editing[fname]}
-								onchange={(v) => setField(fname, v)}
-							/>
-						{/if}
-					{/each}
-					<footer>
-						<button type="submit" disabled={saving}>{saving ? 'saving…' : 'save'}</button>
-						{#if selectedKind === 'collection' && typeof editing.id === 'string'}
-							<button type="button" onclick={remove} disabled={saving} class="bcms-danger">
-								delete
-							</button>
-						{/if}
-					</footer>
-				</form>
-			{/if}
-		{:else}
-			<p>select a collection</p>
-		{/if}
-	</main>
-</div>
+		</main>
+	</div>
 {/if}
 
 <style>
-	.bcms-loading {
+	:global(.bcms) {
+		/* Typography */
+		--bcms-font:
+			'InterVariable', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+			'Helvetica Neue', sans-serif;
+		--bcms-font-mono:
+			ui-monospace, SFMono-Regular, 'JetBrains Mono', 'Menlo', 'Consolas', monospace;
+		--bcms-text-xs: 0.75rem;
+		--bcms-text-sm: 0.8125rem;
+		--bcms-text-base: 0.9375rem;
+		--bcms-text-md: 1rem;
+		--bcms-text-lg: 1.125rem;
+		--bcms-text-xl: 1.375rem;
+		--bcms-text-2xl: 1.625rem;
+
+		/* Color tokens */
+		--bcms-bg: #fafafa;
+		--bcms-surface: #ffffff;
+		--bcms-fg: #0f172a;
+		--bcms-fg-soft: #334155;
+		--bcms-muted: #64748b;
+		--bcms-subtle: #f1f5f9;
+		--bcms-border: #e2e8f0;
+		--bcms-border-strong: #cbd5e1;
+
+		--bcms-primary: #0f172a;
+		--bcms-primary-fg: #ffffff;
+		--bcms-primary-hover: #1e293b;
+
+		--bcms-accent: #6366f1;
+		--bcms-accent-fg: #ffffff;
+
+		--bcms-success: #16a34a;
+		--bcms-success-soft: #dcfce7;
+		--bcms-success-fg: #14532d;
+
+		--bcms-warning: #d97706;
+		--bcms-warning-soft: #fef3c7;
+		--bcms-warning-fg: #78350f;
+
+		--bcms-danger: #dc2626;
+		--bcms-danger-soft: #fee2e2;
+		--bcms-danger-fg: #7f1d1d;
+
+		--bcms-ring: #6366f1;
+
+		/* Geometry */
+		--bcms-radius-sm: 6px;
+		--bcms-radius: 8px;
+		--bcms-radius-md: 10px;
+		--bcms-radius-lg: 14px;
+
+		/* Shadows */
+		--bcms-shadow-sm: 0 1px 2px 0 rgb(15 23 42 / 0.05);
+		--bcms-shadow:
+			0 1px 3px 0 rgb(15 23 42 / 0.06), 0 1px 2px -1px rgb(15 23 42 / 0.06);
+		--bcms-shadow-lg:
+			0 10px 25px -5px rgb(15 23 42 / 0.08), 0 8px 10px -6px rgb(15 23 42 / 0.04);
+
+		/* Layout */
+		--bcms-sidebar-w: 248px;
+
+		background: var(--bcms-bg);
+		color: var(--bcms-fg);
+		font-family: var(--bcms-font);
+		font-size: var(--bcms-text-base);
+		line-height: 1.5;
+		-webkit-font-smoothing: antialiased;
+	}
+
+	:global(.bcms-shell) {
+		display: grid;
+		grid-template-columns: var(--bcms-sidebar-w) 1fr;
+		min-height: 100vh;
+	}
+
+	:global(.bcms *),
+	:global(.bcms *::before),
+	:global(.bcms *::after) {
+		box-sizing: border-box;
+	}
+
+	:global(.bcms-loading) {
 		display: grid;
 		place-items: center;
 		min-height: 100vh;
-		color: #71717a;
-		font-family: system-ui, -apple-system, sans-serif;
+		background: var(--bcms-bg, #fafafa);
 	}
-	.bcms-logout {
-		display: block;
-		width: 100%;
-		margin-bottom: 0.75rem;
-		padding: 0.375rem 0.625rem;
-		background: transparent;
-		color: #71717a;
-		border: 1px solid #e4e4e7;
-		border-radius: 6px;
-		text-align: left;
-		cursor: pointer;
-		font: inherit;
-		font-size: 0.8125rem;
+	:global(.bcms-spinner) {
+		width: 28px;
+		height: 28px;
+		border-radius: 50%;
+		border: 2px solid var(--bcms-border, #e2e8f0);
+		border-top-color: var(--bcms-primary, #0f172a);
+		animation: bcms-spin 0.6s linear infinite;
 	}
-	.bcms-logout:hover {
-		background: #f4f4f5;
+	@keyframes bcms-spin {
+		to {
+			transform: rotate(1turn);
+		}
 	}
-	.bcms {
-		display: grid;
-		grid-template-columns: 240px 1fr;
-		min-height: 100vh;
-		font-family:
-			system-ui,
-			-apple-system,
-			sans-serif;
+
+	:global(.bcms-sidebar) {
+		display: flex;
+		flex-direction: column;
+		background: var(--bcms-surface);
+		border-right: 1px solid var(--bcms-border);
+		padding: 20px 14px;
+		gap: 18px;
+		position: sticky;
+		top: 0;
+		height: 100vh;
 	}
-	.bcms-sidebar {
-		background: #fafafa;
-		border-right: 1px solid #e4e4e7;
-		padding: 1rem;
+
+	:global(.bcms-brand) {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding: 4px 8px 14px;
+		border-bottom: 1px solid var(--bcms-border);
+		margin: 0;
+		font-size: var(--bcms-text-sm);
+		font-weight: 600;
 	}
-	.bcms-sidebar h1 {
-		font-size: 0.875rem;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		color: #71717a;
-		margin: 0 0 1rem;
+	:global(.bcms-brand-dot) {
+		width: 10px;
+		height: 10px;
+		border-radius: 50%;
+		background: linear-gradient(135deg, var(--bcms-accent), var(--bcms-primary));
 	}
-	.bcms-sidebar nav {
+	:global(.bcms-brand-name) {
+		font-size: var(--bcms-text-sm);
+		font-weight: 600;
+		letter-spacing: -0.01em;
+		color: var(--bcms-fg);
+	}
+
+	:global(.bcms-sidebar nav) {
 		display: flex;
 		flex-direction: column;
 		gap: 2px;
+		flex: 1;
+		overflow-y: auto;
 	}
-	.bcms-sidebar button {
+	:global(.bcms-sidebar nav button) {
 		display: flex;
 		justify-content: space-between;
-		align-items: baseline;
-		padding: 0.5rem 0.625rem;
+		align-items: center;
+		gap: 8px;
+		width: 100%;
+		padding: 8px 10px;
 		background: transparent;
 		border: 0;
-		border-radius: 6px;
+		border-radius: var(--bcms-radius-sm);
 		text-align: left;
 		cursor: pointer;
 		font: inherit;
+		font-size: var(--bcms-text-sm);
+		color: var(--bcms-fg-soft);
+		transition:
+			background 120ms ease,
+			color 120ms ease;
 	}
-	.bcms-sidebar button:hover {
-		background: #f4f4f5;
+	:global(.bcms-sidebar nav button:hover) {
+		background: var(--bcms-subtle);
+		color: var(--bcms-fg);
 	}
-	.bcms-sidebar button.active {
-		background: #18181b;
-		color: #fafafa;
+	:global(.bcms-sidebar nav button.active) {
+		background: var(--bcms-primary);
+		color: var(--bcms-primary-fg);
 	}
-	.bcms-sidebar small {
-		color: #a1a1aa;
+	:global(.bcms-sidebar nav button.active small) {
+		color: var(--bcms-primary-fg);
+		opacity: 0.7;
+	}
+	:global(.bcms-nav-name) {
+		font-weight: 500;
+		text-transform: capitalize;
+	}
+	:global(.bcms-sidebar nav small) {
 		font-size: 0.6875rem;
+		color: var(--bcms-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
 	}
-	.bcms-main {
-		padding: 1.5rem 2rem;
-		overflow: auto;
+
+	:global(.bcms-sidebar-footer) {
+		padding-top: 12px;
+		border-top: 1px solid var(--bcms-border);
 	}
-	.bcms-main header {
-		display: flex;
-		justify-content: space-between;
-		align-items: baseline;
-		margin-bottom: 1rem;
-	}
-	.bcms-main h2 {
-		margin: 0;
-		font-size: 1.5rem;
-	}
-	.bcms-list {
-		display: flex;
-		flex-direction: column;
-		gap: 4px;
-		margin-bottom: 1.5rem;
-	}
-	.bcms-row {
-		display: flex;
-		justify-content: space-between;
-		align-items: baseline;
-		padding: 0.625rem 0.75rem;
-		background: #fff;
-		border: 1px solid #e4e4e7;
-		border-radius: 6px;
+	:global(.bcms-logout) {
+		display: block;
+		width: 100%;
+		padding: 7px 10px;
+		background: transparent;
+		color: var(--bcms-muted);
+		border: 1px solid var(--bcms-border);
+		border-radius: var(--bcms-radius-sm);
 		text-align: left;
 		cursor: pointer;
 		font: inherit;
+		font-size: var(--bcms-text-sm);
+		transition: background 120ms ease;
 	}
-	.bcms-row:hover {
-		border-color: #18181b;
+	:global(.bcms-logout:hover) {
+		background: var(--bcms-subtle);
+		color: var(--bcms-fg);
 	}
-	.bcms-row small {
-		color: #a1a1aa;
-		font-size: 0.75rem;
+
+	:global(.bcms-main) {
+		padding: 28px 36px 56px;
+		overflow: auto;
+		max-width: 1200px;
+		width: 100%;
 	}
-	.bcms-form {
-		max-width: 720px;
-		background: #fff;
-		border: 1px solid #e4e4e7;
-		border-radius: 8px;
-		padding: 1.25rem 1.5rem;
+
+	:global(.bcms-empty) {
+		text-align: center;
+		padding: 64px 16px;
+		color: var(--bcms-muted);
 	}
-	.bcms-form footer {
-		display: flex;
-		gap: 0.5rem;
-		margin-top: 1rem;
-		padding-top: 1rem;
-		border-top: 1px solid #e4e4e7;
+	:global(.bcms-empty h2) {
+		margin: 0 0 6px;
+		font-size: var(--bcms-text-lg);
+		color: var(--bcms-fg);
 	}
-	.bcms-form button {
-		padding: 0.5rem 1rem;
-		background: #18181b;
-		color: #fafafa;
-		border: 0;
-		border-radius: 6px;
-		cursor: pointer;
-		font: inherit;
+	:global(.bcms-empty p) {
+		margin: 0;
+		font-size: var(--bcms-text-sm);
 	}
-	.bcms-form button:disabled {
-		opacity: 0.5;
-		cursor: wait;
+
+	:global(.bcms-error) {
+		background: var(--bcms-danger-soft);
+		color: var(--bcms-danger-fg);
+		padding: 10px 14px;
+		border: 1px solid color-mix(in oklab, var(--bcms-danger) 30%, transparent);
+		border-radius: var(--bcms-radius);
+		margin-bottom: 16px;
+		font-size: var(--bcms-text-sm);
 	}
-	.bcms-danger {
-		background: #b91c1c !important;
-	}
-	.bcms-error {
-		background: #fef2f2;
-		color: #991b1b;
-		padding: 0.75rem 1rem;
-		border-radius: 6px;
-		margin-bottom: 1rem;
+
+	@media (max-width: 720px) {
+		:global(.bcms-shell) {
+			grid-template-columns: 1fr;
+		}
+		:global(.bcms-sidebar) {
+			height: auto;
+			position: static;
+			border-right: 0;
+			border-bottom: 1px solid var(--bcms-border);
+		}
+		:global(.bcms-sidebar nav) {
+			flex-direction: row;
+			flex-wrap: wrap;
+		}
+		:global(.bcms-main) {
+			padding: 20px;
+		}
 	}
 </style>

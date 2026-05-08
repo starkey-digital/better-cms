@@ -138,6 +138,49 @@ export const togglePublished = command(ToggleInput, async ({ id, published }) =>
 
 No `+page.server.ts` needed — schemas live in the browser bundle (via `$lib/cms/schemas`), so the admin manifest builds client-side.
 
+### Routing
+
+The admin uses hash routing inside the component, so a single mount handles every collection and record. The default route is the first collection. Direct links work:
+
+- `#/posts` — list view
+- `#/posts/new` — new record
+- `#/posts/<id>` — edit record
+- `#/settings` — singleton edit (singletons skip the list view)
+
+Drop `<CmsAdmin>` on `/cms` and the URL will read e.g. `/cms#/posts/abc-123`.
+
+### Theming
+
+Every visual choice is a CSS custom property on `.bcms`. Override in any stylesheet that loads on the admin page:
+
+```css
+.bcms {
+	--bcms-primary: #6366f1;
+	--bcms-primary-fg: #ffffff;
+	--bcms-accent: #ec4899;
+	--bcms-success: #22c55e;
+	--bcms-danger: #ef4444;
+	--bcms-radius: 10px;
+	--bcms-radius-sm: 8px;
+	--bcms-radius-lg: 16px;
+	--bcms-font: 'Geist', system-ui, sans-serif;
+	--bcms-bg: #0b0b0e;
+	--bcms-surface: #15151a;
+	--bcms-fg: #e5e7eb;
+	--bcms-border: #27272a;
+}
+```
+
+Or per-instance via inline style:
+
+```svelte
+<div style="--bcms-primary: #6366f1; --bcms-radius: 12px;">
+	<CmsAdmin {client} auth />
+</div>
+```
+
+The full token list lives at the top of `packages/admin/src/lib/CmsAdmin.svelte` — colors, radii, shadows, type scale, sidebar width.
+
 ## Reading the session
 
 `passwordAuth` sets a signed cookie (`bcms_session`) on successful login. Check the resolved auth context anywhere via `cms.auth.context()` — server-side, no extra round trip:

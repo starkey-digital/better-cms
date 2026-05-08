@@ -64,13 +64,19 @@ async function submit(e: SubmitEvent) {
 }
 </script>
 
-<div class="bcms-login">
+<div class="bcms bcms-login">
 	<form onsubmit={submit}>
-		<h1>better-cms</h1>
-		<label>
-			<span>Password</span>
+		<h1 class="bcms-login-brand">
+			<span class="bcms-brand-dot" aria-hidden="true"></span>
+			<span class="bcms-login-title">better-cms</span>
+		</h1>
+		<p class="bcms-login-sub">Sign in to manage content</p>
+
+		<label class="bcms-field">
+			<span class="bcms-label">Password</span>
 			<!-- svelte-ignore a11y_autofocus -->
 			<input
+				class="bcms-input"
 				type="password"
 				bind:value={password}
 				autocomplete="current-password"
@@ -86,78 +92,65 @@ async function submit(e: SubmitEvent) {
 
 		{#if error}<p class="bcms-login-error">{error}</p>{/if}
 
-		<button type="submit" disabled={submitting || !password}>
-			{submitting ? 'signing in…' : 'sign in'}
+		<button
+			type="submit"
+			class="bcms-btn bcms-btn-primary bcms-login-submit"
+			disabled={submitting || !password}
+		>
+			{submitting ? 'Signing in…' : 'Sign in'}
 		</button>
 	</form>
 </div>
 
 <style>
-	.bcms-login {
+	:global(.bcms-login) {
 		display: grid;
 		place-items: center;
 		min-height: 100vh;
-		background: #fafafa;
-		font-family:
-			system-ui,
-			-apple-system,
-			sans-serif;
+		background: var(--bcms-bg);
+		grid-template-columns: 1fr;
+		padding: 16px;
 	}
-	form {
-		background: #fff;
-		border: 1px solid #e4e4e7;
-		border-radius: 10px;
-		padding: 2rem;
-		width: min(360px, 90vw);
+	:global(.bcms-login form) {
+		background: var(--bcms-surface);
+		border: 1px solid var(--bcms-border);
+		border-radius: var(--bcms-radius-lg);
+		padding: 32px;
+		width: min(380px, 100%);
 		display: flex;
 		flex-direction: column;
-		gap: 1rem;
+		gap: 14px;
+		box-shadow: var(--bcms-shadow-lg);
 	}
-	h1 {
-		font-size: 0.875rem;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		color: #71717a;
-		margin: 0;
-	}
-	label {
+	:global(.bcms-login-brand) {
 		display: flex;
-		flex-direction: column;
-		gap: 0.375rem;
-	}
-	label span {
-		font-size: 0.875rem;
-		color: #3f3f46;
-	}
-	input {
-		padding: 0.625rem 0.75rem;
-		border: 1px solid #e4e4e7;
-		border-radius: 6px;
-		font: inherit;
-	}
-	input:focus {
-		outline: 2px solid #18181b;
-		outline-offset: -1px;
-	}
-	button {
-		padding: 0.625rem 1rem;
-		background: #18181b;
-		color: #fafafa;
-		border: 0;
-		border-radius: 6px;
-		cursor: pointer;
-		font: inherit;
-	}
-	button:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-	.bcms-login-error {
+		align-items: center;
+		gap: 10px;
 		margin: 0;
-		padding: 0.625rem 0.75rem;
-		background: #fef2f2;
-		color: #991b1b;
-		border-radius: 6px;
-		font-size: 0.875rem;
+		font-size: var(--bcms-text-lg);
+		font-weight: 600;
+	}
+	:global(.bcms-login-title) {
+		font-size: var(--bcms-text-lg);
+		font-weight: 600;
+		letter-spacing: -0.01em;
+	}
+	:global(.bcms-login-sub) {
+		margin: -6px 0 6px;
+		font-size: var(--bcms-text-sm);
+		color: var(--bcms-muted);
+	}
+	:global(.bcms-login-submit) {
+		justify-content: center;
+		padding: 11px 14px;
+	}
+	:global(.bcms-login-error) {
+		margin: 0;
+		padding: 9px 12px;
+		background: var(--bcms-danger-soft);
+		color: var(--bcms-danger-fg);
+		border-radius: var(--bcms-radius-sm);
+		font-size: var(--bcms-text-sm);
+		border: 1px solid color-mix(in oklab, var(--bcms-danger) 25%, transparent);
 	}
 </style>
