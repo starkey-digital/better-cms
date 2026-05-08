@@ -26,7 +26,12 @@ import { cms, serverApi } from './server.js';
 export async function listCollection<C extends CollectionsRecord, K extends keyof C>(
 	config: CmsConfig<C>,
 	collection: K,
-	opts?: { limit?: number; offset?: number; where?: Record<string, unknown> },
+	opts?: {
+		limit?: number;
+		offset?: number;
+		where?: Record<string, unknown>;
+		orderBy?: { field: string; dir?: 'asc' | 'desc' }[];
+	},
 	cmsOpts?: CreateCmsOpts,
 ): Promise<InferRows<SchemaIR<C>>[K][]> {
 	const instance = await cms(config, cmsOpts);

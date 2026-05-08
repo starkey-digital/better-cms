@@ -8,5 +8,6 @@ export default {
 	},
 	kit: {
 		adapter: adapter(),
+		experimental: { remoteFunctions: true },
 	},
 };
