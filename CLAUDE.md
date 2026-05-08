@@ -58,6 +58,8 @@ import type { Post }      from 'better-cms/types';
 - **CI runs `bun run --filter './packages/*' build` before typecheck.** Cross-pkg type resolution + example typecheck both depend on `dist/` existing. Bun honours topological order via `--filter`.
 - **SvelteKit consumers do NOT need `ssr.noExternal` for `better-cms` / `@better-cms/*`** — published artifacts are `.js` and externalize cleanly.
 - **SvelteKit example pkgs need `"prepare": "svelte-kit sync || true"`** so `.svelte-kit/tsconfig.json` exists before svelte-check.
+- **`incremental: false`** in every `tsconfig.build.json` — tsbuildinfo cache produces partial `dist/` on rapid successive builds.
+- Case-only renames (e.g. `CMSAdmin.svelte` → `CmsAdmin.svelte`) need explicit `git rm --cached <old>` then `git add <new>` on macOS HFS+/APFS.
 
 `peerDependenciesMeta.<x>.optional: true` on every framework/db/SDK peer. User installs only what their imports require.
 
@@ -77,6 +79,17 @@ import type { Post }      from 'better-cms/types';
 - Field types are phantom-typed: `FieldDef<TOut>` carries value type; DSL builders propagate it; `defineCMS<C>` captures verbatim → `serverApi`, remote helpers, admin all gain inference.
 - Three modes (inline edit, admin save, LLM/MCP tool call) all reduce to `CmsOp` → `applyOps()` → live broadcast. One audit trail.
 - **Validation is Standard-Schema-shaped.** `buildSchema(collectionDef, 'create' | 'update' | 'full')` derives a valibot validator from field defs (required/max/min/pattern/enum). Drop-in for SvelteKit `query`/`command`, tRPC, anywhere a Standard Schema validator works. Same rules `validateRow` enforces on writes — single source of truth. Users picking other libs (zod, arktype) hand-roll bespoke shapes; `buildSchema` is the auto-derived path for collection CRUD.
+- **`node:async_hooks` is server-only.** Importing from a module reachable from the browser bundle makes Vite externalize it; any subsequent `als.run(...)` throws. The sveltekit pkg splits server (`/server` subpath) from browser-safe root for this. Generated `$lib/cmsClient.ts` imports from the root only.
+- **SSR `fetch` + relative URLs.** Node's global `fetch` rejects relative URLs. `cmsHandle` stores `event.fetch` in the AsyncLocalStorage scope; `createCmsClient` reads it via a registry callback the server entry registers as a side-effect. Never `import('$app/server')` from package source — it's a SvelteKit virtual module, unresolvable outside user-app context.
+- **SvelteKit experimental flags** (consumer apps): `kit.experimental.remoteFunctions` for `*.remote.ts` files, `compilerOptions.experimental.async` for `$derived(await ...)` in templates. The example enables both.
+
+## Testing
+
+- `*.test.ts` runs in Bun (unit). `*.e2e.ts` runs in Playwright. `*.spec.ts` is picked up by both — avoid.
+- Playwright (examples/sveltekit-basic): `workers: 1` (libsql DB shared), `reuseExistingServer: !!process.env.PW_REUSE` (CI fresh, local opt-in), `webServer.command` resets `local.db` per launch.
+- `page.request` shares the page cookie jar; the standalone `request` fixture has its own. Use `page.request` when subsequent `page.goto` needs the session.
+- e2e tests share the libsql file in order. Unique slugs per test; queries that depend on recency need `orderBy: [{ field: 'createdAt', dir: 'desc' }]`.
+- Don't kill ports manually — Playwright's webServer manages the lifecycle. Don't `rm -rf test-results/` — Playwright clears + the trace/screenshot artifacts help debug. Don't `tee` dev logs — forces approval prompts.
 
 ## Conventions
 

@@ -57,7 +57,7 @@ export default defineCMS({
 ```ts
 // src/hooks.server.ts
 import cms from '$lib/server/cms';
-import { cmsHandle } from 'better-cms/sveltekit';
+import { cmsHandle } from 'better-cms/sveltekit/server';
 
 export const handle = cmsHandle(cms);
 ```
@@ -93,8 +93,28 @@ bunx -p @better-cms/cli bcms generate   # emits src/lib/cms-schema.ts
 bunx drizzle-kit push                    # uses ./drizzle.config.ts
 ```
 
+## 7. (Optional) Generate the typed client
+
+```bash
+bunx -p @better-cms/cli bcms generate --target=client
+```
+
+Writes `src/lib/cmsClient.ts` — a standalone, browser-safe typed API:
+
+```svelte
+<script lang="ts">
+	import { cmsClient } from '$lib/cmsClient';
+	import { page } from '$app/state';
+
+	const post = $derived(await cmsClient.posts.get(page.params.slug));
+	const user = $derived(await cmsClient.auth.getUser());
+</script>
+```
+
+No prop threading, no layout setup. Re-run after every schema change.
+
 ## Next
 
-- Read about [collections](/concepts/collections) and [fields](/concepts/fields)
-- Wire up [SvelteKit remote functions](/integrations/sveltekit) for typed reads
+- Read about [collections](/concepts/collections), [fields](/concepts/fields), and [auth](/concepts/auth)
+- Wire up [SvelteKit remote functions](/integrations/sveltekit) for typed reads + Standard-Schema input validation
 - Generate types with the [CLI](/reference/cli)

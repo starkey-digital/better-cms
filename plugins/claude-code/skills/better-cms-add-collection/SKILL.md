@@ -87,6 +87,7 @@ Run:
 
 ```bash
 bunx -p @better-cms/cli bcms generate
+bunx -p @better-cms/cli bcms generate --target=client   # if cmsClient.ts is in use
 ```
 
 Then remind the user:
