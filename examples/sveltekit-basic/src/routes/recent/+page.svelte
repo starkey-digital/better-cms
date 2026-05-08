@@ -1,12 +1,10 @@
 <script lang="ts">
-import { invalidateAll } from '$app/navigation';
 import { recentPosts, togglePublished } from '$lib/cms.remote';
 
 const posts = $derived(await recentPosts(5));
 
 async function toggle(id: string, current: boolean) {
-	await togglePublished({ id, published: !current });
-	await invalidateAll();
+	await togglePublished({ id, published: !current }).updates(recentPosts);
 }
 </script>
 
@@ -20,7 +18,7 @@ async function toggle(id: string, current: boolean) {
 				<li>
 					<a href="/posts/{post.slug}"><strong>{post.title}</strong></a>
 					{#if post.excerpt}<p>{post.excerpt}</p>{/if}
-					<button type="button" onclick={() => toggle(post.id!, post.published ?? false)}>
+					<button type="button" onclick={() => toggle(post.id, post.published ?? false)}>
 						{post.published ? 'Unpublish' : 'Publish'}
 					</button>
 				</li>

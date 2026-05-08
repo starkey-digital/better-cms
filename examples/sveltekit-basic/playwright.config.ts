@@ -17,11 +17,12 @@ export default defineConfig({
 	},
 	projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
 	webServer: {
-		// Always launch a fresh dev server with a clean DB. Reusing a stale
-		// server pollutes state across runs and made `togglePublished` flake.
+		// Default: fresh server + clean DB per invocation (reuse pollutes state
+		// across runs, made togglePublished flake). Local iter loops can opt
+		// out with PW_REUSE=1 to skip the ~500ms cold-start.
 		command: `rm -f local.db && bun run dev --port ${PORT}`,
 		port: PORT,
-		reuseExistingServer: false,
+		reuseExistingServer: !!process.env.PW_REUSE,
 		stdout: 'pipe',
 		stderr: 'pipe',
 		timeout: 30_000,

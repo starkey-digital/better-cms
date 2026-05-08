@@ -22,17 +22,17 @@ export interface Posts {
 		alt?: string;
 	};
 	published?: boolean;
-	id?: string;
-	createdAt?: string;
-	updatedAt?: string;
+	id: string;
+	createdAt: string;
+	updatedAt: string;
 }
 
 export interface Settings {
 	siteTitle: string;
 	tagline?: string;
-	id?: string;
-	createdAt?: string;
-	updatedAt?: string;
+	id: string;
+	createdAt: string;
+	updatedAt: string;
 }
 
 export interface Cms {

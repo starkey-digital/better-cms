@@ -1,11 +1,15 @@
 import type { CollectionDef, FieldDef } from '@better-cms/core';
 
+// id / createdAt / updatedAt are always present on a persisted row — emit
+// them non-optional so callers don't have to non-null-assert every access.
+const ALWAYS_REQUIRED = new Set(['id', 'createdAt', 'updatedAt']);
+
 export function tsFields(def: CollectionDef, indent: string): string {
 	const lines: string[] = [];
 	const fields = def.fields as Record<string, FieldDef>;
 	for (const [field, fd] of Object.entries(fields)) {
-		const optional = fd.validation?.required && field !== 'id' ? '' : '?';
-		lines.push(`${indent}${field}${optional}: ${tsType(fd)};`);
+		const required = ALWAYS_REQUIRED.has(field) || fd.validation?.required;
+		lines.push(`${indent}${field}${required ? '' : '?'}: ${tsType(fd)};`);
 	}
 	return lines.join('\n');
 }
