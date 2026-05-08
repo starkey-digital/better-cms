@@ -99,6 +99,38 @@ export const posts = query(async () => listCollection(config, 'posts'));
 export const save = command(async (ops) => runOps(config, ops));
 ```
 
+### Validating remote inputs (Standard Schema)
+
+`query` and `command` accept any [Standard Schema](https://standardschema.dev) compatible validator — `valibot`, `zod`, `arktype`, etc. SvelteKit rejects bad input before your handler runs.
+
+`'unchecked'` works for prototyping, but lock the contract before shipping:
+
+```ts
+import { command, query } from '$app/server';
+import * as v from 'valibot';
+import { listCollection, runOps } from 'better-cms/sveltekit/remote';
+import config, { cms } from '$lib/server/cms';
+
+const RecentLimit = v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(50));
+const ToggleInput = v.object({
+	id: v.string(),
+	published: v.boolean(),
+});
+
+export const recentPosts = query(RecentLimit, async (limit) =>
+	listCollection(config, 'posts', { limit, where: { published: true } }),
+);
+
+export const togglePublished = command(ToggleInput, async (input) => {
+	if (!(await cms.auth.getUser())) throw new Error('unauthorized');
+	return runOps(config, [
+		{ op: 'set', collection: 'posts', id: input.id, data: { published: input.published } },
+	]);
+});
+```
+
+Pick whichever validator library your team is comfortable with — better-cms doesn't dictate.
+
 ## Admin page
 
 ```ts
