@@ -2,14 +2,14 @@
 
 Mount the handler, render the admin, read content from server load functions or remote functions.
 
-The CMS config is a server-only module — `src/lib/server/cms.ts` by convention. SvelteKit's bundler rejects any client-side import of files under `src/lib/server/`, so adapter credentials, media keys, and auth secrets stay on the server.
+The `$lib/cms/` layout splits browser-safe schemas/client from the server-only adapter+plugins config. SvelteKit's bundler rejects any client-side import of files under `$lib/cms/server/`, so adapter credentials, media keys, and auth secrets stay on the server.
 
 ## Handler
 
 ```ts
 // src/hooks.server.ts
-import config from '$lib/server/cms';
-import { cmsHandle } from 'better-cms/sveltekit';
+import config from '$lib/cms/server/cms';
+import { cmsHandle } from 'better-cms/sveltekit/server';
 
 export const handle = cmsHandle(config);
 ```
@@ -19,11 +19,12 @@ export const handle = cmsHandle(config);
 `bcms init` writes a `cms.ts` that exports both the raw `config` (default) and a typed property-style API (named export `cms`):
 
 ```ts
-// src/lib/server/cms.ts
-import { defineCMS, ... } from 'better-cms';
-import { createCms } from 'better-cms/sveltekit';
+// src/lib/cms/server/cms.ts
+import { createCms } from 'better-cms/sveltekit/server';
+import { defineCMS } from 'better-cms/zod';
+import { collections } from '../schemas.js';
 
-const config = defineCMS({ ... });
+const config = defineCMS({ collections, adapter: ..., plugins: [...] });
 
 export default config;
 export const cms = createCms(config);
@@ -33,7 +34,7 @@ Use it from any server load function, hook, or remote function:
 
 ```ts
 // src/routes/blog/+page.server.ts
-import { cms } from '$lib/server/cms';
+import { cms } from '$lib/cms/server/cms';
 
 export async function load() {
 	const posts = await cms.posts.list({ limit: 20 });
@@ -43,7 +44,7 @@ export async function load() {
 
 ```ts
 // src/routes/blog/[slug]/+page.server.ts
-import { cms } from '$lib/server/cms';
+import { cms } from '$lib/cms/server/cms';
 import { error } from '@sveltejs/kit';
 
 export async function load({ params }) {
@@ -53,128 +54,100 @@ export async function load({ params }) {
 }
 ```
 
-Each collection key has `list / find / get / count`; each singleton has `get / set`. Methods are typed from your collection definitions — `cms.posts.list()` returns `Post[]`, `cms.settings.get()` returns `Settings | null`. The first call lazily boots the CMS singleton; subsequent calls reuse it.
+Each collection key has `list / find / get / count / create / update / delete`; each singleton has `get / set`. Methods are typed from your zod schemas — `cms.posts.list()` returns `Post[]`, `cms.settings.get()` returns `Settings | null`. Mutations run through `applyOps` and publish live events. The first call lazily boots the CMS singleton; subsequent calls reuse it.
 
-## The `cms` API — client side (in components)
+`cms.auth.getUser()` reads the request from `cmsHandle`'s AsyncLocalStorage scope. `cms.auth.requireUser()` throws when no user is signed in.
 
-`cms` is server-only (lives under `src/lib/server/`). Components can't import it. Instead, ship the JSON-safe slice through a layout loader and let the component build its own client API:
+## The `cms` client — browser side (in components)
+
+`cms` is server-only. Components use the browser-safe `cmsClient` you build once in `$lib/cms/client.ts`:
 
 ```ts
-// src/routes/+layout.server.ts
-import config from '$lib/server/cms';
-import { clientCmsConfig } from 'better-cms/sveltekit';
+// src/lib/cms/client.ts
+import { clientCmsConfig, createCmsClient } from 'better-cms/sveltekit';
+import { collections } from './schemas.js';
 
-export const load = () => ({ cmsConfig: clientCmsConfig(config) });
+export const cmsConfig = clientCmsConfig({ collections, basePath: '/api/cms' });
+export const cmsClient = createCmsClient(cmsConfig);
 ```
 
 ```svelte
 <!-- src/routes/blog/[slug]/+page.svelte -->
 <script lang="ts">
-import { page } from '$app/state';
-import { createCmsClient } from 'better-cms/sveltekit';
-
-let { data } = $props();
-const cms = $derived(createCmsClient(data.cmsConfig));
-const post = $derived(await cms.posts.get(page.params.slug));
+	import { cmsClient } from '$lib/cms/client';
+	const { params } = $props();
+	const post = $derived(await cmsClient.posts.get(params.slug));
 </script>
 
-{#if post}
-  <h1>{post.title}</h1>
-{/if}
+{#if post}<h1>{post.title}</h1>{/if}
 ```
 
-Same property shape as the server `cms`, same types (flowing through `ClientCmsConfig<C>`), but methods talk to the CMS over HTTP. Use it for client-side queries triggered by URL params, search-as-you-type, anything that wants to refetch without a navigation.
+Same property shape as the server `cms`, same types. Methods talk to the CMS over HTTP (`/api/cms/...`). During SSR the request-scoped `event.fetch` is used so relative URLs resolve.
+
+> **Bundle.** Importing `./schemas` here pulls zod (~30 kB gz) into the browser bundle. Most apps already bundle zod for form validation. For zero-zod SSR-only sites, see [`bcms generate --target=client`](/reference/cli) which bakes a static manifest.
 
 ## Remote functions (typed RPC)
 
-For server-resident queries you want to call from anywhere — components, event handlers, etc. — use SvelteKit's remote functions. better-cms ships helpers that call into the same singleton without going through HTTP, so latency stays in-process:
-
 ```ts
-// src/lib/cms.remote.ts
-import { query, command } from '$app/server';
-import { listCollection, runOps } from 'better-cms/sveltekit/remote';
-import config from '$lib/server/cms';
+// src/lib/cms/cms.remote.ts
+import { command, query } from '$app/server';
+import { posts } from '$lib/cms/schemas';
+import { cms } from '$lib/cms/server/cms';
+import { z } from 'zod';
 
-export const posts = query(async () => listCollection(config, 'posts'));
-export const save = command(async (ops) => runOps(config, ops));
-```
+const RecentLimit = z.number().int().min(1).max(50);
 
-### Validating remote inputs (Standard Schema)
-
-`query` and `command` accept any [Standard Schema](https://standardschema.dev) compatible validator — `valibot`, `zod`, `arktype`, etc. SvelteKit rejects bad input before your handler runs.
-
-#### Auto-derived schemas
-
-`buildSchema(collectionDef, variant)` returns a Standard-Schema validator built from your collection's field defs — same `required`/`max`/`pattern`/`enum` rules the CMS itself enforces on writes:
-
-```ts
-// src/lib/cms.remote.ts
-import { command } from '$app/server';
-import { buildSchema } from 'better-cms';
-import { runOps } from 'better-cms/sveltekit/remote';
-import config from '$lib/server/cms';
-
-const PostsCreate = buildSchema(config.collections.posts, 'create');
-const PostsUpdate = buildSchema(config.collections.posts, 'update');
-
-export const create = command(PostsCreate, async (data) =>
-	runOps(config, [{ op: 'create', collection: 'posts', data }]),
+export const recentPosts = query(RecentLimit, async (limit) =>
+	cms.posts.list({
+		limit,
+		where: { published: true },
+		orderBy: [{ field: 'createdAt', dir: 'desc' }],
+	}),
 );
+
+export const createPost = command(posts.schemas.create, async (input) => {
+	await cms.auth.requireUser();
+	return cms.posts.create(input);
+});
 ```
 
-Variants:
-- `create` — system fields (`id`, `createdAt`, `updatedAt`) excluded; required validation honoured.
-- `update` — every field optional; `id` required as the lookup key.
-- `full` — every field present (e.g. for validating server-returned rows in tests).
+`posts.schemas.create` / `.update` / `.full` are the auto-composed Standard Schemas — built from your zod schema via the lossless `omit`/`partial` flow. Drop straight into `command(schema, fn)` / `query(schema, fn)`. Same applies to tRPC, hono, anywhere a Standard Schema validator is accepted.
 
-#### Bespoke shapes
-
-For custom inputs that don't match a collection, hand-roll with your validator of choice:
+For bespoke inputs (custom args, multi-collection commands), hand-roll with zod:
 
 ```ts
-import * as v from 'valibot';
+const ToggleInput = z.object({ id: z.string(), published: z.boolean() });
 
-const ToggleInput = v.object({ id: v.string(), published: v.boolean() });
-
-export const togglePublished = command(ToggleInput, async (input) => { /* ... */ });
+export const togglePublished = command(ToggleInput, async ({ id, published }) => {
+	await cms.auth.requireUser();
+	return cms.posts.update(id, { published });
+});
 ```
-
-`'unchecked'` works for prototyping, but lock the contract before shipping. Pick whichever validator library your team is comfortable with — better-cms doesn't dictate.
 
 ## Admin page
-
-```ts
-// src/routes/cms/+page.server.ts
-import cms from '$lib/server/cms';
-import { clientCmsConfig } from 'better-cms/sveltekit';
-
-export const load = () => ({ cms: clientCmsConfig(cms) });
-```
 
 ```svelte
 <!-- src/routes/cms/+page.svelte -->
 <script lang="ts">
+	import { cmsConfig } from '$lib/cms/client';
 	import { CmsAdmin } from 'better-cms/admin';
-	let { data } = $props();
 </script>
 
-<CmsAdmin config={data.cms} />
+<CmsAdmin config={cmsConfig} auth />
 ```
 
-`clientCmsConfig` returns the JSON-safe slice the admin actually uses (`{ collections, basePath }`). Adapter, media, auth, and plugins never cross to the browser.
+No `+page.server.ts` needed — schemas live in the browser bundle (via `$lib/cms/schemas`), so the admin manifest builds client-side.
 
 ## Reading the session
 
-`passwordAuth` sets a signed cookie (`bcms_session`) on successful login. Once a user is signed in, you can check the session anywhere on the server — useful for conditional UI like an "Admin" link in your nav.
-
-The simplest pattern is a root `+layout.server.ts` that resolves the user once per request and exposes it to every child page via `data`:
+`passwordAuth` sets a signed cookie (`bcms_session`) on successful login. Check the session anywhere via `cms.auth.getUser()` — server-side, no extra round trip:
 
 ```ts
 // src/routes/+layout.server.ts
-import cms from '$lib/server/cms';
+import { cms } from '$lib/cms/server/cms';
 
-export async function load({ request }) {
-	const user = (await cms.auth?.getUser(request)) ?? null;
+export async function load() {
+	const user = await cms.auth.getUser();
 	return { user };
 }
 ```
@@ -198,17 +171,21 @@ export async function load({ request }) {
 {@render children()}
 ```
 
-Every child route gets `data.user` for free. No extra fetch, no client-side waterfall — the cookie is verified on the server during the same request that renders the page.
+Every child route gets `data.user` from the layout — no client-side waterfall. The cookie is verified on the server during the same request that renders the page.
 
-If you can't add a layout loader (e.g. a static-prerendered route that hydrates), call the `/api/cms/me` endpoint from the client:
+If you can't add a layout loader (e.g. a static-prerendered route that hydrates), call `/api/cms/me` from the client:
 
 ```ts
 const r = await fetch('/api/cms/me');
 const { user } = (await r.json()) as { user: { id: string; role: string } | null };
 ```
 
-`/me` is part of the `passwordAuth` plugin and returns `{ user: null }` when no valid session cookie is present — never throws, safe for unauthenticated callers.
+`/me` is part of the `passwordAuth` plugin and returns `{ user: null }` when no valid session cookie is present — never throws.
 
 ## Live updates
 
-Operations broadcast via the handler. Admin and any subscribed page update without a refresh.
+Mutations through `cms.posts.*` and the HTTP `/ops` endpoint publish events on the live channel. The admin and any subscribed page update without a refresh.
+
+## Vite config note
+
+When schemas use zod, add `optimizeDeps: { include: ['zod'] }` to your `vite.config.ts`. Without it, Vite's on-demand optimize-then-reload can fire during the first hydrating request and drop event-handler attachment on the floor. The `bcms init` template wires this for you.

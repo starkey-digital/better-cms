@@ -1,6 +1,6 @@
 # Getting started
 
-Five-minute setup for SvelteKit.
+Five-minute setup for SvelteKit. Schema-first, zod-powered.
 
 ## 1. Scaffold
 
@@ -8,113 +8,154 @@ Five-minute setup for SvelteKit.
 bunx -p @better-cms/cli bcms init
 ```
 
-Writes:
+Writes the new `$lib/cms/` layout:
 
-- `src/lib/server/cms.ts` — server-only config module
+- `src/lib/cms/schemas.ts` — zod schemas + collection definitions
+- `src/lib/cms/client.ts` — `cmsClient` + `cmsConfig` for the admin UI
+- `src/lib/cms/server/cms.ts` — adapter + plugins + auth + `defineCMS`
 - `src/hooks.server.ts` — wires `cmsHandle(cms)`
-- `src/routes/cms/+page.server.ts` + `+page.svelte` — admin route
+- `src/routes/cms/+page.svelte` — admin route
 - `.env.example` — DB + S3 vars
 - `drizzle.config.ts`
 
-Then installs `better-cms`, `dotenv` (runtime) and `drizzle-kit`,
-`@libsql/client` (dev). `--skip-install` prints the install commands instead.
+Then installs `better-cms`, `zod`, `dotenv` (runtime) and `drizzle-kit`, `@libsql/client` (dev). `--skip-install` prints the install commands instead.
 
-## 2. Why `src/lib/server/`
-
-SvelteKit refuses to import anything under `src/lib/server/` from client code.
-That's the whole reason the CMS config lives there — the adapter holds your
-DB credentials, and the type system + bundler enforce that they never cross
-to the browser. You can read `process.env` at the top of `cms.ts` without
-fear.
-
-## 3. Edit your config
+## 2. Define your schemas
 
 ```ts
-// src/lib/server/cms.ts
-import 'dotenv/config';
-import { defineCMS, collection, text, richText } from 'better-cms';
-import { libsqlAdapter } from 'better-cms/adapters/libsql';
+// src/lib/cms/schemas.ts
+import { collection, image, richText, singleton, slug } from 'better-cms/zod';
+import { z } from 'zod';
 
-export default defineCMS({
-	collections: {
-		posts: collection({
-			fields: {
-				title: text({ required: true }),
-				slug: text({ required: true, unique: true }),
-				body: richText(),
-			},
-		}),
-	},
+export const PostSchema = z.object({
+	title: z.string().min(1).max(120),
+	slug: slug(),
+	excerpt: z.string().max(500).optional(),
+	body: richText().optional(),
+	cover: image().optional(),
+	published: z.boolean().default(false),
+});
+
+export const SettingsSchema = z.object({
+	siteTitle: z.string().min(1),
+	tagline: z.string().optional(),
+});
+
+export const posts = collection({ schema: PostSchema });
+export const settings = singleton({ schema: SettingsSchema });
+
+export const collections = { posts, settings };
+
+export type Post = z.infer<typeof PostSchema>;
+export type Settings = z.infer<typeof SettingsSchema>;
+```
+
+The walker derives the IR (drizzle columns, admin widgets, MCP descriptors) from the zod schema. Schemas come from `better-cms/zod`'s helpers (`richText`, `image`, `file`, `slug`, `relation`, `unique`, `indexed`) which tag plain zod schemas with the metadata the walker reads.
+
+## 3. Wire up the server
+
+```ts
+// src/lib/cms/server/cms.ts
+import 'dotenv/config';
+import { libsqlAdapter } from 'better-cms/adapters/libsql';
+import { createCms } from 'better-cms/sveltekit/server';
+import { defineCMS } from 'better-cms/zod';
+import { collections } from '../schemas.js';
+
+const config = defineCMS({
+	collections,
 	adapter: libsqlAdapter({
 		url: process.env.DATABASE_URL!,
 		authToken: process.env.DATABASE_AUTH_TOKEN,
 	}),
 });
+
+export default config;
+export const cms = createCms(config);
 ```
+
+`defineCMS` resolves any `relation(otherCollection)` refs to the registered name strings and throws if a target isn't in `collections`.
 
 ## 4. Mount the handler
 
 ```ts
 // src/hooks.server.ts
-import cms from '$lib/server/cms';
+import cms from '$lib/cms/server/cms';
 import { cmsHandle } from 'better-cms/sveltekit/server';
 
 export const handle = cmsHandle(cms);
 ```
 
-The default base path is `/api/cms`. Override with `cms.basePath` if you need a different mount point.
+Default base path is `/api/cms`. Override with `config.basePath` if you need a different mount point.
 
-## 5. Render the admin UI
+## 5. Build the typed client
 
 ```ts
-// src/routes/cms/+page.server.ts
-import cms from '$lib/server/cms';
-import { clientCmsConfig } from 'better-cms/sveltekit';
+// src/lib/cms/client.ts
+import { clientCmsConfig, createCmsClient } from 'better-cms/sveltekit';
+import { collections } from './schemas.js';
 
-export const load = () => ({ cms: clientCmsConfig(cms) });
+export const cmsConfig = clientCmsConfig({ collections, basePath: '/api/cms' });
+export const cmsClient = createCmsClient(cmsConfig);
 ```
+
+`clientCmsConfig` strips the server-only fields (`schemas`, `validation`, `toJsonSchema`) so the result is browser-safe. No codegen — types flow from the zod schemas via `z.infer`.
+
+> **Bundle note.** Importing `./schemas` into the client pulls zod (~30 kB gz) into the browser bundle. For zero-zod SSR-only sites, see the [CLI codegen path](/reference/cli#client-manifest-codegen) which bakes a static manifest instead.
+
+## 6. Render the admin UI
 
 ```svelte
 <!-- src/routes/cms/+page.svelte -->
 <script lang="ts">
+	import { cmsConfig } from '$lib/cms/client';
 	import { CmsAdmin } from 'better-cms/admin';
-	let { data } = $props();
 </script>
 
-<CmsAdmin config={data.cms} />
+<CmsAdmin config={cmsConfig} auth />
 ```
 
-`clientCmsConfig` strips the server-only fields (adapter, media, auth, plugins) and returns `{ collections, basePath }` — JSON-safe to send through SvelteKit's load → page data flow.
+No `+page.server.ts` needed — schemas are browser-importable now.
 
-## 6. Generate the database schema
+## 7. Use the client anywhere
+
+```svelte
+<!-- src/routes/posts/[slug]/+page.svelte -->
+<script lang="ts">
+	import { cmsClient } from '$lib/cms/client';
+
+	const { params } = $props();
+	const post = $derived(await cmsClient.posts.get(params.slug));
+</script>
+
+{#if post}
+	<h1>{post.title}</h1>
+	{#if post.body}<div>{@html post.body}</div>{/if}
+{/if}
+```
+
+Server-side, the same shape works through `cms` from `createCms(config)`:
+
+```ts
+// src/routes/+page.server.ts
+import { cms } from '$lib/cms/server/cms';
+
+export const load = async () => ({
+	posts: await cms.posts.list({ limit: 20 }),
+});
+```
+
+## 8. Generate the database schema
 
 ```bash
 bunx -p @better-cms/cli bcms generate   # emits src/lib/cms-schema.ts
 bunx drizzle-kit push                    # uses ./drizzle.config.ts
 ```
 
-## 7. (Optional) Generate the typed client
-
-```bash
-bunx -p @better-cms/cli bcms generate --target=client
-```
-
-Writes `src/lib/cmsClient.ts` — a standalone, browser-safe typed API:
-
-```svelte
-<script lang="ts">
-	import { cmsClient } from '$lib/cmsClient';
-	import { page } from '$app/state';
-
-	const post = $derived(await cmsClient.posts.get(page.params.slug));
-	const user = $derived(await cmsClient.auth.getUser());
-</script>
-```
-
-No prop threading, no layout setup. Re-run after every schema change.
-
 ## Next
 
-- Read about [collections](/concepts/collections), [fields](/concepts/fields), and [auth](/concepts/auth)
-- Wire up [SvelteKit remote functions](/integrations/sveltekit) for typed reads + Standard-Schema input validation
-- Generate types with the [CLI](/reference/cli)
+- [Collections](/concepts/collections) — schema-first builder + helpers
+- [Fields](/concepts/fields) — kind metadata reference (what the walker derives)
+- [Auth](/concepts/auth) — passwordAuth plugin
+- [SvelteKit](/integrations/sveltekit) — `cms` server API, remote functions, admin
+- [CLI](/reference/cli) — `bcms init`, `bcms generate`, `bcms mcp`

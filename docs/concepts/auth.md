@@ -7,10 +7,12 @@ better-cms ships a single password authentication plugin (`passwordAuth`). It pr
 `passwordAuth` is wired in your server-only CMS module:
 
 ```ts
-// src/lib/server/cms.ts
-import { defineCMS } from 'better-cms';
+// src/lib/cms/server/cms.ts
 import { libsqlAdapter } from 'better-cms/adapters/libsql';
 import { passwordAuth } from 'better-cms/sveltekit/auth';
+import { createCms } from 'better-cms/sveltekit/server';
+import { defineCMS } from 'better-cms/zod';
+import { collections } from '../schemas.js';
 
 const auth = passwordAuth({
 	password: process.env.CMS_PASSWORD!,
@@ -18,12 +20,15 @@ const auth = passwordAuth({
 	cookieSecure: process.env.NODE_ENV === 'production',
 });
 
-export default defineCMS({
-	collections: { /* ... */ },
+const config = defineCMS({
+	collections,
 	adapter: libsqlAdapter({ /* ... */ }),
 	plugins: [auth],
 	auth: { getUser: auth.getUser },
 });
+
+export default config;
+export const cms = createCms(config);
 ```
 
 `passwordAuth(opts)` returns an object that's both a CmsPlugin (mounting `/login`, `/logout`, `/me` endpoints) and exposes `getUser(request)` for reading the session.
@@ -54,17 +59,19 @@ The cookie is HttpOnly, SameSite=Lax, and signed with `secret` — tampering inv
 
 ## Reading the session anywhere
 
-The same cookie that authorizes admin requests can authorize *anything* in your app. `cms.auth.getUser(request)` is the single source of truth — server-side, no extra round trip.
+The same cookie that authorizes admin requests can authorize *anything* in your app. `cms.auth.getUser()` is the single source of truth — server-side, reads the request from `cmsHandle`'s AsyncLocalStorage scope.
 
 ```ts
 // src/routes/+layout.server.ts
-import cms from '$lib/server/cms';
+import { cms } from '$lib/cms/server/cms';
 
-export async function load({ request }) {
-	const user = (await cms.auth?.getUser(request)) ?? null;
+export async function load() {
+	const user = await cms.auth.getUser();
 	return { user };
 }
 ```
+
+For commands that should reject anonymous callers, use `cms.auth.requireUser()` — same as `getUser()` but throws when no user is signed in.
 
 ```svelte
 <!-- src/routes/+layout.svelte -->

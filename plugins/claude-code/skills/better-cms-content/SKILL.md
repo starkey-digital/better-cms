@@ -20,7 +20,7 @@ The `better-cms` MCP server is registered. Use its tools instead of writing raw 
 
 1. **Inspect before writing**. Call `cms_schema` to understand fields, then `cms_list` if the user references existing content. Never invent field names.
 2. **Singletons**: pass `id: "default"`. Singletons exist for site-wide configuration and one-off pages.
-3. **Rich text**: `richText` fields store ProseMirror/Tiptap JSON. If the user gives plain text, wrap it as `{ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "..." }] }] }`.
+3. **Rich text**: `richText` fields store a string (markdown / HTML / stringified ProseMirror JSON — depends on the editor the user mounts). Pass plain text or markdown directly. If the user's setup expects ProseMirror JSON, the project will document that in `$lib/cms/schemas.ts`; check the field's downstream renderer if unsure.
 4. **Images**: `image` fields store `{ key, url, alt?, width?, height? }`. The CMS owns uploads — never invent URLs. If the user wants to attach an image that hasn't been uploaded, ask them to upload it first or guide them through media upload.
 5. **Slugs**: validate format `^[a-z0-9]+(?:-[a-z0-9]+)*$`. Generate from titles via lowercase + hyphenate.
 6. **Audit trail**: every write is automatically logged to `cms_revisions` with `source: "mcp"`. Mention this if the user wants to undo changes.
