@@ -173,7 +173,7 @@ function humanLabel(s: string): string {
 		font: inherit;
 		font-size: var(--bcms-text-sm);
 		color: var(--bcms-fg);
-		background: var(--bcms-surface);
+		background-color: var(--bcms-surface);
 		border: 1px solid var(--bcms-border);
 		border-radius: var(--bcms-radius-sm);
 		transition:
@@ -214,9 +214,9 @@ function humanLabel(s: string): string {
 		position: relative;
 		width: 38px;
 		height: 22px;
-		background: var(--bcms-border);
+		background-color: var(--bcms-border);
 		border-radius: 999px;
-		transition: background 160ms ease;
+		transition: background-color 160ms ease;
 	}
 	:global(.bcms-toggle-thumb) {
 		position: absolute;
@@ -230,7 +230,7 @@ function humanLabel(s: string): string {
 		transition: transform 160ms ease;
 	}
 	:global(.bcms-toggle input:checked + .bcms-toggle-track) {
-		background: var(--bcms-primary);
+		background-color: var(--bcms-primary);
 	}
 	:global(.bcms-toggle input:checked + .bcms-toggle-track .bcms-toggle-thumb) {
 		transform: translateX(16px);
@@ -266,7 +266,7 @@ function humanLabel(s: string): string {
 		place-items: center;
 		color: var(--bcms-muted);
 		font-size: var(--bcms-text-sm);
-		background: var(--bcms-subtle);
+		background-color: var(--bcms-subtle);
 		border: 1px dashed var(--bcms-border-strong);
 		border-radius: var(--bcms-radius);
 	}

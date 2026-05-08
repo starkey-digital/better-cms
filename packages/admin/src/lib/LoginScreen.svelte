@@ -107,12 +107,12 @@ async function submit(e: SubmitEvent) {
 		display: grid;
 		place-items: center;
 		min-height: 100vh;
-		background: var(--bcms-bg);
+		background-color: var(--bcms-bg);
 		grid-template-columns: 1fr;
 		padding: 16px;
 	}
 	:global(.bcms-login form) {
-		background: var(--bcms-surface);
+		background-color: var(--bcms-surface);
 		border: 1px solid var(--bcms-border);
 		border-radius: var(--bcms-radius-lg);
 		padding: 32px;
@@ -147,7 +147,7 @@ async function submit(e: SubmitEvent) {
 	:global(.bcms-login-error) {
 		margin: 0;
 		padding: 9px 12px;
-		background: var(--bcms-danger-soft);
+		background-color: var(--bcms-danger-soft);
 		color: var(--bcms-danger-fg);
 		border-radius: var(--bcms-radius-sm);
 		font-size: var(--bcms-text-sm);

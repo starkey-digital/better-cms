@@ -153,7 +153,7 @@ function badgeForBoolean(v: unknown): { label: string; tone: 'on' | 'off' } | nu
 		font-size: var(--bcms-text-sm);
 		font-weight: 500;
 		cursor: pointer;
-		background: var(--bcms-surface);
+		background-color: var(--bcms-surface);
 		color: var(--bcms-fg);
 		transition:
 			background 120ms ease,
@@ -161,7 +161,7 @@ function badgeForBoolean(v: unknown): { label: string; tone: 'on' | 'off' } | nu
 			transform 80ms ease;
 	}
 	:global(.bcms-btn:hover) {
-		background: var(--bcms-subtle);
+		background-color: var(--bcms-subtle);
 	}
 	:global(.bcms-btn:active) {
 		transform: translateY(1px);
@@ -171,12 +171,12 @@ function badgeForBoolean(v: unknown): { label: string; tone: 'on' | 'off' } | nu
 		outline-offset: 2px;
 	}
 	:global(.bcms-btn-primary) {
-		background: var(--bcms-primary);
+		background-color: var(--bcms-primary);
 		color: var(--bcms-primary-fg);
 		border-color: var(--bcms-primary);
 	}
 	:global(.bcms-btn-primary:hover) {
-		background: var(--bcms-primary-hover);
+		background-color: var(--bcms-primary-hover);
 		border-color: var(--bcms-primary-hover);
 	}
 	:global(.bcms-btn-ghost) {
@@ -184,15 +184,15 @@ function badgeForBoolean(v: unknown): { label: string; tone: 'on' | 'off' } | nu
 		border-color: var(--bcms-border);
 	}
 	:global(.bcms-btn-ghost:hover) {
-		background: var(--bcms-subtle);
+		background-color: var(--bcms-subtle);
 	}
 	:global(.bcms-btn-danger) {
-		background: var(--bcms-danger);
+		background-color: var(--bcms-danger);
 		color: #fff;
 		border-color: var(--bcms-danger);
 	}
 	:global(.bcms-btn-danger:hover) {
-		background: color-mix(in oklab, var(--bcms-danger) 88%, black);
+		background-color: color-mix(in oklab, var(--bcms-danger) 88%, black);
 	}
 	:global(.bcms-btn[disabled]) {
 		opacity: 0.6;
@@ -203,7 +203,7 @@ function badgeForBoolean(v: unknown): { label: string; tone: 'on' | 'off' } | nu
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
-		background: var(--bcms-surface);
+		background-color: var(--bcms-surface);
 		border: 1px solid var(--bcms-border);
 		border-radius: var(--bcms-radius);
 		padding: 6px;
@@ -222,10 +222,10 @@ function badgeForBoolean(v: unknown): { label: string; tone: 'on' | 'off' } | nu
 		cursor: pointer;
 		font: inherit;
 		color: var(--bcms-fg);
-		transition: background 120ms ease;
+		transition: background-color 120ms ease;
 	}
 	:global(.bcms-row:hover) {
-		background: var(--bcms-subtle);
+		background-color: var(--bcms-subtle);
 	}
 	:global(.bcms-row:focus-visible) {
 		outline: 2px solid var(--bcms-ring);
@@ -267,21 +267,21 @@ function badgeForBoolean(v: unknown): { label: string; tone: 'on' | 'off' } | nu
 		font-weight: 500;
 		border-radius: 999px;
 		border: 1px solid var(--bcms-border);
-		background: var(--bcms-subtle);
+		background-color: var(--bcms-subtle);
 		color: var(--bcms-fg-soft);
 	}
 	:global(.bcms-badge-on) {
-		background: var(--bcms-success-soft);
+		background-color: var(--bcms-success-soft);
 		color: var(--bcms-success-fg);
 		border-color: color-mix(in oklab, var(--bcms-success) 30%, transparent);
 	}
 	:global(.bcms-badge-off) {
-		background: var(--bcms-subtle);
+		background-color: var(--bcms-subtle);
 		color: var(--bcms-muted);
 	}
 
 	:global(.bcms-empty-card) {
-		background: var(--bcms-surface);
+		background-color: var(--bcms-surface);
 		border: 1px dashed var(--bcms-border-strong);
 		border-radius: var(--bcms-radius-lg);
 		padding: 56px 24px;

@@ -220,14 +220,14 @@ const fieldEntries = $derived(
 		padding: 0;
 		border: 1px solid var(--bcms-border);
 		border-radius: var(--bcms-radius-sm);
-		background: var(--bcms-surface);
+		background-color: var(--bcms-surface);
 		color: var(--bcms-fg);
 		cursor: pointer;
 		font-size: 1.05rem;
-		transition: background 120ms ease;
+		transition: background-color 120ms ease;
 	}
 	:global(.bcms-back:hover) {
-		background: var(--bcms-subtle);
+		background-color: var(--bcms-subtle);
 	}
 	:global(.bcms-back:focus-visible) {
 		outline: 2px solid var(--bcms-ring);
@@ -263,12 +263,12 @@ const fieldEntries = $derived(
 		font-weight: 500;
 		padding: 3px 9px;
 		border-radius: 999px;
-		background: var(--bcms-warning-soft);
+		background-color: var(--bcms-warning-soft);
 		color: var(--bcms-warning-fg);
 	}
 
 	:global(.bcms-form) {
-		background: var(--bcms-surface);
+		background-color: var(--bcms-surface);
 		border: 1px solid var(--bcms-border);
 		border-radius: var(--bcms-radius-lg);
 		padding: 24px 28px;

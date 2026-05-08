@@ -286,7 +286,7 @@ onMount(() => {
 		/* Layout */
 		--bcms-sidebar-w: 248px;
 
-		background: var(--bcms-bg);
+		background-color: var(--bcms-bg);
 		color: var(--bcms-fg);
 		font-family: var(--bcms-font);
 		font-size: var(--bcms-text-base);
@@ -310,7 +310,7 @@ onMount(() => {
 		display: grid;
 		place-items: center;
 		min-height: 100vh;
-		background: var(--bcms-bg, #fafafa);
+		background-color: var(--bcms-bg, #fafafa);
 	}
 	:global(.bcms-spinner) {
 		width: 28px;
@@ -329,7 +329,7 @@ onMount(() => {
 	:global(.bcms-sidebar) {
 		display: flex;
 		flex-direction: column;
-		background: var(--bcms-surface);
+		background-color: var(--bcms-surface);
 		border-right: 1px solid var(--bcms-border);
 		padding: 20px 14px;
 		gap: 18px;
@@ -388,11 +388,11 @@ onMount(() => {
 			color 120ms ease;
 	}
 	:global(.bcms-sidebar nav button:hover) {
-		background: var(--bcms-subtle);
+		background-color: var(--bcms-subtle);
 		color: var(--bcms-fg);
 	}
 	:global(.bcms-sidebar nav button.active) {
-		background: var(--bcms-primary);
+		background-color: var(--bcms-primary);
 		color: var(--bcms-primary-fg);
 	}
 	:global(.bcms-sidebar nav button.active small) {
@@ -426,10 +426,10 @@ onMount(() => {
 		cursor: pointer;
 		font: inherit;
 		font-size: var(--bcms-text-sm);
-		transition: background 120ms ease;
+		transition: background-color 120ms ease;
 	}
 	:global(.bcms-logout:hover) {
-		background: var(--bcms-subtle);
+		background-color: var(--bcms-subtle);
 		color: var(--bcms-fg);
 	}
 
@@ -456,7 +456,7 @@ onMount(() => {
 	}
 
 	:global(.bcms-error) {
-		background: var(--bcms-danger-soft);
+		background-color: var(--bcms-danger-soft);
 		color: var(--bcms-danger-fg);
 		padding: 10px 14px;
 		border: 1px solid color-mix(in oklab, var(--bcms-danger) 30%, transparent);
