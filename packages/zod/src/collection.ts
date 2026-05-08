@@ -1,23 +1,60 @@
 import {
-	type CmsConfig,
+	type Access,
 	type CollectionDef,
-	type CollectionHooksIR,
 	type CollectionIndexIR,
-	type CollectionsRecord,
 	type FieldDef,
-	type PermissionsIR,
+	type HooksIR,
 	_collection,
 } from '@better-cms/core';
 import { z } from 'zod';
 import type { CollectionRef } from './registry.js';
 import { zodToFields } from './walker.js';
 
+/**
+ * Builder exposed inside `createCms({ collections: ({collection, singleton}) => ({...}) })`.
+ * `Ctx` is pinned by the surrounding `createCms` call (inferred from
+ * `auth.context`'s typed return), so per-collection `access` and `hooks`
+ * see typed `ctx` without an explicit generic at every collection site.
+ */
+export interface CmsBuilder<Ctx> {
+	collection<S extends z.ZodObject>(opts: {
+		schema: S;
+		tableName?: string;
+		indexes?: CollectionIndexIR[];
+		hooks?: HooksIR<Ctx, RowOfSchema<S>>;
+		access?: Access<Ctx, RowOfSchema<S>>;
+		timestamps?: boolean;
+	}): CollectionDef<Record<string, FieldDef>, 'collection'> & { __schema?: S };
+	singleton<S extends z.ZodObject>(opts: {
+		schema: S;
+		tableName?: string;
+		hooks?: HooksIR<Ctx, RowOfSchema<S>>;
+		access?: Access<Ctx, RowOfSchema<S>>;
+		timestamps?: boolean;
+	}): CollectionDef<Record<string, FieldDef>, 'singleton'> & { __schema?: S };
+}
+
+export function _builder<Ctx>(): CmsBuilder<Ctx> {
+	return {
+		collection: (opts) => collection(opts as never) as never,
+		singleton: (opts) => singleton(opts as never) as never,
+	};
+}
+
+type RowOfSchema<S extends z.ZodObject> = z.infer<S> & {
+	id: string;
+	createdAt: Date;
+	updatedAt: Date;
+};
+
 interface CollectionOpts<S extends z.ZodObject> {
 	schema: S;
 	tableName?: string;
 	indexes?: CollectionIndexIR[];
-	hooks?: CollectionHooksIR;
-	permissions?: PermissionsIR;
+	/** Lifecycle hooks. Annotate `(hc) => { hc.ctx satisfies AppCtx; ... }` or use the global `hooks` slot on `createCms` for typed Ctx. */
+	hooks?: HooksIR<any, RowOfSchema<S>>;
+	/** Per-verb access policies. Annotate `(ctx: AppCtx, doc) => ...` inline to narrow ctx. */
+	access?: Access<any, RowOfSchema<S>>;
 	timestamps?: boolean;
 }
 
@@ -40,6 +77,12 @@ function buildSchemas(schema: z.ZodObject) {
  * Schema-first collection builder. Walker emits the IR `fields`, while the
  * runtime `schemas.{create,update,full}` use zod's native `.omit/.partial`
  * — lossless, transforms preserved, async refines work.
+ *
+ * Two call shapes:
+ *   collection({ schema })                         // ctx = unknown
+ *   collection<AppCtx>({ schema, access, hooks })  // ctx typed as AppCtx
+ *
+ * In both cases `S` is inferred from `opts.schema`.
  */
 export function collection<S extends z.ZodObject>(
 	opts: CollectionOpts<S>,
@@ -51,7 +94,7 @@ export function collection<S extends z.ZodObject>(
 		fields: zodToFields(opts.schema),
 		indexes: opts.indexes,
 		hooks: opts.hooks,
-		permissions: opts.permissions,
+		access: opts.access,
 		timestamps: opts.timestamps ?? true,
 		validation: { create, update, full },
 		toJsonSchema: () => z.toJSONSchema(opts.schema),
@@ -73,7 +116,7 @@ export function singleton<S extends z.ZodObject>(
 		tableName: opts.tableName,
 		fields: zodToFields(opts.schema),
 		hooks: opts.hooks,
-		permissions: opts.permissions,
+		access: opts.access,
 		timestamps: opts.timestamps ?? true,
 		validation: { create, update, full },
 		toJsonSchema: () => z.toJSONSchema(opts.schema),
@@ -83,38 +126,28 @@ export function singleton<S extends z.ZodObject>(
 }
 
 /**
- * Resolves typed relation refs (`CollectionDef` or `() => CollectionDef`) to
- * the registered string name. Throws if a target isn't in the collections map
- * — so a renamed/forgotten collection fails fast at startup, not at runtime.
+ * Internal: resolve typed relation refs to registered name strings. Used by
+ * `createCms` at startup. Throws if a target isn't registered.
  */
-export function defineCMS<C extends CollectionsRecord>(config: CmsConfig<C>): CmsConfig<C> {
+export function _resolveRelations(collections: Record<string, CollectionDef>): void {
 	const nameByDef = new Map<CollectionDef, string>();
-	for (const [name, def] of Object.entries(config.collections)) {
-		nameByDef.set(def as CollectionDef, name);
+	for (const [name, def] of Object.entries(collections)) {
+		nameByDef.set(def, name);
 	}
-	for (const [name, def] of Object.entries(config.collections)) {
-		resolveRelations(name, def as CollectionDef, nameByDef);
-	}
-	return config;
-}
-
-function resolveRelations(
-	collectionName: string,
-	def: CollectionDef,
-	nameByDef: Map<CollectionDef, string>,
-): void {
-	for (const [fieldName, field] of Object.entries(def.fields) as [string, FieldDef][]) {
-		const r = field.relation;
-		if (!r) continue;
-		const t = r.target as unknown as CollectionRef | string;
-		if (typeof t === 'string') continue;
-		const resolved = typeof t === 'function' ? t() : t;
-		const name = nameByDef.get(resolved);
-		if (!name) {
-			throw new Error(
-				`[better-cms] ${collectionName}.${fieldName} relation target is not registered in defineCMS({ collections: ... }). Make sure the referenced collection appears in the collections map.`,
-			);
+	for (const [name, def] of Object.entries(collections)) {
+		for (const [fieldName, field] of Object.entries(def.fields) as [string, FieldDef][]) {
+			const r = field.relation;
+			if (!r) continue;
+			const t = r.target as unknown as CollectionRef | string;
+			if (typeof t === 'string') continue;
+			const resolved = typeof t === 'function' ? t() : t;
+			const targetName = nameByDef.get(resolved);
+			if (!targetName) {
+				throw new Error(
+					`[better-cms] ${name}.${fieldName} relation target is not registered. Make sure the referenced collection appears in the collections map.`,
+				);
+			}
+			field.relation = { ...r, target: targetName };
 		}
-		field.relation = { ...r, target: name };
 	}
 }

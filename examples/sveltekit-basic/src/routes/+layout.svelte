@@ -13,7 +13,7 @@ async function logout() {
 	<a href="/" class="brand">better-cms example</a>
 	<nav>
 		<a href="/recent">Recent</a>
-		{#if data.user}
+		{#if data.ctx}
 			<a href="/cms">Admin</a>
 			<button type="button" onclick={logout}>Sign out</button>
 		{:else}

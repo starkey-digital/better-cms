@@ -56,7 +56,7 @@ export async function load({ params }) {
 
 Each collection key has `list / find / get / count / create / update / delete`; each singleton has `get / set`. Methods are typed from your zod schemas — `cms.posts.list()` returns `Post[]`, `cms.settings.get()` returns `Settings | null`. Mutations run through `applyOps` and publish live events. The first call lazily boots the CMS singleton; subsequent calls reuse it.
 
-`cms.auth.getUser()` reads the request from `cmsHandle`'s AsyncLocalStorage scope. `cms.auth.requireUser()` throws when no user is signed in.
+`cms.auth.context()` reads the request from `cmsHandle`'s AsyncLocalStorage scope and resolves it through the configured `auth.context` provider. `cms.auth.requireContext()` throws when the resolved context is null. See [Authentication](/concepts/auth) for full BYOA wiring.
 
 ## The `cms` client — browser side (in components)
 
@@ -106,7 +106,7 @@ export const recentPosts = query(RecentLimit, async (limit) =>
 );
 
 export const createPost = command(posts.schemas.create, async (input) => {
-	await cms.auth.requireUser();
+	await cms.auth.requireContext();
 	return cms.posts.create(input);
 });
 ```
@@ -119,7 +119,7 @@ For bespoke inputs (custom args, multi-collection commands), hand-roll with zod:
 const ToggleInput = z.object({ id: z.string(), published: z.boolean() });
 
 export const togglePublished = command(ToggleInput, async ({ id, published }) => {
-	await cms.auth.requireUser();
+	await cms.auth.requireContext();
 	return cms.posts.update(id, { published });
 });
 ```
@@ -140,15 +140,15 @@ No `+page.server.ts` needed — schemas live in the browser bundle (via `$lib/cm
 
 ## Reading the session
 
-`passwordAuth` sets a signed cookie (`bcms_session`) on successful login. Check the session anywhere via `cms.auth.getUser()` — server-side, no extra round trip:
+`passwordAuth` sets a signed cookie (`bcms_session`) on successful login. Check the resolved auth context anywhere via `cms.auth.context()` — server-side, no extra round trip:
 
 ```ts
 // src/routes/+layout.server.ts
 import { cms } from '$lib/cms/server/cms';
 
 export async function load() {
-	const user = await cms.auth.getUser();
-	return { user };
+	const ctx = await cms.auth.context();
+	return { ctx };
 }
 ```
 
@@ -160,7 +160,7 @@ export async function load() {
 
 <nav>
 	<a href="/">Home</a>
-	{#if data.user}
+	{#if data.ctx}
 		<a href="/cms">Admin</a>
 		<form method="POST" action="/api/cms/logout"><button>Sign out</button></form>
 	{:else}
@@ -171,16 +171,16 @@ export async function load() {
 {@render children()}
 ```
 
-Every child route gets `data.user` from the layout — no client-side waterfall. The cookie is verified on the server during the same request that renders the page.
+Every child route gets `data.ctx` from the layout — no client-side waterfall. The cookie is verified on the server during the same request that renders the page.
 
-If you can't add a layout loader (e.g. a static-prerendered route that hydrates), call `/api/cms/me` from the client:
+If you can't add a layout loader (e.g. a static-prerendered route that hydrates), call `/api/cms/auth/context` from the client:
 
 ```ts
-const r = await fetch('/api/cms/me');
-const { user } = (await r.json()) as { user: { id: string; role: string } | null };
+const r = await fetch('/api/cms/auth/context');
+const { ctx } = (await r.json()) as { ctx: { user: { id: string } } | null };
 ```
 
-`/me` is part of the `passwordAuth` plugin and returns `{ user: null }` when no valid session cookie is present — never throws.
+`/auth/context` is exposed by the core CMS handler (not specific to `passwordAuth`) and returns `{ ctx: null }` when no auth is configured or the resolver returns null — never throws.
 
 ## Live updates
 

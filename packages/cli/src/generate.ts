@@ -22,7 +22,7 @@ const DEFAULT_OUT: Record<GenerateTarget, string> = {
 
 export async function generate(opts: GenerateOpts = {}): Promise<{ path: string }> {
 	const cwd = opts.cwd ?? process.cwd();
-	const { config } = await loadConfig(cwd, opts.configPath);
+	const { config, path: configPath } = await loadConfig(cwd, opts.configPath);
 	const schema = getCmsTables(config);
 
 	const target: GenerateTarget = opts.target ?? 'drizzle';
@@ -31,7 +31,7 @@ export async function generate(opts: GenerateOpts = {}): Promise<{ path: string 
 		target === 'drizzle'
 			? generateDrizzleSchema(schema)
 			: target === 'client'
-				? generateClient(schema, config)
+				? generateClient(schema, config, { configPath, outPath })
 				: generateTypes(schema);
 
 	mkdirSync(dirname(outPath), { recursive: true });

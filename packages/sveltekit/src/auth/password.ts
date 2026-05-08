@@ -1,4 +1,4 @@
-import type { CmsPlugin } from '@better-cms/core';
+import type { AuthContextFn, CmsPlugin } from '@better-cms/core';
 import {
 	clearCookie,
 	parseTtl,
@@ -47,8 +47,22 @@ export interface PasswordAuthOpts {
 	}) => void;
 }
 
+/** Password auth context — `{ user: { id } }` when signed in, `null` otherwise. */
+export type PasswordAuthCtx = { user: { id: string } } | null;
+
+/**
+ * Bundles a CMS plugin (login + logout endpoints) with an `AuthContextFn`
+ * suitable for `defineCMS({ auth: { context } })`. Sample wiring:
+ *
+ *   const password = passwordAuth({ password, secret });
+ *   defineCMS({
+ *     auth: { context: password.context },
+ *     plugins: [password],
+ *     ...
+ *   });
+ */
 export interface PasswordAuthResult extends CmsPlugin {
-	getUser: (request: Request) => Promise<{ id: string; role: string } | null>;
+	context: AuthContextFn<PasswordAuthCtx>;
 }
 
 const DEFAULT_COOKIE = 'bcms_session';
@@ -81,12 +95,12 @@ export function passwordAuth(opts: PasswordAuthOpts): PasswordAuthResult {
 	const globalWindow = parseTtl(global.window);
 	const turnstileAfter = opts.turnstile?.after ?? 3;
 
-	async function getUser(request: Request): Promise<{ id: string; role: string } | null> {
+	const context: AuthContextFn<PasswordAuthCtx> = async (request) => {
 		const token = readCookie(request, cookieName);
 		const session = await verifySession(token, opts.secret);
 		if (!session) return null;
-		return { id: session.uid, role: 'admin' };
-	}
+		return { user: { id: session.uid } };
+	};
 
 	const plugin: CmsPlugin = {
 		id: 'better-cms/password-auth',
@@ -137,8 +151,6 @@ export function passwordAuth(opts: PasswordAuthOpts): PasswordAuthResult {
 						}
 					}
 
-					// Exponential backoff applies from the second attempt onward — first
-					// login of a window has no prior failure and shouldn't be slowed.
 					if (ipHit.count > 1) {
 						const backoffMs = Math.min(2 ** (ipHit.count - 2) * 250, 8000);
 						await sleep(backoffMs);
@@ -188,18 +200,10 @@ export function passwordAuth(opts: PasswordAuthOpts): PasswordAuthResult {
 						},
 					}),
 			},
-			{
-				method: 'GET',
-				path: '/me',
-				handler: async (request) => {
-					const user = await getUser(request);
-					return Response.json({ user });
-				},
-			},
 		],
 	};
 
-	return Object.assign(plugin, { getUser });
+	return Object.assign(plugin, { context });
 }
 
 function clientIp(request: Request): string {

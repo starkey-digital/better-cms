@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { z } from 'zod';
-import { collection, defineCMS } from './collection.js';
+import { _resolveRelations, collection } from './collection.js';
 import { file, image, indexed, relation, richText, slug, unique } from './helpers.js';
 import { zodToFields } from './walker.js';
 
@@ -139,7 +139,7 @@ describe('zodToFields — fallback for unsupported', () => {
 	});
 });
 
-describe('relation() + defineCMS resolution', () => {
+describe('relation() + _resolveRelations', () => {
 	test('direct ref resolves CollectionDef → name string', () => {
 		const AuthorSchema = z.object({ name: z.string() });
 		const PostSchema = z.object({
@@ -149,11 +149,7 @@ describe('relation() + defineCMS resolution', () => {
 		});
 		const authors = collection({ schema: AuthorSchema });
 		const posts = collection({ schema: PostSchema });
-		// minimal config with no adapter — just resolution
-		defineCMS({
-			collections: { authors, posts },
-			adapter: { init: async () => {} } as never,
-		});
+		_resolveRelations({ authors, posts });
 		expect(posts.fields.author?.relation?.target).toBe('authors');
 	});
 
@@ -164,10 +160,7 @@ describe('relation() + defineCMS resolution', () => {
 		});
 		const tags = collection({ schema: TagSchema });
 		const posts = collection({ schema: PostSchema });
-		defineCMS({
-			collections: { tags, posts },
-			adapter: { init: async () => {} } as never,
-		});
+		_resolveRelations({ tags, posts });
 		expect(posts.fields.tags?.relation?.many).toBe(true);
 		expect(posts.fields.tags?.storage).toBe('json');
 	});
@@ -179,12 +172,7 @@ describe('relation() + defineCMS resolution', () => {
 			ghost: relation(orphan),
 		});
 		const posts = collection({ schema: PostSchema });
-		expect(() =>
-			defineCMS({
-				collections: { posts },
-				adapter: { init: async () => {} } as never,
-			}),
-		).toThrow(/relation target is not registered/);
+		expect(() => _resolveRelations({ posts })).toThrow(/relation target is not registered/);
 	});
 });
 

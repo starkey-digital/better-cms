@@ -1,6 +1,6 @@
 <script lang="ts">
-import { cmsConfig } from '$lib/cms/client';
 import { CmsAdmin } from 'better-cms/admin';
+import { cmsClient } from '$lib/cms/client';
 </script>
 
-<CmsAdmin config={cmsConfig} auth />
+<CmsAdmin client={cmsClient} auth />

@@ -6,7 +6,7 @@ import { cms } from './server.js';
  *
  * Most callers should use the `cms` server instance from `createCms(config)`
  * directly — `cms.posts.list({...})` / `cms.posts.create(data)` /
- * `cms.auth.requireUser()` covers query, command, and auth in one surface,
+ * `cms.auth.requireContext()` covers query, command, and auth in one surface,
  * runs through the same op pipeline, and publishes live events.
  *
  * `uploadMedia()` stays here because it's the one helper without a typed

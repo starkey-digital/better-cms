@@ -2,10 +2,13 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { CmsConfig } from '@better-cms/core';
 
-const CANDIDATES = ['src/lib/server/cms', 'src/lib/cms', 'src/cms', 'cms'].flatMap((base) => [
-	`${base}.ts`,
-	`${base}.js`,
-]);
+const CANDIDATES = [
+	'src/lib/cms/server/cms',
+	'src/lib/server/cms',
+	'src/lib/cms',
+	'src/cms',
+	'cms',
+].flatMap((base) => [`${base}.ts`, `${base}.js`]);
 
 export async function loadConfig(
 	cwd: string,

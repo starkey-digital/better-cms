@@ -1,4 +1,10 @@
-export { collection, defineCMS, singleton } from './collection.js';
+export {
+	collection,
+	singleton,
+	_resolveRelations,
+	_builder,
+	type CmsBuilder,
+} from './collection.js';
 export {
 	file,
 	image,

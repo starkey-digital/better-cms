@@ -1,14 +1,17 @@
 <script lang="ts">
 import { onMount } from 'svelte';
-import type { AdminApi } from './api.js';
 
 type Props = {
-	api: AdminApi;
+	client: {
+		auth: {
+			login(password: string, turnstileToken?: string): Promise<{ ok: true } | { error: string }>;
+		};
+	};
 	turnstileSiteKey?: string;
 	onLogin: () => void;
 };
 
-const { api, turnstileSiteKey, onLogin }: Props = $props();
+const { client, turnstileSiteKey, onLogin }: Props = $props();
 
 const TURNSTILE_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
 let scriptLoaded = false;
@@ -45,14 +48,14 @@ async function submit(e: SubmitEvent) {
 	submitting = true;
 	error = null;
 	try {
-		const res = await api.login(password, turnstileToken);
-		if (res.ok) {
+		const res = await client.auth.login(password, turnstileToken);
+		if ('ok' in res) {
 			password = '';
 			onLogin();
 			return;
 		}
-		error = res.message;
-		if (res.code === 'TURNSTILE_REQUIRED') needsTurnstile = true;
+		error = res.error;
+		if (/turnstile/i.test(res.error)) needsTurnstile = true;
 	} catch (e) {
 		error = (e as Error).message;
 	} finally {

@@ -74,3 +74,38 @@ type Post = z.infer<typeof PostSchema>;
 - SvelteKit remote functions (drop `posts.schemas.create` straight into `command(...)`)
 
 No codegen for types — zod is the single source of truth.
+
+## Access + hooks live on the server config
+
+`collection()` takes only the schema — per-collection `access` policies and lifecycle `hooks` reference server-only state (db, secrets, side-effects), so they're declared on `defineCMS({ serverCollections })` in your `server/cms.ts`. The collection definition stays browser-safe and JSON-serializable.
+
+```ts
+// schemas.ts (browser-safe)
+export const posts = collection({ schema: PostSchema });
+
+// server/cms.ts (server-only)
+import { createCms } from 'better-cms/zod';
+
+type AppCtx = { user: { id: string; role: 'admin' | 'editor' } } | null;
+const { defineCMS } = createCms<AppCtx>();
+
+defineCMS({
+  collections,
+  access: { /* global */ },
+  serverCollections: {
+    posts: {
+      access: {
+        update: (ctx, doc) => doc?.authorId === ctx?.user.id,    // doc: Post + sys
+      },
+      hooks: {
+        afterCreate: ({ result }) => searchIndex.add(result.id, result.title),
+        beforeDelete: ({ prev }) => {
+          if (prev?.published) throw new Error('unpublish first');
+        },
+      },
+    },
+  },
+});
+```
+
+`Ctx` is pinned via the `createCms<AppCtx>()` factory; `Doc` is inferred per-collection from `RowOf<C[K]>`. See [Authentication](./auth.md), [Access control](./access-control.md), and [Hooks](./hooks.md) for the full surface.

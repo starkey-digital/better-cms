@@ -1,23 +1,22 @@
 <script lang="ts">
-import type { FieldDef } from '@better-cms/core';
-import type { AdminApi } from './api.js';
+import type { CmsMetaField } from '@better-cms/sveltekit';
 
 type Props = {
-	field: FieldDef;
+	field: CmsMetaField & { label?: string; description?: string };
 	name: string;
 	value: unknown;
-	api: AdminApi;
+	client: { uploadMedia(file: File | Blob, folder?: string): Promise<{ key: string; url: string }> };
 	onchange: (next: unknown) => void;
 };
 
-const { field, name, value, api, onchange }: Props = $props();
+const { field, name, value, client, onchange }: Props = $props();
 
 let busy = $state(false);
 
 async function uploadImage(file: File) {
 	busy = true;
 	try {
-		const res = await api.uploadMedia(file, name);
+		const res = await client.uploadMedia(file, name);
 		onchange({ key: res.key, url: res.url });
 	} finally {
 		busy = false;

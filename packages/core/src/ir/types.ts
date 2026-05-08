@@ -3,6 +3,7 @@
  * Authors never write IR by hand — DSL builders produce it.
  */
 
+import type { Access } from '../auth/types.js';
 import type { StandardSchemaV1 } from '../util/standard-schema.js';
 
 export type ScalarType = 'string' | 'number' | 'integer' | 'boolean' | 'date';
@@ -81,19 +82,40 @@ export interface CollectionIndexIR {
 	name?: string;
 }
 
-export interface CollectionHooksIR {
-	beforeWrite?: (ctx: HookContext) => unknown | Promise<unknown>;
-	afterWrite?: (ctx: HookContext) => unknown | Promise<unknown>;
-	beforeDelete?: (ctx: HookContext) => unknown | Promise<unknown>;
-	afterDelete?: (ctx: HookContext) => unknown | Promise<unknown>;
+export type HookWhen = 'before' | 'after';
+export type HookVerb = 'create' | 'update' | 'delete';
+
+/**
+ * Lifecycle hook context. `prev` is the row state before the op (undefined
+ * for create); `data` is the validated input payload; `result` is the post-op
+ * row (only set on `after` hooks).
+ */
+export interface HookContext<Ctx = unknown, Doc = unknown> {
+	ctx: Ctx;
+	collection: string;
+	verb: HookVerb;
+	id?: string;
+	data?: Doc;
+	prev?: Doc;
+	result?: Doc;
 }
 
-export interface HookContext {
-	collection: string;
-	op: 'create' | 'update' | 'delete';
-	id?: string;
-	data?: Record<string, unknown>;
-	user?: { id: string; [k: string]: unknown } | null;
+export type HookFn<Ctx = unknown, Doc = unknown> = (
+	hc: HookContext<Ctx, Doc>,
+) => void | Promise<void>;
+
+/**
+ * Per-collection or global lifecycle hook map. Multiple hooks may be wired
+ * for the same key by passing an array. Global hooks fire first; collection
+ * hooks fire after. A throwing hook aborts the op.
+ */
+export interface HooksIR<Ctx = unknown, Doc = unknown> {
+	beforeCreate?: HookFn<Ctx, Doc> | HookFn<Ctx, Doc>[];
+	afterCreate?: HookFn<Ctx, Doc> | HookFn<Ctx, Doc>[];
+	beforeUpdate?: HookFn<Ctx, Doc> | HookFn<Ctx, Doc>[];
+	afterUpdate?: HookFn<Ctx, Doc> | HookFn<Ctx, Doc>[];
+	beforeDelete?: HookFn<Ctx, Doc> | HookFn<Ctx, Doc>[];
+	afterDelete?: HookFn<Ctx, Doc> | HookFn<Ctx, Doc>[];
 }
 
 export type CollectionKind = 'collection' | 'singleton';
@@ -122,8 +144,8 @@ export interface CollectionDef<
 	tableName?: string;
 	fields: F;
 	indexes?: CollectionIndexIR[];
-	hooks?: CollectionHooksIR;
-	permissions?: PermissionsIR;
+	hooks?: HooksIR<any, any>;
+	access?: Access<any, any>;
 	timestamps?: boolean;
 	/** User-supplied per-variant Standard Schema validators (zod / valibot / arktype / …). */
 	validation?: CollectionValidationOverride;
@@ -154,22 +176,6 @@ export type RowOf<C extends CollectionDef<any, any>> = SchemaOutput<
 type FallbackRow<C extends CollectionDef<any, any>> = {
 	[K in keyof C['fields']]: FieldOf<C['fields'][K]>;
 } & { id: string; createdAt?: Date; updatedAt?: Date };
-
-export interface PermissionsIR {
-	read?: PermissionFn;
-	write?: PermissionFn;
-	delete?: PermissionFn;
-}
-
-export type PermissionFn = (ctx: PermissionContext) => boolean | Promise<boolean>;
-
-export interface PermissionContext {
-	user: { id: string; [k: string]: unknown } | null;
-	collection: string;
-	op: 'read' | 'write' | 'delete';
-	id?: string;
-	data?: Record<string, unknown>;
-}
 
 /** Compiled, normalized schema. The single source of truth. */
 export interface SchemaIR<

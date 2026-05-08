@@ -25,7 +25,7 @@
         "svelte": "^5.20.0",
         "svelte-check": "^4.1.0",
         "tailwindcss": "^4.0.0",
-        "typescript": "^5.6.3",
+        "typescript": "^6.0.3",
         "vite": "^6.0.0",
       },
     },
@@ -47,7 +47,7 @@
         "bun-types": "^1.3.13",
         "svelte": "^5.20.0",
         "svelte-check": "^4.1.0",
-        "typescript": "^5.6.3",
+        "typescript": "^6.0.3",
         "vite": "^6.0.0",
       },
     },
@@ -62,7 +62,7 @@
         "@libsql/client": "^0.14.0",
         "bun-types": "^1.3.7",
         "drizzle-orm": "^0.36.0",
-        "typescript": "^5.6.3",
+        "typescript": "^6.0.3",
       },
       "peerDependencies": {
         "@libsql/client": "^0.14.0",
@@ -78,7 +78,7 @@
       },
       "devDependencies": {
         "bun-types": "^1.3.7",
-        "typescript": "^5.6.3",
+        "typescript": "^6.0.3",
       },
     },
     "packages/admin": {
@@ -86,6 +86,7 @@
       "version": "0.2.0",
       "dependencies": {
         "@better-cms/core": "workspace:*",
+        "@better-cms/sveltekit": "workspace:*",
       },
       "devDependencies": {
         "@sveltejs/kit": "^2.59.1",
@@ -93,7 +94,7 @@
         "@sveltejs/vite-plugin-svelte": "^7.1.1",
         "svelte": "^5.20.0",
         "svelte-check": "^4.1.0",
-        "typescript": "^5.6.3",
+        "typescript": "^6.0.3",
       },
       "peerDependencies": {
         "svelte": "^5.0.0",
@@ -114,7 +115,7 @@
       "devDependencies": {
         "bun-types": "^1.3.7",
         "tsdown": "^0.21.1",
-        "typescript": "^5.6.3",
+        "typescript": "^6.0.3",
       },
       "peerDependencies": {
         "@aws-sdk/client-s3": "^3.700.0",
@@ -148,7 +149,7 @@
       },
       "devDependencies": {
         "bun-types": "^1.3.7",
-        "typescript": "^5.6.3",
+        "typescript": "^6.0.3",
       },
     },
     "packages/core": {
@@ -159,7 +160,7 @@
       },
       "devDependencies": {
         "bun-types": "^1.3.7",
-        "typescript": "^5.6.3",
+        "typescript": "^6.0.3",
       },
     },
     "packages/media-s3": {
@@ -172,7 +173,7 @@
       },
       "devDependencies": {
         "bun-types": "^1.3.7",
-        "typescript": "^5.6.3",
+        "typescript": "^6.0.3",
       },
     },
     "packages/sveltekit": {
@@ -180,11 +181,12 @@
       "version": "0.2.0",
       "dependencies": {
         "@better-cms/core": "workspace:*",
+        "@better-cms/zod": "workspace:*",
       },
       "devDependencies": {
         "@sveltejs/kit": "^2.20.0",
         "bun-types": "^1.3.7",
-        "typescript": "^5.6.3",
+        "typescript": "^6.0.3",
       },
       "peerDependencies": {
         "@sveltejs/kit": "^2.0.0",
@@ -198,7 +200,7 @@
       },
       "devDependencies": {
         "bun-types": "^1.3.7",
-        "typescript": "^5.6.3",
+        "typescript": "^6.0.3",
         "zod": "^4.0.0",
       },
       "peerDependencies": {
@@ -1227,7 +1229,27 @@
 
     "@aws-crypto/util/@smithy/util-utf8": ["@smithy/util-utf8@2.3.0", "", { "dependencies": { "@smithy/util-buffer-from": "^2.2.0", "tslib": "^2.6.2" } }, "sha512-R8Rdn8Hy72KKcebgLiv8jQcQkXoLMOGGv5uI1/k0l+snqkOzQ1R0ChUBCxWMlBsFMekWjq0wRudIweFs7sKT5A=="],
 
+    "@better-cms-apps/docs/typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
+
+    "@better-cms-examples/sveltekit-basic/typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
+
+    "@better-cms/adapter-drizzle/typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
+
+    "@better-cms/adapter-libsql/typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
+
     "@better-cms/admin/@sveltejs/vite-plugin-svelte": ["@sveltejs/vite-plugin-svelte@7.1.1", "", { "dependencies": { "deepmerge": "^4.3.1", "magic-string": "^0.30.21", "obug": "^2.1.0", "vitefu": "^1.1.2" }, "peerDependencies": { "svelte": "^5.46.4", "vite": "^8.0.0-beta.7 || ^8.0.0" } }, "sha512-FOJdbE5pxae68DoTBJ49t1dIA7TSmMHR6CsuJhX90cO/UfrEMHA7KJNUj3WdZuUDJPu4ujqpJ2Tgqd2gTWr6Xg=="],
+
+    "@better-cms/admin/typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
+
+    "@better-cms/cli/typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
+
+    "@better-cms/core/typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
+
+    "@better-cms/media-s3/typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
+
+    "@better-cms/sveltekit/typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
+
+    "@better-cms/zod/typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
 
     "@sveltejs/package/chokidar": ["chokidar@5.0.0", "", { "dependencies": { "readdirp": "^5.0.0" } }, "sha512-TQMmc3w+5AxjpL8iIiwebF73dRDF4fBIieAqGn9RGCWaEVwQ6Fb2cGe31Yns0RRIzii5goJ1Y7xbMwo1TxMplw=="],
 
@@ -1242,6 +1264,8 @@
     "@tailwindcss/oxide-wasm32-wasi/@tybys/wasm-util": ["@tybys/wasm-util@0.10.2", "", { "dependencies": { "tslib": "^2.4.0" }, "bundled": true }, "sha512-RoBvJ2X0wuKlWFIjrwffGw1IqZHKQqzIchKaadZZfnNpsAYp2mM0h36JtPCjNDAHGgYez/15uMBpfGwchhiMgg=="],
 
     "@tailwindcss/oxide-wasm32-wasi/tslib": ["tslib@2.8.1", "", { "bundled": true }, "sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w=="],
+
+    "better-cms/typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
 
     "express/cookie": ["cookie@0.7.2", "", {}, "sha512-yki5XnKuf750l50uGTllt6kKILY4nQ1eNIQatoXEByZ5dWgnKqbnqmTrBE5B4N7lrMJKQ2ytWMiTO2o0v6Ew/w=="],
 

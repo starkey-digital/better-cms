@@ -14,22 +14,40 @@ import { createCMS } from '@better-cms/core';
 import { __registerSsrFetchProvider } from './api-client.js';
 import { getCurrentFetch } from './request-context.js';
 
-// Side-effect: hand the browser-safe createCmsClient a way to read the
+// Side-effect: hand the browser-safe createClientCms a way to read the
 // request-scoped event.fetch when it runs during SSR.
 __registerSsrFetchProvider(getCurrentFetch);
 
-export { createCms, type Cms, type ServerAuthApi } from './api.js';
+export {
+	createCms,
+	clientCmsConfig,
+	_cmsConfigOf,
+	type Cms,
+	type ServerAuthApi,
+} from './api.js';
 export { cmsHandle } from './handle.js';
 export { getCurrentFetch, getCurrentRequest, withRequest } from './request-context.js';
+export {
+	collection,
+	singleton,
+	file,
+	image,
+	indexed,
+	relation,
+	richText,
+	slug,
+	unique,
+} from '@better-cms/zod';
+export type { RelationOpts, SlugOpts } from '@better-cms/zod';
 
 let _instance: Promise<CmsInstance> | null = null;
 
 /** Lazy singleton — first call boots the CMS, every subsequent call reuses it. */
-export function cms<C extends CollectionsRecord>(
-	config: CmsConfig<C>,
+export function cms<C extends CollectionsRecord, Ctx = unknown>(
+	config: CmsConfig<C, Ctx>,
 	opts?: CreateCmsOpts,
 ): Promise<CmsInstance> {
-	if (!_instance) _instance = createCMS(config, opts);
+	if (!_instance) _instance = createCMS(config as CmsConfig<C>, opts);
 	return _instance;
 }
 
@@ -49,7 +67,6 @@ export interface ServerApi<C extends CollectionsRecord> {
 		},
 	): Promise<InferRows<SchemaIR<C>>[K][]>;
 	count<K extends keyof C>(collection: K, where?: Record<string, unknown>): Promise<number>;
-	/** Read a singleton's row. Returns null if never written. */
 	getSingleton<K extends keyof C>(name: K): Promise<InferRows<SchemaIR<C>>[K] | null>;
 }
 

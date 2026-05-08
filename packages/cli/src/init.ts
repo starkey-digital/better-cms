@@ -3,10 +3,9 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
 const CONFIG_TEMPLATE = `import 'dotenv/config';
-import { collection, defineCMS, image, richText, slug } from 'better-cms/zod';
 import { libsqlAdapter } from 'better-cms/adapters/libsql';
 import { s3Media } from 'better-cms/media/s3';
-import { createCms } from 'better-cms/sveltekit/server';
+import { collection, createCms, image, richText, slug } from 'better-cms/sveltekit/server';
 import { z } from 'zod';
 
 function required(name: string): string {
@@ -24,7 +23,7 @@ const PostSchema = z.object({
 	published: z.boolean().default(false),
 });
 
-const config = defineCMS({
+export const cms = createCms({
 	collections: {
 		posts: collection({ schema: PostSchema }),
 	},
@@ -41,12 +40,19 @@ const config = defineCMS({
 		publicBaseUrl: process.env.S3_PUBLIC_URL,
 	}),
 	auth: {
-		getUser: async (_request) => ({ id: 'dev', email: 'dev@example.com', role: 'admin' }),
+		context: async (_request) => ({ user: { id: 'dev', role: 'admin' as const } }),
+	},
+	access: {
+		list: () => true,
+		read: () => true,
+		create: (ctx) => ctx?.user.role === 'admin',
+		update: (ctx) => ctx?.user.role === 'admin',
+		delete: (ctx) => ctx?.user.role === 'admin',
 	},
 });
 
-export default config;
-export const cms = createCms(config);
+export default cms;
+export type Cms = typeof cms;
 `;
 
 const ENV_TEMPLATE = `DATABASE_URL=file:./local.db
@@ -66,10 +72,16 @@ import config from '$lib/server/cms';
 export const handle = cmsHandle(config);
 `;
 
-const ADMIN_PAGE_SERVER_TEMPLATE = `import { clientCmsConfig } from 'better-cms/sveltekit';
-import config from '$lib/server/cms';
+const CLIENT_TEMPLATE = `import { createCmsClient } from 'better-cms/sveltekit';
+import type { Cms } from './server/cms';
 
-export const load = () => ({ cms: clientCmsConfig(config) });
+export const cmsClient = createCmsClient<Cms>({ basePath: '/api/cms' });
+`;
+
+const ADMIN_PAGE_SERVER_TEMPLATE = `import { clientCmsConfig } from 'better-cms/sveltekit/server';
+import { cms } from '$lib/server/cms';
+
+export const load = () => ({ cmsConfig: clientCmsConfig(cms) });
 `;
 
 const ADMIN_PAGE_TEMPLATE = `<script lang="ts">

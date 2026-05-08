@@ -36,7 +36,9 @@ const SYSTEM_COLLECTIONS: Record<string, CollectionDef> = {
  * Single source of truth: merge user collections + plugin collections + system collections.
  * Adapters, CLI generators, and the runtime all call this — never reach into config.collections directly.
  */
-export function getCmsTables<C extends CollectionsRecord>(config: CmsConfig<C>): SchemaIR<C> {
+export function getCmsTables<C extends CollectionsRecord, Ctx = unknown>(
+	config: CmsConfig<C, Ctx>,
+): SchemaIR<C> {
 	const collections: Record<string, CollectionDef> = { ...SYSTEM_COLLECTIONS };
 
 	for (const plugin of config.plugins ?? []) {

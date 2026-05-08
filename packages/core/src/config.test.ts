@@ -9,7 +9,7 @@ describe('clientCmsConfig', () => {
 			collections: { posts: { kind: 'collection', fields: {} } } as never,
 			adapter: fakeAdapter,
 			media: fakeMedia,
-			auth: { getUser: async () => null },
+			auth: { context: async () => null },
 			basePath: '/cms-api',
 		});
 		expect(result).toEqual({

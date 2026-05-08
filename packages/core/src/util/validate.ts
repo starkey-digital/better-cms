@@ -42,19 +42,22 @@ export function coerceScalar(field: FieldDef | undefined, raw: string): unknown 
 	return raw;
 }
 
-/** Inverse of serializeRow. */
+/**
+ * Inverse of serializeRow. Drops null values entirely so optional zod fields
+ * (which accept `T | undefined`, not `T | null`) validate cleanly on round-trip
+ * read → edit → save. Sqlite stores absent optionals as null; surfacing that
+ * as `undefined` matches the zod schema author's intent.
+ */
 export function deserializeRow(
 	def: CollectionDef,
 	data: Record<string, unknown>,
 ): Record<string, unknown> {
 	const out: Record<string, unknown> = {};
 	for (const [name, value] of Object.entries(data)) {
+		if (value === null) continue;
+		if (value === undefined) continue;
 		const field: FieldDef | undefined = def.fields[name];
 		if (!field) {
-			out[name] = value;
-			continue;
-		}
-		if (value === undefined || value === null) {
 			out[name] = value;
 			continue;
 		}

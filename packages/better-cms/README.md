@@ -54,7 +54,7 @@ export default defineCMS({
   },
   adapter: libsqlAdapter({ url: process.env.DATABASE_URL!, authToken: process.env.DATABASE_AUTH_TOKEN }),
   media:   s3Media({ bucket: process.env.S3_BUCKET!, /* ... */ }),
-  auth:    { getUser: async () => ({ id: 'dev', role: 'admin' }) },
+  auth:    { context: async () => ({ user: { id: 'dev', role: 'admin' as const } }) },
 });
 ```
 

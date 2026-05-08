@@ -89,6 +89,6 @@ test.describe('cms HTTP API surface', () => {
 		const put = await request.put(`${BASE}/singletons/settings`, {
 			data: { siteTitle: 'Anon Attempt' },
 		});
-		expect(put.status()).toBe(401);
+		expect(put.status()).toBe(403);
 	});
 });

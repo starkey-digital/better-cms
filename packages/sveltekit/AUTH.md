@@ -49,7 +49,7 @@ Mounted under `config.basePath` (default `/api/cms`):
 | ------ | --------- | -------------------------------------- | --------------------------------------- |
 | POST   | `/login`  | `{ password, turnstileToken? }`        | `200 {ok}` + cookie / `401` / `429`     |
 | POST   | `/logout` | —                                      | `200 {ok}` + clears cookie              |
-| GET    | `/me`     | —                                      | `{ user: {id, role} \| null }`          |
+| GET    | `/auth/context` | —                                | `{ ctx: <AuthContextFn return> \| null }` (mounted by core; works for any auth provider) |
 
 ## Rate-limit stores
 
@@ -157,18 +157,31 @@ Rotating `CMS_AUTH_SECRET` invalidates every active session.
 
 ## BYOA (bring your own auth)
 
-Skip `passwordAuth` entirely — implement `getUser`:
+Skip `passwordAuth` entirely — supply any `AuthContextFn`:
 
 ```ts
+import type { AuthContextFn } from 'better-cms';
+
+type AppCtx = { user: { id: string; email: string } } | null;
+
+const context: AuthContextFn<AppCtx> = async (request) => {
+  const session = await yourAuthLib.getSession(request);
+  if (!session?.user) return null;
+  return { user: { id: session.user.id, email: session.user.email } };
+};
+
 defineCMS({
-  auth: {
-    getUser: async (request) => {
-      const session = await yourAuthLib.getSession(request);
-      return session?.user ?? null;
-    },
+  auth: { context },
+  access: {
+    create: (ctx) => ctx !== null,
+    update: (ctx) => ctx !== null,
+    delete: (ctx) => ctx !== null,
   },
+  // ...
 });
 ```
+
+`Ctx` is whatever shape your auth library returns — `{ session, user, organization }`, `{ tenantId, user }`, anything. Pass it to `createCms<Ctx>()` (from `better-cms/zod`) to get typed `access` and `hooks` everywhere. See [docs/concepts/auth.md](../../docs/concepts/auth.md) for the full BYOA walkthrough.
 
 ## Hooks
 

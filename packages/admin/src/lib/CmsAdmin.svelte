@@ -1,50 +1,68 @@
 <script lang="ts">
-import type { ClientCmsConfig, ClientCollectionDef, CmsOp } from '@better-cms/core';
+import type { CmsMeta, CmsMetaCollection } from '@better-cms/sveltekit';
 import { onMount } from 'svelte';
 import FieldEditor from './FieldEditor.svelte';
 import LoginScreen from './LoginScreen.svelte';
-import { type AdminApi, httpApi } from './api.js';
+
+// Loose client shape — admin doesn't care about typed collections, just
+// dispatches by name through the runtime Proxy. Caller passes a typed
+// `CmsClient<C, Ctx>`; TS accepts it as a subtype of this.
+type AnyClient = {
+	auth: {
+		context(): Promise<unknown | null>;
+		login(password: string, turnstileToken?: string): Promise<{ ok: true } | { error: string }>;
+		logout(): Promise<void>;
+	};
+	meta(): Promise<CmsMeta>;
+	uploadMedia(file: File | Blob, folder?: string): Promise<{ key: string; url: string }>;
+	[k: string]: unknown;
+};
 
 type Props = {
-	config: ClientCmsConfig;
-	api?: AdminApi;
+	client: AnyClient;
 	auth?: boolean;
 	turnstileSiteKey?: string;
 };
 
-const {
-	config,
-	api = httpApi(config.basePath ?? '/api/cms'),
-	auth = false,
-	turnstileSiteKey,
-}: Props = $props();
+const { client, auth = false, turnstileSiteKey }: Props = $props();
 
-let user = $state<{ id: string; role: string } | null>(null);
+let ctx = $state<unknown | null>(null);
 let authChecked = $state(false);
-const gateOpen = $derived(!auth || (authChecked && user !== null));
+let meta = $state<CmsMeta | null>(null);
+const gateOpen = $derived(!auth || (authChecked && ctx !== null));
 
 async function checkAuth() {
 	try {
-		user = await api.me();
+		ctx = await client.auth.context();
 	} catch {
-		user = null;
+		ctx = null;
 	} finally {
 		authChecked = true;
 	}
 }
 
+async function loadMeta() {
+	try {
+		meta = await client.meta();
+	} catch (e) {
+		error = (e as Error).message;
+	}
+}
+
 async function logout() {
-	await api.logout();
-	user = null;
+	await client.auth.logout();
+	ctx = null;
 	rows = [];
 	editing = null;
 }
 
-const entries = $derived(Object.entries(config.collections));
+const entries = $derived(meta ? Object.entries(meta.collections) : []);
 const firstName = $derived(entries[0]?.[0] ?? null);
 let selectedName = $state<string | null>(null);
 const effectiveName = $derived(selectedName ?? firstName);
-const selectedDef = $derived(effectiveName ? config.collections[effectiveName] : null);
+const selectedDef = $derived<CmsMetaCollection | null>(
+	effectiveName && meta ? (meta.collections[effectiveName] ?? null) : null,
+);
 const selectedKind = $derived(selectedDef?.kind ?? null);
 
 let rows = $state<Record<string, unknown>[]>([]);
@@ -53,31 +71,44 @@ let saving = $state(false);
 let error = $state<string | null>(null);
 
 onMount(() => {
-	if (auth) {
-		void checkAuth().then(() => {
-			if (user && effectiveName && selectedDef) void load(effectiveName, selectedDef.kind);
-		});
-	} else if (effectiveName && selectedDef) {
-		void load(effectiveName, selectedDef.kind);
-	}
+	void (async () => {
+		// /auth/context and /_meta are independent — fetch in parallel.
+		await Promise.all([auth ? checkAuth() : Promise.resolve(), loadMeta()]);
+		if (auth && !ctx) return;
+		if (effectiveName && selectedDef) await load(effectiveName, selectedDef.kind);
+	})();
 });
 
-function select(name: string, def: ClientCollectionDef) {
+function select(name: string, def: CmsMetaCollection) {
 	if (selectedName === name) return;
 	selectedName = name;
 	void load(name, def.kind);
 }
 
+// Type-erased view of the cmsClient's per-collection/singleton API. The
+// runtime Proxy always exposes both shapes; the kind discriminator decides
+// which methods are valid to call.
+type ApiMethods = {
+	get(idOrSlug?: string): Promise<Record<string, unknown> | null>;
+	list(opts?: { limit?: number }): Promise<Record<string, unknown>[]>;
+	set(data: Record<string, unknown>): Promise<Record<string, unknown>>;
+	create(data: Record<string, unknown>): Promise<Record<string, unknown>>;
+	update(id: string, data: Record<string, unknown>): Promise<Record<string, unknown>>;
+	delete(id: string): Promise<void>;
+};
+
+const apiOf = (name: string) => client[name] as unknown as ApiMethods;
+
 async function load(name: string, kind: 'collection' | 'singleton') {
 	error = null;
 	editing = null;
 	try {
+		const api = apiOf(name);
 		if (kind === 'singleton') {
 			rows = [];
-			const row = await api.getSingleton(name);
-			editing = row ?? {};
+			editing = (await api.get()) ?? {};
 		} else {
-			rows = await api.list(name, { limit: 50 });
+			rows = await api.list({ limit: 50 });
 		}
 	} catch (e) {
 		error = (e as Error).message;
@@ -98,16 +129,13 @@ async function save() {
 	saving = true;
 	error = null;
 	try {
+		const api = apiOf(effectiveName);
 		if (selectedDef.kind === 'singleton') {
-			await api.saveSingleton(effectiveName, editing);
+			await api.set(editing);
+		} else if (typeof editing.id === 'string') {
+			await api.update(editing.id, editing);
 		} else {
-			const op: CmsOp =
-				typeof editing.id === 'string'
-					? { op: 'set', collection: effectiveName, id: editing.id, data: editing }
-					: { op: 'create', collection: effectiveName, data: editing };
-			const [res] = await api.runOps([op]);
-			if (!res?.ok) throw new Error(res?.error ?? 'save failed');
-			editing = res.row ?? null;
+			editing = await api.create(editing);
 		}
 		await load(effectiveName, selectedDef.kind);
 	} catch (e) {
@@ -122,7 +150,7 @@ async function remove() {
 	if (selectedDef.kind === 'singleton') return;
 	saving = true;
 	try {
-		await api.runOps([{ op: 'remove', collection: effectiveName, id: editing.id }]);
+		await apiOf(effectiveName).delete(editing.id);
 		editing = null;
 		await load(effectiveName, selectedDef.kind);
 	} catch (e) {
@@ -142,30 +170,36 @@ function setField(name: string, value: unknown) {
 	<div class="bcms-loading">loading…</div>
 {:else if auth && !gateOpen}
 	<LoginScreen
-		{api}
+		{client}
 		{turnstileSiteKey}
 		onLogin={() => {
-			void checkAuth().then(() => {
-				if (effectiveName && selectedDef) void load(effectiveName, selectedDef.kind);
-			});
+			void (async () => {
+				await checkAuth();
+				if (!ctx) return;
+				if (!meta) await loadMeta();
+				if (effectiveName && selectedDef) await load(effectiveName, selectedDef.kind);
+			})();
 		}}
 	/>
+{:else if !meta}
+	<div class="bcms-loading">loading…</div>
 {:else}
 <div class="bcms">
 	<aside class="bcms-sidebar">
 		<h1>better-cms</h1>
-		{#if auth && user}
+		{#if auth && ctx}
 			<button type="button" class="bcms-logout" onclick={logout}>sign out</button>
 		{/if}
 		<nav>
 			{#each entries as [name, def] (name)}
+				{@const d = def as CmsMetaCollection}
 				<button
 					type="button"
 					class:active={effectiveName === name}
-					onclick={() => select(name, def)}
+					onclick={() => select(name, d)}
 				>
 					<span>{name}</span>
-					<small>{def.kind}</small>
+					<small>{d.kind}</small>
 				</button>
 			{/each}
 		</nav>
@@ -207,7 +241,7 @@ function setField(name: string, value: unknown) {
 					{#each Object.entries(selectedDef.fields) as [fname, field] (fname)}
 						{#if fname !== 'id' && fname !== 'createdAt' && fname !== 'updatedAt'}
 							<FieldEditor
-								{api}
+								{client}
 								name={fname}
 								{field}
 								value={editing[fname]}

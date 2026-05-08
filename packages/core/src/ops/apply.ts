@@ -1,4 +1,7 @@
-import type { CollectionDef, SchemaIR } from '../ir/types.js';
+import type { CmsConfig } from '../config.js';
+import { checkAccess } from '../handler/access.js';
+import { runHooks } from '../handler/hooks.js';
+import type { CollectionDef, HookVerb, SchemaIR } from '../ir/types.js';
 import type { ContentStore } from '../store/content.js';
 import { generateId } from '../util/id.js';
 import { CmsError, errors } from '../util/result.js';
@@ -9,6 +12,16 @@ import type { CmsOp, OpResult } from './types.js';
 export interface ApplyDeps {
 	store: ContentStore;
 	schema: SchemaIR;
+	/** When set, access checks + lifecycle hooks run for each op. Bare adapter calls skip these. */
+	config?: CmsConfig<any, any>;
+	/** Request-scoped context resolved by `auth.context(request)`. Threaded into access fns + hooks. */
+	ctx?: unknown;
+}
+
+function opVerb(op: CmsOp): HookVerb {
+	if (op.op === 'create') return 'create';
+	if (op.op === 'remove' && !op.path) return 'delete';
+	return 'update';
 }
 
 /** Apply a single op. Validates via Standard Schema, serializes, persists. */
@@ -17,27 +30,59 @@ export async function applyOp(op: CmsOp, deps: ApplyDeps): Promise<OpResult> {
 		const def = deps.schema.collections[op.collection];
 		if (!def) throw errors.notFound(`collection "${op.collection}"`);
 
+		const verb = opVerb(op);
+		const prev =
+			verb === 'create' || op.op === 'create'
+				? undefined
+				: ((await deps.store.findOne(op.collection, { id: op.id! })) ?? undefined);
+
+		if (verb !== 'create' && !prev) {
+			throw errors.notFound(`${op.collection}#${op.id}`);
+		}
+
+		const allowed = await checkAccess(
+			deps.config,
+			op.collection,
+			verb,
+			deps.ctx,
+			prev ? deserializeRow(def, prev) : undefined,
+		);
+		if (!allowed) throw errors.forbidden(`${op.collection}.${verb} denied`);
+
 		const now = Date.now();
+		const hookBase = {
+			ctx: deps.ctx,
+			collection: op.collection,
+			verb,
+			id: op.id,
+			prev: prev ? deserializeRow(def, prev) : undefined,
+		};
 
 		if (op.op === 'create') {
 			const id = (op.data.id as string | undefined) ?? generateId();
-			const seeded = {
-				...op.data,
-				id,
-				createdAt: op.data.createdAt ?? now,
-				updatedAt: op.data.updatedAt ?? now,
-			};
 			const validated = await validateAgainst(def, 'create', op.data, op.collection);
+			await runHooks(deps.config, op.collection, 'before', 'create', {
+				...hookBase,
+				id,
+				data: validated,
+			});
 			const row = await deps.store.create(
 				op.collection,
 				serializeRow(def, {
 					...validated,
-					id: seeded.id,
-					createdAt: seeded.createdAt,
-					updatedAt: seeded.updatedAt,
+					id,
+					createdAt: (op.data.createdAt as number | undefined) ?? now,
+					updatedAt: (op.data.updatedAt as number | undefined) ?? now,
 				}),
 			);
-			return { op, ok: true, row: deserializeRow(def, row) };
+			const result = deserializeRow(def, row);
+			await runHooks(deps.config, op.collection, 'after', 'create', {
+				...hookBase,
+				id,
+				data: validated,
+				result,
+			});
+			return { op, ok: true, row: result };
 		}
 
 		if (op.op === 'set') {
@@ -48,26 +93,46 @@ export async function applyOp(op: CmsOp, deps: ApplyDeps): Promise<OpResult> {
 				op.collection,
 			);
 			const { id: _id, ...patch } = validated;
+			await runHooks(deps.config, op.collection, 'before', 'update', {
+				...hookBase,
+				data: validated,
+			});
 			const row = await deps.store.update(
 				op.collection,
 				{ id: op.id },
 				serializeRow(def, { ...patch, updatedAt: now }),
 			);
-			return { op, ok: true, row: deserializeRow(def, row) };
+			const result = deserializeRow(def, row);
+			await runHooks(deps.config, op.collection, 'after', 'update', {
+				...hookBase,
+				data: validated,
+				result,
+			});
+			return { op, ok: true, row: result };
 		}
 
 		if (op.op === 'remove' && !op.path) {
+			await runHooks(deps.config, op.collection, 'before', 'delete', hookBase);
 			await deps.store.delete(op.collection, { id: op.id });
+			await runHooks(deps.config, op.collection, 'after', 'delete', hookBase);
 			return { op, ok: true };
 		}
 
 		if (op.op === 'patch' || op.op === 'append' || op.op === 'remove' || op.op === 'move') {
-			const current = await deps.store.findOne(op.collection, { id: op.id });
-			if (!current) throw errors.notFound(`${op.collection}#${op.id}`);
-			const merged = applyJsonOp(deserializeRow(def, current), op);
+			const merged = applyJsonOp(deserializeRow(def, prev!), op);
 			merged.updatedAt = now;
+			await runHooks(deps.config, op.collection, 'before', 'update', {
+				...hookBase,
+				data: merged,
+			});
 			const row = await deps.store.update(op.collection, { id: op.id }, serializeRow(def, merged));
-			return { op, ok: true, row: deserializeRow(def, row) };
+			const result = deserializeRow(def, row);
+			await runHooks(deps.config, op.collection, 'after', 'update', {
+				...hookBase,
+				data: merged,
+				result,
+			});
+			return { op, ok: true, row: result };
 		}
 
 		throw errors.badRequest('unsupported op');

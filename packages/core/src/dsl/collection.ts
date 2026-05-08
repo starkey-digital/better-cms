@@ -1,11 +1,11 @@
+import type { Access } from '../auth/types.js';
 import type {
 	CollectionDef,
-	CollectionHooksIR,
 	CollectionIndexIR,
 	CollectionSchemas,
 	CollectionValidationOverride,
 	FieldsRecord,
-	PermissionsIR,
+	HooksIR,
 } from '../ir/types.js';
 import type { StandardSchemaV1 } from '../util/standard-schema.js';
 
@@ -14,8 +14,8 @@ interface CollectionOpts<F extends FieldsRecord, K extends 'collection' | 'singl
 	tableName?: string;
 	fields: F;
 	indexes?: CollectionIndexIR[];
-	hooks?: CollectionHooksIR;
-	permissions?: PermissionsIR;
+	hooks?: HooksIR<any, any>;
+	access?: Access<any, any>;
 	timestamps?: boolean;
 	/** Standard Schema validators per variant. Schema-first builders supply these. */
 	validation?: CollectionValidationOverride;
@@ -57,7 +57,7 @@ export function _collection<F extends FieldsRecord, K extends 'collection' | 'si
 		fields: opts.fields,
 		indexes: opts.indexes,
 		hooks: opts.hooks,
-		permissions: opts.permissions,
+		access: opts.access,
 		timestamps: opts.timestamps ?? true,
 		validation,
 		schemas,

@@ -11,9 +11,9 @@ test.describe('cms flow', () => {
 
 	test('login sets a session', async ({ request }) => {
 		await login(request);
-		const me = await request.get(`${BASE}/me`);
-		const body = (await me.json()) as { user: { id: string; role: string } | null };
-		expect(body.user).toEqual({ id: 'admin', role: 'admin' });
+		const me = await request.get(`${BASE}/auth/context`);
+		const body = (await me.json()) as { ctx: { user: { id: string; role: string } } | null };
+		expect(body.ctx).toEqual({ user: { id: 'admin', role: 'admin' } });
 	});
 
 	test('create + view a post end-to-end', async ({ page, request }) => {
@@ -31,20 +31,36 @@ test.describe('cms flow', () => {
 
 	test('nav swaps between Sign in and Admin based on auth state', async ({ page }) => {
 		await page.goto('/');
-		await expect(page.getByRole('link', { name: 'Sign in' })).toBeVisible();
-		await expect(page.getByRole('link', { name: 'Admin' })).toHaveCount(0);
+		const nav = page.locator('nav');
+		await expect(nav.getByRole('link', { name: 'Sign in' })).toBeVisible();
+		await expect(nav.getByRole('link', { name: 'Admin' })).toHaveCount(0);
 
 		await login(page.request);
 		await page.goto('/');
-		await expect(page.getByRole('link', { name: 'Admin' })).toBeVisible();
-		await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
-		await expect(page.getByRole('link', { name: 'Sign in' })).toHaveCount(0);
+		await expect(nav.getByRole('link', { name: 'Admin' })).toBeVisible();
+		await expect(nav.getByRole('button', { name: 'Sign out' })).toBeVisible();
+		await expect(nav.getByRole('link', { name: 'Sign in' })).toHaveCount(0);
 	});
 
 	test('admin route renders the editor shell', async ({ page, request }) => {
 		await login(request);
 		await page.goto('/cms');
 		await expect(page.getByRole('heading', { name: /better-cms/i })).toBeVisible();
+	});
+
+	test('cmsClient.auth.logout clears the session', async ({ request }) => {
+		await login(request);
+		const before = await request.get(`${BASE}/auth/context`);
+		const beforeBody = (await before.json()) as { ctx: unknown };
+		expect(beforeBody.ctx).not.toBeNull();
+
+		// Hit the same endpoint cmsClient.auth.logout uses (POST /api/cms/logout).
+		const out = await request.post(`${BASE}/logout`);
+		expect(out.status()).toBe(200);
+
+		const after = await request.get(`${BASE}/auth/context`);
+		const afterBody = (await after.json()) as { ctx: unknown };
+		expect(afterBody.ctx).toBeNull();
 	});
 
 	test('homepage lists created posts', async ({ page, request }) => {
