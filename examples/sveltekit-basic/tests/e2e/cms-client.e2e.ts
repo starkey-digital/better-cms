@@ -1,24 +1,5 @@
-import { type APIRequestContext, expect, test } from '@playwright/test';
-
-const BASE = '/api/cms';
-const PASSWORD = 'admin123';
-
-async function login(request: APIRequestContext) {
-	const res = await request.post(`${BASE}/login`, { data: { password: PASSWORD } });
-	expect(res.status()).toBe(200);
-}
-
-async function createPost(
-	request: APIRequestContext,
-	data: { title: string; slug: string; excerpt?: string; published?: boolean },
-) {
-	const res = await request.post(`${BASE}/ops`, {
-		data: { ops: [{ op: 'create', collection: 'posts', data: { published: true, ...data } }] },
-	});
-	expect(res.status()).toBe(200);
-	const body = (await res.json()) as { results: { row: { id: string } }[] };
-	return body.results[0]!.row;
-}
+import { expect, test } from '@playwright/test';
+import { BASE, createPost, login, logout } from './fixtures.js';
 
 test.describe('cmsClient (generated)', () => {
 	test('cmsClient.posts.get(slug) renders SSR via /posts/[slug]', async ({ page, request }) => {
@@ -39,10 +20,7 @@ test.describe('cmsClient (generated)', () => {
 		await expect(page.getByText('Post not found.')).toBeVisible();
 	});
 
-	test('client-side navigation between slugs refetches via cmsClient', async ({
-		page,
-		request,
-	}) => {
+	test('navigating between slugs renders fresh content', async ({ page, request }) => {
 		await login(request);
 		await createPost(request, { title: 'First Nav', slug: 'first-nav', excerpt: 'Alpha' });
 		await createPost(request, { title: 'Second Nav', slug: 'second-nav', excerpt: 'Beta' });
@@ -51,11 +29,6 @@ test.describe('cmsClient (generated)', () => {
 		await expect(page.getByRole('heading', { name: 'First Nav' })).toBeVisible();
 		await expect(page.getByText('Alpha')).toBeVisible();
 
-		// SPA navigate (not full reload) — hits cmsClient on the client side
-		await page.evaluate(() => {
-			(window as unknown as { goto: (u: string) => Promise<void> }).goto?.('/posts/second-nav');
-		});
-		// Fallback: hard navigate if app didn't expose goto
 		await page.goto('/posts/second-nav');
 		await expect(page.getByRole('heading', { name: 'Second Nav' })).toBeVisible();
 		await expect(page.getByText('Beta')).toBeVisible();
@@ -112,8 +85,7 @@ test.describe('cms HTTP API surface', () => {
 	});
 
 	test('unauthenticated singletons PUT is rejected', async ({ request }) => {
-		// No login. (Note: prior tests may have left a session — issue logout to be safe.)
-		await request.post(`${BASE}/logout`);
+		await logout(request);
 		const put = await request.put(`${BASE}/singletons/settings`, {
 			data: { siteTitle: 'Anon Attempt' },
 		});

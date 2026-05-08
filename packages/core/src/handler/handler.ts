@@ -1,24 +1,12 @@
 import type { CmsConfig, CmsContext } from '../config.js';
 import { getCmsTables } from '../ir/tables.js';
-import type { FieldDef } from '../ir/types.js';
 import { applyOps } from '../ops/apply.js';
 import { opToEventType } from '../ops/types.js';
 import type { CmsOp } from '../ops/types.js';
 import type { PluginEndpoint } from '../plugin/types.js';
 import { CmsError, errors } from '../util/result.js';
+import { coerceScalar } from '../util/validate.js';
 import { type LiveTransport, inMemoryTransport, sseResponse } from './live.js';
-
-/**
- * Querystring values arrive as strings. Coerce to the field's runtime type
- * so downstream `where: { published: true }` matches libsql's integer 1, etc.
- */
-function coerceWhereValue(field: FieldDef | undefined, raw: string): unknown {
-	if (!field) return raw;
-	if (field.scalarType === 'boolean') return raw === 'true' || raw === '1';
-	if (field.scalarType === 'integer' || field.scalarType === 'number') return Number(raw);
-	if (field.scalarType === 'date') return new Date(raw);
-	return raw;
-}
 
 const LIST_RE = /^\/collections\/([^/]+)$/;
 const ONE_RE = /^\/collections\/([^/]+)\/([^/]+)$/;
@@ -105,7 +93,7 @@ export async function createCMS(config: CmsConfig, opts: CreateCmsOpts = {}): Pr
 					for (const [key, value] of url.searchParams.entries()) {
 						if (!key.startsWith('where[') || !key.endsWith(']')) continue;
 						const field = key.slice(6, -1);
-						where[field] = coerceWhereValue(def.fields[field], value);
+						where[field] = coerceScalar(def.fields[field], value);
 					}
 					const whereOrUndef = Object.keys(where).length ? where : undefined;
 					if (url.searchParams.get('count') === '1') {

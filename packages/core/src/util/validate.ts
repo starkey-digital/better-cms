@@ -100,6 +100,19 @@ export function serializeRow(
 	return out;
 }
 
+/**
+ * Coerce a string value (querystring, form, etc.) to the field's runtime type.
+ * Boolean → libsql expects a real bool/0/1, so `'true'` strings would otherwise
+ * miss the index. Numeric and date follow standard parse rules.
+ */
+export function coerceScalar(field: FieldDef | undefined, raw: string): unknown {
+	if (!field) return raw;
+	if (field.scalarType === 'boolean') return raw === 'true' || raw === '1';
+	if (field.scalarType === 'integer' || field.scalarType === 'number') return Number(raw);
+	if (field.scalarType === 'date') return new Date(raw);
+	return raw;
+}
+
 /** Inverse of serializeRow. */
 export function deserializeRow(
 	def: CollectionDef,

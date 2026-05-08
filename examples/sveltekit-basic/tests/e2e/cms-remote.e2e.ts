@@ -1,24 +1,5 @@
-import { type APIRequestContext, expect, test } from '@playwright/test';
-
-const BASE = '/api/cms';
-const PASSWORD = 'admin123';
-
-async function login(request: APIRequestContext) {
-	const res = await request.post(`${BASE}/login`, { data: { password: PASSWORD } });
-	expect(res.status()).toBe(200);
-}
-
-async function createPost(
-	request: APIRequestContext,
-	data: { title: string; slug: string; excerpt?: string; published?: boolean },
-) {
-	const res = await request.post(`${BASE}/ops`, {
-		data: { ops: [{ op: 'create', collection: 'posts', data: { published: true, ...data } }] },
-	});
-	expect(res.status()).toBe(200);
-	const body = (await res.json()) as { results: { row: { id: string } }[] };
-	return body.results[0]!.row;
-}
+import { expect, test } from '@playwright/test';
+import { BASE, createPost, login } from './fixtures.js';
 
 test.describe('remote functions', () => {
 	test('recentPosts query renders the published list on /recent', async ({ page, request }) => {
@@ -45,8 +26,8 @@ test.describe('remote functions', () => {
 
 		await card.getByRole('button', { name: 'Unpublish' }).click();
 
-		// Poll the API until the command lands. We don't depend on UI refresh
-		// behaviour — the contract under test is that the command flipped state.
+		// Poll the API until the command lands. The UI refresh primitive
+		// is tested separately; here we just verify the server-side flip.
 		await expect
 			.poll(
 				async () => {

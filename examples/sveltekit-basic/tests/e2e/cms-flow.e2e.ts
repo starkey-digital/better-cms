@@ -1,23 +1,5 @@
-import { type APIRequestContext, expect, test } from '@playwright/test';
-
-const BASE = '/api/cms';
-const PASSWORD = 'admin123';
-
-async function login(request: APIRequestContext) {
-	const res = await request.post(`${BASE}/login`, { data: { password: PASSWORD } });
-	expect(res.status()).toBe(200);
-}
-
-async function createPost(
-	request: APIRequestContext,
-	data: { title: string; slug: string; excerpt?: string; published?: boolean },
-) {
-	const res = await request.post(`${BASE}/ops`, {
-		data: { ops: [{ op: 'create', collection: 'posts', data: { published: true, ...data } }] },
-	});
-	expect(res.status()).toBe(200);
-	return res.json();
-}
+import { expect, test } from '@playwright/test';
+import { BASE, createPost, login } from './fixtures.js';
 
 test.describe('cms flow', () => {
 	test('rejects bad password', async ({ request }) => {
@@ -27,7 +9,7 @@ test.describe('cms flow', () => {
 		expect(body.error.code).toBe('INVALID_CREDENTIALS');
 	});
 
-	test('login with admin123 sets a session', async ({ request }) => {
+	test('login sets a session', async ({ request }) => {
 		await login(request);
 		const me = await request.get(`${BASE}/me`);
 		const body = (await me.json()) as { user: { id: string; role: string } | null };
@@ -52,7 +34,6 @@ test.describe('cms flow', () => {
 		await expect(page.getByRole('link', { name: 'Sign in' })).toBeVisible();
 		await expect(page.getByRole('link', { name: 'Admin' })).toHaveCount(0);
 
-		// page.request shares the cookie jar with page navigation
 		await login(page.request);
 		await page.goto('/');
 		await expect(page.getByRole('link', { name: 'Admin' })).toBeVisible();
@@ -63,7 +44,6 @@ test.describe('cms flow', () => {
 	test('admin route renders the editor shell', async ({ page, request }) => {
 		await login(request);
 		await page.goto('/cms');
-		// CmsAdmin renders a "better-cms" sidebar heading
 		await expect(page.getByRole('heading', { name: /better-cms/i })).toBeVisible();
 	});
 
