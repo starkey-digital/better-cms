@@ -103,33 +103,43 @@ export const save = command(async (ops) => runOps(config, ops));
 
 `query` and `command` accept any [Standard Schema](https://standardschema.dev) compatible validator — `valibot`, `zod`, `arktype`, etc. SvelteKit rejects bad input before your handler runs.
 
-`'unchecked'` works for prototyping, but lock the contract before shipping:
+#### Auto-derived schemas
+
+`buildSchema(collectionDef, variant)` returns a Standard-Schema validator built from your collection's field defs — same `required`/`max`/`pattern`/`enum` rules the CMS itself enforces on writes:
 
 ```ts
-import { command, query } from '$app/server';
-import * as v from 'valibot';
-import { listCollection, runOps } from 'better-cms/sveltekit/remote';
-import config, { cms } from '$lib/server/cms';
+// src/lib/cms.remote.ts
+import { command } from '$app/server';
+import { buildSchema } from 'better-cms';
+import { runOps } from 'better-cms/sveltekit/remote';
+import config from '$lib/server/cms';
 
-const RecentLimit = v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(50));
-const ToggleInput = v.object({
-	id: v.string(),
-	published: v.boolean(),
-});
+const PostsCreate = buildSchema(config.collections.posts, 'create');
+const PostsUpdate = buildSchema(config.collections.posts, 'update');
 
-export const recentPosts = query(RecentLimit, async (limit) =>
-	listCollection(config, 'posts', { limit, where: { published: true } }),
+export const create = command(PostsCreate, async (data) =>
+	runOps(config, [{ op: 'create', collection: 'posts', data }]),
 );
-
-export const togglePublished = command(ToggleInput, async (input) => {
-	if (!(await cms.auth.getUser())) throw new Error('unauthorized');
-	return runOps(config, [
-		{ op: 'set', collection: 'posts', id: input.id, data: { published: input.published } },
-	]);
-});
 ```
 
-Pick whichever validator library your team is comfortable with — better-cms doesn't dictate.
+Variants:
+- `create` — system fields (`id`, `createdAt`, `updatedAt`) excluded; required validation honoured.
+- `update` — every field optional; `id` required as the lookup key.
+- `full` — every field present (e.g. for validating server-returned rows in tests).
+
+#### Bespoke shapes
+
+For custom inputs that don't match a collection, hand-roll with your validator of choice:
+
+```ts
+import * as v from 'valibot';
+
+const ToggleInput = v.object({ id: v.string(), published: v.boolean() });
+
+export const togglePublished = command(ToggleInput, async (input) => { /* ... */ });
+```
+
+`'unchecked'` works for prototyping, but lock the contract before shipping. Pick whichever validator library your team is comfortable with — better-cms doesn't dictate.
 
 ## Admin page
 

@@ -21,7 +21,8 @@ export * from './auth/types.js';
 export { generateId } from './util/id.js';
 export { slugify } from './util/slug.js';
 export { CmsError, errors, ok, err, type Result } from './util/result.js';
-export { validateRow, serializeRow, deserializeRow } from './util/validate.js';
+export { validateRow, serializeRow, deserializeRow, coerceScalar } from './util/validate.js';
+export { buildSchema, type SchemaVariant } from './util/build-schema.js';
 export {
 	fieldToJsonSchema,
 	collectionToJsonSchema,

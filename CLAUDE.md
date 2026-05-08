@@ -76,6 +76,7 @@ import type { Post }      from 'better-cms/types';
 - Singletons use fixed id `"default"`. Dedicated `GET/PUT /singletons/:name` routes. Discriminated via `CollectionDef<F, 'singleton'>`.
 - Field types are phantom-typed: `FieldDef<TOut>` carries value type; DSL builders propagate it; `defineCMS<C>` captures verbatim → `serverApi`, remote helpers, admin all gain inference.
 - Three modes (inline edit, admin save, LLM/MCP tool call) all reduce to `CmsOp` → `applyOps()` → live broadcast. One audit trail.
+- **Validation is Standard-Schema-shaped.** `buildSchema(collectionDef, 'create' | 'update' | 'full')` derives a valibot validator from field defs (required/max/min/pattern/enum). Drop-in for SvelteKit `query`/`command`, tRPC, anywhere a Standard Schema validator works. Same rules `validateRow` enforces on writes — single source of truth. Users picking other libs (zod, arktype) hand-roll bespoke shapes; `buildSchema` is the auto-derived path for collection CRUD.
 
 ## Conventions
 
