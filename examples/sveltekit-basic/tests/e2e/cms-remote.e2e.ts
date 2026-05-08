@@ -20,7 +20,12 @@ test.describe('remote functions', () => {
 		await login(page.request);
 		const post = await createPost(page.request, { title: 'Toggle Me', slug: 'toggle-me' });
 
-		await page.goto('/recent');
+		// Land on '/', then SPA-navigate via the nav link. A direct page.goto('/recent')
+		// races with Svelte 5 async hydration ($derived(await ...)) and the click can
+		// fire before the button's onclick handler is attached.
+		await page.goto('/');
+		await page.getByRole('link', { name: 'Recent' }).click();
+		await expect(page).toHaveURL('/recent');
 		const card = page.getByRole('listitem').filter({ hasText: 'Toggle Me' });
 		await expect(card.getByRole('button', { name: 'Unpublish' })).toBeVisible();
 

@@ -1,4 +1,3 @@
-import type { ValidatorIntegration } from '../config.js';
 import type { CollectionDef, FieldDef, SchemaIR } from '../ir/types.js';
 
 export interface JsonSchema {
@@ -18,8 +17,7 @@ export interface JsonSchema {
 /**
  * Thin DSL-only JSON Schema for a single field. Carries kind + description +
  * select options. Min/max/pattern are *not* derived — those live in the
- * user's per-field `validation` schema. Use the `validator.toJsonSchema`
- * config knob to get rich constraints.
+ * schema-first builder's validator and surface via `def.toJsonSchema()`.
  */
 export function fieldToJsonSchema(field: FieldDef): JsonSchema {
 	const out: JsonSchema = {};
@@ -101,19 +99,14 @@ export function fieldToJsonSchema(field: FieldDef): JsonSchema {
 /**
  * JSON Schema for a collection's `create` shape.
  *
- * If `validator.toJsonSchema` is provided, the user-supplied converter runs
- * against the composed Standard Schema — yielding rich constraint metadata
- * (min/max/pattern/enum/etc.) without coupling core to any validation lib.
- *
- * Falls back to the thin DSL-only emitter when no converter is configured.
+ * Schema-first builders (e.g. `@better-cms/zod`) bake `def.toJsonSchema()`
+ * which produces rich constraint metadata (min/max/pattern/enum/etc.).
+ * Falls back to the thin DSL-only emitter when no converter is attached.
  */
-export function collectionToJsonSchema(
-	def: CollectionDef,
-	validator?: ValidatorIntegration,
-): JsonSchema {
-	if (validator?.toJsonSchema && def.schemas) {
+export function collectionToJsonSchema(def: CollectionDef): JsonSchema {
+	if (def.toJsonSchema) {
 		try {
-			const result = validator.toJsonSchema(def.schemas.create);
+			const result = def.toJsonSchema();
 			if (result && typeof result === 'object') return result as JsonSchema;
 		} catch {
 			// fall through to DSL-only
@@ -128,13 +121,10 @@ export function collectionToJsonSchema(
 	return { type: 'object', properties: props, required };
 }
 
-export function schemaToJsonSchemas(
-	schema: SchemaIR,
-	validator?: ValidatorIntegration,
-): Record<string, JsonSchema> {
+export function schemaToJsonSchemas(schema: SchemaIR): Record<string, JsonSchema> {
 	const out: Record<string, JsonSchema> = {};
 	for (const [name, def] of Object.entries(schema.collections)) {
-		out[name] = collectionToJsonSchema(def, validator);
+		out[name] = collectionToJsonSchema(def);
 	}
 	return out;
 }

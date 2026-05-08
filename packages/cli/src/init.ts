@@ -3,10 +3,11 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
 const CONFIG_TEMPLATE = `import 'dotenv/config';
-import { defineCMS, collection, text, slug, richText, image, boolean } from 'better-cms';
+import { collection, defineCMS, image, richText, slug } from 'better-cms/zod';
 import { libsqlAdapter } from 'better-cms/adapters/libsql';
 import { s3Media } from 'better-cms/media/s3';
 import { createCms } from 'better-cms/sveltekit/server';
+import { z } from 'zod';
 
 function required(name: string): string {
 	const v = process.env[name];
@@ -14,18 +15,18 @@ function required(name: string): string {
 	return v;
 }
 
+const PostSchema = z.object({
+	title: z.string().min(1).max(120),
+	slug: slug(),
+	excerpt: z.string().max(500).optional(),
+	body: richText(),
+	cover: image().optional(),
+	published: z.boolean().default(false),
+});
+
 const config = defineCMS({
 	collections: {
-		posts: collection({
-			fields: {
-				title: text({ required: true, max: 120 }),
-				slug: slug({ from: 'title' }),
-				excerpt: text({ multiline: true, max: 500 }),
-				body: richText(),
-				cover: image(),
-				published: boolean({ defaultValue: false }),
-			},
-		}),
+		posts: collection({ schema: PostSchema }),
 	},
 	adapter: libsqlAdapter({
 		url: required('DATABASE_URL'),
@@ -137,7 +138,7 @@ function detectPackageManager(cwd: string): PackageManager | null {
 	return null;
 }
 
-const RUNTIME_DEPS = ['better-cms', 'dotenv'];
+const RUNTIME_DEPS = ['better-cms', 'zod', 'dotenv'];
 const DEV_DEPS = ['drizzle-kit', '@libsql/client'];
 
 function readInstalled(cwd: string): Set<string> {

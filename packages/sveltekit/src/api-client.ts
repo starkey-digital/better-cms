@@ -1,5 +1,7 @@
+import { detectSlugField } from '@better-cms/core';
 import type {
 	ClientCmsConfig,
+	ClientCollectionDef,
 	CollectionDef,
 	CollectionsRecord,
 	FieldsRecord,
@@ -16,6 +18,9 @@ export interface CollectionApi<T> {
 	/** Look up by id, falling back to the collection's slug field if it has one. */
 	get(idOrSlug: string): Promise<T | null>;
 	count(where?: WhereClause): Promise<number>;
+	create(data: Partial<T>): Promise<T>;
+	update(id: string, data: Partial<T>): Promise<T>;
+	delete(id: string): Promise<void>;
 }
 
 export interface SingletonApi<T> {
@@ -53,7 +58,7 @@ export function __registerSsrFetchProvider(fn: () => typeof fetch | null): void 
  * Pair with the generated `cmsClient` from `bcms generate --target=client`
  * for the zero-boilerplate path.
  */
-export function createCmsClient<C extends Record<string, CollectionDef>>(
+export function createCmsClient<C extends Record<string, ClientCollectionDef>>(
 	clientConfig: ClientCmsConfig<C>,
 	fetcher: typeof fetch = fetch,
 ): CmsClient<C extends CollectionsRecord ? C : CollectionsRecord> {
@@ -64,13 +69,19 @@ export function createCmsClient<C extends Record<string, CollectionDef>>(
 		out[name] =
 			def.kind === 'singleton'
 				? clientSingleton(basePath, name, wrappedFetch)
-				: clientCollection(basePath, name, def.slugField, wrappedFetch);
+				: clientCollection(
+						basePath,
+						name,
+						def.slugField ?? detectSlugField(def.fields ?? {}),
+						wrappedFetch,
+					);
 	}
 	return out as never;
 }
 
 interface ClientDef {
 	kind: CollectionDef['kind'];
+	fields?: Record<string, { kind: string }>;
 	slugField?: string;
 }
 
@@ -162,7 +173,40 @@ function clientCollection(
 			const body = await jsonOrThrow<{ count: number }>(res);
 			return body.count;
 		},
+		async create(data) {
+			const body = await opsRequest(basePath, fetcher, [
+				{ op: 'create', collection: name, data: data as Record<string, unknown> },
+			]);
+			return (body.results[0]?.row as RowOf<CollectionDef>) ?? (data as RowOf<CollectionDef>);
+		},
+		async update(id, data) {
+			const body = await opsRequest(basePath, fetcher, [
+				{ op: 'set', collection: name, id, data: data as Record<string, unknown> },
+			]);
+			return (body.results[0]?.row as RowOf<CollectionDef>) ?? (data as RowOf<CollectionDef>);
+		},
+		async delete(id) {
+			await opsRequest(basePath, fetcher, [{ op: 'remove', collection: name, id }]);
+		},
 	};
+}
+
+async function opsRequest(
+	basePath: string,
+	fetcher: typeof fetch,
+	ops: unknown[],
+): Promise<{ results: { ok: boolean; row?: unknown; error?: { message: string } }[] }> {
+	const res = await fetcher(`${basePath}/ops`, {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify({ ops }),
+	});
+	const body = await jsonOrThrow<{
+		results: { ok: boolean; row?: unknown; error?: { message: string } }[];
+	}>(res);
+	const failed = body.results.find((r) => !r.ok);
+	if (failed) throw new Error(failed.error?.message ?? 'op failed');
+	return body;
 }
 
 function clientSingleton(

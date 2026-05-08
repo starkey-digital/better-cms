@@ -13,6 +13,7 @@ export default defineConfig({
 		'./src/sveltekit/server.ts',
 		'./src/sveltekit/remote.ts',
 		'./src/sveltekit/auth.ts',
+		'./src/zod/index.ts',
 		'./src/admin/index.ts',
 	],
 	treeshake: true,

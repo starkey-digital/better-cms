@@ -1,10 +1,10 @@
 import type { CmsConfig, CollectionsRecord } from '../config.js';
-import { attachSchemas } from '../util/compose-schema.js';
+import { _collection } from '../dsl/collection.js';
 import type { CollectionDef, SchemaIR } from './types.js';
 
 const SYSTEM_COLLECTIONS: Record<string, CollectionDef> = {
-	cms_revisions: attachSchemas({
-		kind: 'collection' as const,
+	cms_revisions: _collection({
+		kind: 'collection',
 		fields: {
 			id: { kind: 'text', storage: 'column', columnType: 'text' },
 			collection: { kind: 'text', storage: 'column', columnType: 'text' },
@@ -16,8 +16,8 @@ const SYSTEM_COLLECTIONS: Record<string, CollectionDef> = {
 		},
 		indexes: [{ fields: ['collection', 'recordId'] }],
 	}),
-	cms_media: attachSchemas({
-		kind: 'collection' as const,
+	cms_media: _collection({
+		kind: 'collection',
 		fields: {
 			id: { kind: 'text', storage: 'column', columnType: 'text' },
 			key: { kind: 'text', storage: 'column', columnType: 'text', unique: true },
@@ -74,6 +74,5 @@ function withDefaults(def: CollectionDef): CollectionDef {
 		if (!fields.updatedAt)
 			fields.updatedAt = { kind: 'date', storage: 'column', columnType: 'integer' };
 	}
-	const { schemas: _drop, ...rest } = def;
-	return attachSchemas({ ...rest, fields });
+	return { ...def, fields };
 }

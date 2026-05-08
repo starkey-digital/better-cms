@@ -125,13 +125,33 @@ export interface CollectionDef<
 	hooks?: CollectionHooksIR;
 	permissions?: PermissionsIR;
 	timestamps?: boolean;
-	/** User-supplied per-variant validators. Replace the auto-composed schema when present. */
+	/** User-supplied per-variant Standard Schema validators (zod / valibot / arktype / …). */
 	validation?: CollectionValidationOverride;
-	/** Lazy accessors for `create` / `update` / `full` Standard Schemas. Attached by collection()/singleton()/getCmsTables(). */
+	/** Resolved `create` / `update` / `full` Standard Schemas. Falls back to passthrough when no validation supplied. */
 	schemas: CollectionSchemas;
+	/** Optional JSON Schema generator for the `create` shape. Schema-first builders bake this from their validator. */
+	toJsonSchema?: () => unknown;
+	/** Phantom — schema-first builders attach this for type inference. Never read at runtime. */
+	readonly __schema?: StandardSchemaV1;
 }
 
-export type RowOf<C extends CollectionDef<any, any>> = {
+type SchemaOutput<S> = S extends { '~standard': { types?: infer T } }
+	? T extends { output: infer O }
+		? O
+		: never
+	: never;
+
+export type RowOf<C extends CollectionDef<any, any>> = SchemaOutput<
+	NonNullable<C['__schema']>
+> extends never
+	? FallbackRow<C>
+	: SchemaOutput<NonNullable<C['__schema']>> & {
+			id: string;
+			createdAt?: Date;
+			updatedAt?: Date;
+		};
+
+type FallbackRow<C extends CollectionDef<any, any>> = {
 	[K in keyof C['fields']]: FieldOf<C['fields'][K]>;
 } & { id: string; createdAt?: Date; updatedAt?: Date };
 

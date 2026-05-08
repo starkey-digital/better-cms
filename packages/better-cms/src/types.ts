@@ -23,5 +23,4 @@ export type {
 	RowOf,
 	SchemaIR,
 	WhereClause,
-	SchemaVariant,
 } from '@better-cms/core';

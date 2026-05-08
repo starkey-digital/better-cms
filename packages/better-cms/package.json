@@ -58,6 +58,11 @@
 			"types": "./dist/sveltekit/auth.d.mts",
 			"default": "./dist/sveltekit/auth.mjs"
 		},
+		"./zod": {
+			"dev-source": "./src/zod/index.ts",
+			"types": "./dist/zod/index.d.mts",
+			"default": "./dist/zod/index.mjs"
+		},
 		"./admin": {
 			"dev-source": "./src/admin/index.ts",
 			"types": "./dist/admin/index.d.mts",
@@ -79,6 +84,7 @@
 			"sveltekit/server": ["./dist/sveltekit/server.d.mts"],
 			"sveltekit/remote": ["./dist/sveltekit/remote.d.mts"],
 			"sveltekit/auth": ["./dist/sveltekit/auth.d.mts"],
+			"zod": ["./dist/zod/index.d.mts"],
 			"admin": ["./dist/admin/index.d.mts"],
 			"types": ["./dist/types.d.mts"]
 		}
@@ -94,6 +100,7 @@
 		"@better-cms/adapter-drizzle": "workspace:*",
 		"@better-cms/media-s3": "workspace:*",
 		"@better-cms/sveltekit": "workspace:*",
+		"@better-cms/zod": "workspace:*",
 		"@better-cms/admin": "workspace:*"
 	},
 	"peerDependencies": {

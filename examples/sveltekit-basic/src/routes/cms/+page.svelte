@@ -1,5 +1,5 @@
 <script lang="ts">
-import { cmsConfig } from '$lib/cmsClient';
+import { cmsConfig } from '$lib/cms/client';
 import { CmsAdmin } from 'better-cms/admin';
 </script>
 

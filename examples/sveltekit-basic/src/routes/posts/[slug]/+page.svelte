@@ -1,5 +1,5 @@
 <script lang="ts">
-import { cmsClient } from '$lib/cmsClient';
+import { cmsClient } from '$lib/cms/client';
 
 const { params } = $props();
 const post = $derived(await cmsClient.posts.get(params.slug));

@@ -12,6 +12,7 @@ async function logout() {
 <header class="site-nav">
 	<a href="/" class="brand">better-cms example</a>
 	<nav>
+		<a href="/recent">Recent</a>
 		{#if data.user}
 			<a href="/cms">Admin</a>
 			<button type="button" onclick={logout}>Sign out</button>

@@ -1,12 +1,14 @@
-import { applyOps, getCmsTables } from '@better-cms/core';
+import { applyOps, detectSlugField, getCmsTables, opToEventType } from '@better-cms/core';
 import type {
 	CmsConfig,
+	CmsInstance,
 	CmsOp,
 	CmsUser,
 	CollectionDef,
 	CollectionsRecord,
 	FieldsRecord,
 	InferRows,
+	OpResult,
 	RowOf,
 	SchemaIR,
 } from '@better-cms/core';
@@ -19,6 +21,8 @@ const SINGLETON_ID = 'default';
 /** Server-side auth API. Reads the active SvelteKit request via the AsyncLocalStorage scope set by `cmsHandle`. */
 export interface ServerAuthApi {
 	getUser(): Promise<CmsUser | null>;
+	/** Same as `getUser()` but throws when no user is signed in — saves a guard on every command. */
+	requireUser(): Promise<CmsUser>;
 }
 
 export type Cms<C extends CollectionsRecord> = {
@@ -39,15 +43,19 @@ export type Cms<C extends CollectionsRecord> = {
  *   await cms.auth.getUser();          // reads the request from cmsHandle's ALS scope
  */
 export function createCms<C extends CollectionsRecord>(config: CmsConfig<C>): Cms<C> {
+	const schema = getCmsTables(config);
 	const out: Record<string, unknown> = { auth: serverAuth(config) };
 	for (const [name, def] of Object.entries(config.collections) as [string, CollectionDef][]) {
-		out[name] = def.kind === 'singleton' ? singletonOps(config, name) : collectionOps(config, name);
+		out[name] =
+			def.kind === 'singleton'
+				? singletonOps(config, schema, name)
+				: collectionOps(config, schema, name);
 	}
 	return out as Cms<C>;
 }
 
 function serverAuth(config: CmsConfig): ServerAuthApi {
-	return {
+	const api: ServerAuthApi = {
 		async getUser() {
 			if (!config.auth) return null;
 			const request = getCurrentRequest();
@@ -58,10 +66,21 @@ function serverAuth(config: CmsConfig): ServerAuthApi {
 			}
 			return config.auth.getUser(request);
 		},
+		async requireUser() {
+			const user = await api.getUser();
+			if (!user) throw new Error('unauthorized');
+			return user;
+		},
 	};
+	return api;
 }
 
-function collectionOps(config: CmsConfig, name: string): CollectionApi<RowOf<CollectionDef>> {
+function collectionOps(
+	config: CmsConfig,
+	schema: SchemaIR,
+	name: string,
+): CollectionApi<RowOf<CollectionDef>> {
+	const slugField = detectSlugField(schema.collections[name]?.fields ?? {});
 	return {
 		async list(opts) {
 			const inst = await resolveCms(config);
@@ -73,11 +92,6 @@ function collectionOps(config: CmsConfig, name: string): CollectionApi<RowOf<Col
 		},
 		async get(idOrSlug) {
 			const inst = await resolveCms(config);
-			const fields = (inst.context.schema.collections[name]?.fields ?? {}) as Record<
-				string,
-				{ kind: string }
-			>;
-			const slugField = Object.entries(fields).find(([, f]) => f.kind === 'slug')?.[0];
 			if (slugField) {
 				const [bySlug] = (await inst.context.store.findMany(name, {
 					where: { [slugField]: idOrSlug },
@@ -93,10 +107,53 @@ function collectionOps(config: CmsConfig, name: string): CollectionApi<RowOf<Col
 			const inst = await resolveCms(config);
 			return inst.context.store.count(name, where);
 		},
+		async create(data) {
+			const res = await runOp(config, schema, {
+				op: 'create',
+				collection: name,
+				data: data as Record<string, unknown>,
+			});
+			return res.row as RowOf<CollectionDef>;
+		},
+		async update(id, data) {
+			const res = await runOp(config, schema, {
+				op: 'set',
+				collection: name,
+				id,
+				data: data as Record<string, unknown>,
+			});
+			return res.row as RowOf<CollectionDef>;
+		},
+		async delete(id) {
+			await runOp(config, schema, { op: 'remove', collection: name, id });
+		},
 	};
 }
 
-function singletonOps(config: CmsConfig, name: string): SingletonApi<RowOf<CollectionDef>> {
+/** Apply a single op + publish a live event. Shared by every server-side mutation entry point. */
+async function runOp(config: CmsConfig, schema: SchemaIR, op: CmsOp): Promise<OpResult> {
+	const inst = await resolveCms(config);
+	const [res] = await applyOps([op], { store: inst.context.store, schema });
+	if (!res?.ok) throw new Error(res?.error?.message ?? `${op.collection}.${op.op} failed`);
+	await publishLive(inst, res);
+	return res;
+}
+
+async function publishLive(inst: CmsInstance, res: OpResult): Promise<void> {
+	if (!res.ok) return;
+	await inst.live.publish({
+		type: opToEventType(res.op),
+		collection: res.op.collection,
+		id: res.op.id ?? (res.row?.id as string | undefined),
+		at: Date.now(),
+	});
+}
+
+function singletonOps(
+	config: CmsConfig,
+	schema: SchemaIR,
+	name: string,
+): SingletonApi<RowOf<CollectionDef>> {
 	return {
 		async get() {
 			const inst = await resolveCms(config);
@@ -106,7 +163,6 @@ function singletonOps(config: CmsConfig, name: string): SingletonApi<RowOf<Colle
 		},
 		async set(data) {
 			const inst = await resolveCms(config);
-			const schema = getCmsTables(config);
 			const existing = await inst.context.store.findOne(name, { id: SINGLETON_ID });
 			const op: CmsOp = existing
 				? { op: 'set', collection: name, id: SINGLETON_ID, data: data as Record<string, unknown> }
@@ -115,8 +171,7 @@ function singletonOps(config: CmsConfig, name: string): SingletonApi<RowOf<Colle
 						collection: name,
 						data: { ...(data as Record<string, unknown>), id: SINGLETON_ID },
 					};
-			const [res] = await applyOps([op], { store: inst.context.store, schema });
-			if (!res?.ok) throw new Error(res?.error?.message ?? 'singleton write failed');
+			const res = await runOp(config, schema, op);
 			return res.row as RowOf<CollectionDef>;
 		},
 	};
