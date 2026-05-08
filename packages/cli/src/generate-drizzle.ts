@@ -20,7 +20,7 @@ export function generateDrizzleSchema(schema: SchemaIR): string {
 			let line = `\t\t${field}: ${fn}(${JSON.stringify(field)}${opts ? `, ${opts}` : ''})`;
 			if (field === 'id') line += '.primaryKey()';
 			if (fd.unique && field !== 'id') line += '.unique()';
-			if (fd.validation?.required && field !== 'id') line += '.notNull()';
+			if (fd.required && field !== 'id') line += '.notNull()';
 			colLines.push(`${line},`);
 		}
 		const block = `export const ${camelCase(tn)} = sqliteTable(${JSON.stringify(tn)}, (t) => ({\n${colLines.join('\n')}\n}));`;
@@ -47,8 +47,8 @@ function drizzleColumnFn(field: FieldDef): string {
 function drizzleColumnOpts(_name: string, field: FieldDef): string | null {
 	if (field.scalarType === 'boolean') return `{ mode: 'boolean' }`;
 	if (field.scalarType === 'date') return `{ mode: 'timestamp_ms' }`;
-	if (field.kind === 'select' && field.validation?.enum) {
-		const en = field.validation.enum.map((v) => JSON.stringify(v)).join(', ');
+	if (field.kind === 'select' && field.options) {
+		const en = field.options.map((v) => JSON.stringify(v)).join(', ');
 		return `{ enum: [${en}] as const }`;
 	}
 	return null;

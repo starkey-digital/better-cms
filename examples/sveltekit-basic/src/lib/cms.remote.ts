@@ -1,8 +1,7 @@
 import { command, query } from '$app/server';
 import config, { cms } from '$lib/server/cms';
-import { buildSchema } from 'better-cms';
 import { listCollection, runOps } from 'better-cms/sveltekit/remote';
-import * as v from 'valibot';
+import { z } from 'zod';
 
 async function requireUser() {
 	const user = await cms.auth.getUser();
@@ -10,19 +9,16 @@ async function requireUser() {
 	return user;
 }
 
-// Validators derived from the collection field defs in cms.config — same
-// rules the CMS itself enforces on writes. Drop-in for SvelteKit's
-// command/query (any Standard-Schema-compatible validator works).
-const PostsCreate = buildSchema(config.collections.posts, 'create');
-const PostsUpdate = buildSchema(config.collections.posts, 'update');
+// `posts.schemas.create` / `.update` are auto-composed Standard Schemas
+// derived from each field's `validation` slot in cms.config. Drop straight
+// into SvelteKit's command/query (any Standard-Schema validator works).
+const PostsCreate = config.collections.posts.schemas.create;
+const PostsUpdate = config.collections.posts.schemas.update;
 
 // Bespoke shapes (e.g. for a partial update with explicit field set) still
-// hand-roll their schema — buildSchema only generates per-collection.
-const RecentLimit = v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(50));
-const ToggleInput = v.object({
-	id: v.string(),
-	published: v.boolean(),
-});
+// hand-roll their schema — the composed `schemas` only cover full-row CRUD.
+const RecentLimit = z.number().int().min(1).max(50);
+const ToggleInput = z.object({ id: z.string(), published: z.boolean() });
 
 export const recentPosts = query(RecentLimit, async (limit) =>
 	listCollection(config, 'posts', {

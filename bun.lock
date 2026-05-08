@@ -37,7 +37,7 @@
         "@libsql/client": "^0.14.0",
         "better-cms": "workspace:*",
         "dotenv": "^16.4.5",
-        "valibot": "^1.4.0",
+        "zod": "^4",
       },
       "devDependencies": {
         "@playwright/test": "^1.59.1",

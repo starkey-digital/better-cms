@@ -142,7 +142,7 @@ export async function startMcpServer(opts: McpServerOpts = {}): Promise<void> {
 				{
 					uri: req.params.uri,
 					mimeType: 'application/json',
-					text: JSON.stringify(collectionToJsonSchema(def), null, 2),
+					text: JSON.stringify(collectionToJsonSchema(def, config.validator), null, 2),
 				},
 			],
 		};

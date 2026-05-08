@@ -3,6 +3,8 @@
  * Authors never write IR by hand — DSL builders produce it.
  */
 
+import type { StandardSchemaV1 } from '../util/standard-schema.js';
+
 export type ScalarType = 'string' | 'number' | 'integer' | 'boolean' | 'date';
 export type ColumnType = 'text' | 'integer' | 'real' | 'blob';
 export type StorageHint = 'column' | 'json';
@@ -23,14 +25,6 @@ export type FieldKind =
 	| 'object'
 	| 'relation';
 
-export interface FieldValidationIR {
-	required?: boolean;
-	min?: number;
-	max?: number;
-	pattern?: string;
-	enum?: ReadonlyArray<string | number>;
-}
-
 export interface FieldEditorIR {
 	component: string;
 	props?: Record<string, unknown>;
@@ -49,8 +43,6 @@ export interface FieldRelationIR {
 
 export interface FieldArrayIR {
 	of: FieldDef<unknown>;
-	min?: number;
-	max?: number;
 }
 
 export interface FieldObjectIR {
@@ -68,7 +60,10 @@ export interface FieldDef<TOut = unknown> {
 	unique?: boolean;
 	indexed?: boolean;
 	required?: boolean;
-	validation?: FieldValidationIR;
+	/** Enum-like options for select fields. Drives admin widget, drizzle enum, ts literal types. */
+	options?: ReadonlyArray<string>;
+	/** Bring-your-own validator. Any Standard-Schema-compatible schema (zod, valibot, arktype, …). */
+	validation?: StandardSchemaV1<unknown, TOut>;
 	editor?: FieldEditorIR;
 	llm?: FieldLLMIR;
 	relation?: FieldRelationIR;
@@ -105,6 +100,20 @@ export type CollectionKind = 'collection' | 'singleton';
 
 export type FieldsRecord = Record<string, FieldDef<unknown>>;
 
+/** Optional collection-level Standard Schema overrides per variant. */
+export interface CollectionValidationOverride {
+	create?: StandardSchemaV1;
+	update?: StandardSchemaV1;
+	full?: StandardSchemaV1;
+}
+
+/** Lazily-composed Standard Schemas attached to every collection. */
+export interface CollectionSchemas {
+	readonly create: StandardSchemaV1<Record<string, unknown>, Record<string, unknown>>;
+	readonly update: StandardSchemaV1<Record<string, unknown>, Record<string, unknown>>;
+	readonly full: StandardSchemaV1<Record<string, unknown>, Record<string, unknown>>;
+}
+
 export interface CollectionDef<
 	F extends FieldsRecord = FieldsRecord,
 	K extends CollectionKind = CollectionKind,
@@ -116,6 +125,10 @@ export interface CollectionDef<
 	hooks?: CollectionHooksIR;
 	permissions?: PermissionsIR;
 	timestamps?: boolean;
+	/** User-supplied per-variant validators. Replace the auto-composed schema when present. */
+	validation?: CollectionValidationOverride;
+	/** Lazy accessors for `create` / `update` / `full` Standard Schemas. Attached by collection()/singleton()/getCmsTables(). */
+	schemas: CollectionSchemas;
 }
 
 export type RowOf<C extends CollectionDef<any, any>> = {

@@ -3,8 +3,18 @@ import type { CollectionDef, InferRows, SchemaIR } from './ir/types.js';
 import type { CmsPlugin } from './plugin/types.js';
 import type { ContentStore } from './store/content.js';
 import type { MediaStore } from './store/media.js';
+import type { StandardSchemaV1 } from './util/standard-schema.js';
 
 export type CollectionsRecord = Record<string, CollectionDef<any, any>>;
+
+/**
+ * Optional validator integration. Plug a "schema → JSON Schema" converter
+ * (e.g. zod 4's `z.toJSONSchema`, `@valibot/to-json-schema`) so the admin
+ * UI and MCP descriptors get rich constraint metadata for free.
+ */
+export interface ValidatorIntegration {
+	toJsonSchema?: (schema: StandardSchemaV1) => unknown;
+}
 
 export interface CmsConfig<C extends CollectionsRecord = CollectionsRecord> {
 	collections: C;
@@ -14,6 +24,7 @@ export interface CmsConfig<C extends CollectionsRecord = CollectionsRecord> {
 	plugins?: CmsPlugin[];
 	basePath?: string;
 	live?: boolean;
+	validator?: ValidatorIntegration;
 }
 
 export interface CmsContext<C extends CollectionsRecord = CollectionsRecord> {
@@ -31,8 +42,15 @@ export type InferConfig<Cfg> = Cfg extends CmsConfig<infer C> ? InferRows<Schema
  *   import { clientCmsConfig } from 'better-cms/sveltekit';
  *   export const load = () => ({ cms: clientCmsConfig(cms) });
  */
+/**
+ * Browser-safe slice of `CmsConfig`. Strips `schemas` (function references —
+ * non-serializable) and `validation` (server-only). Server reattaches schemas
+ * lazily; admin only needs static field metadata.
+ */
+export type ClientCollectionDef = Omit<CollectionDef, 'schemas' | 'validation'>;
+
 export interface ClientCmsConfig<
-	C extends Record<string, CollectionDef> = Record<string, CollectionDef>,
+	C extends Record<string, ClientCollectionDef> = Record<string, ClientCollectionDef>,
 > {
 	collections: C;
 	basePath?: string;
@@ -40,6 +58,11 @@ export interface ClientCmsConfig<
 
 export function clientCmsConfig<C extends CollectionsRecord>(
 	config: CmsConfig<C>,
-): ClientCmsConfig<C> {
-	return { collections: config.collections, basePath: config.basePath };
+): ClientCmsConfig {
+	const collections: Record<string, ClientCollectionDef> = {};
+	for (const [name, def] of Object.entries(config.collections)) {
+		const { schemas: _s, validation: _v, ...rest } = def as CollectionDef;
+		collections[name] = rest as ClientCollectionDef;
+	}
+	return { collections, basePath: config.basePath };
 }

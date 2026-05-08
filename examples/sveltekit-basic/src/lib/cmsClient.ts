@@ -56,7 +56,7 @@ export const cmsConfig: ClientCmsConfig = {
 					storage: 'column',
 					columnType: 'text',
 					scalarType: 'string',
-					validation: { required: true, max: 120 },
+					required: true,
 					editor: { component: 'TextField', props: { multiline: false } },
 				},
 				slug: {
@@ -64,9 +64,9 @@ export const cmsConfig: ClientCmsConfig = {
 					storage: 'column',
 					columnType: 'text',
 					scalarType: 'string',
+					required: true,
 					unique: true,
 					indexed: true,
-					validation: { required: true, max: 200, pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$' },
 					editor: { component: 'SlugField', props: { from: 'title' } },
 				},
 				excerpt: {
@@ -74,14 +74,12 @@ export const cmsConfig: ClientCmsConfig = {
 					storage: 'column',
 					columnType: 'text',
 					scalarType: 'string',
-					validation: { max: 500 },
 					editor: { component: 'TextField', props: { multiline: true } },
 				},
 				body: {
 					kind: 'richText',
 					storage: 'json',
 					columnType: 'text',
-					validation: {},
 					editor: { component: 'RichTextField', props: { impl: 'tiptap' } },
 					llm: {
 						describe:
@@ -92,7 +90,6 @@ export const cmsConfig: ClientCmsConfig = {
 					kind: 'image',
 					storage: 'json',
 					columnType: 'text',
-					validation: {},
 					editor: {
 						component: 'ImageField',
 						props: { formats: ['jpg', 'png', 'webp'], maxSizeMB: 10 },
@@ -107,7 +104,6 @@ export const cmsConfig: ClientCmsConfig = {
 					columnType: 'integer',
 					scalarType: 'boolean',
 					defaultValue: false,
-					validation: {},
 					editor: { component: 'BooleanField' },
 				},
 				id: { kind: 'text', storage: 'column', columnType: 'text' },
@@ -124,7 +120,7 @@ export const cmsConfig: ClientCmsConfig = {
 					storage: 'column',
 					columnType: 'text',
 					scalarType: 'string',
-					validation: { required: true },
+					required: true,
 					editor: { component: 'TextField', props: { multiline: false } },
 				},
 				tagline: {
@@ -132,7 +128,6 @@ export const cmsConfig: ClientCmsConfig = {
 					storage: 'column',
 					columnType: 'text',
 					scalarType: 'string',
-					validation: {},
 					editor: { component: 'TextField', props: { multiline: false } },
 				},
 				id: { kind: 'text', storage: 'column', columnType: 'text' },

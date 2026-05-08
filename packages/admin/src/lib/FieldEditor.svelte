@@ -26,7 +26,7 @@ async function uploadImage(file: File) {
 </script>
 
 <label class="bcms-field">
-	<span class="bcms-label">{field.label ?? name}{field.validation?.required ? ' *' : ''}</span>
+	<span class="bcms-label">{field.label ?? name}{field.required ? ' *' : ''}</span>
 
 	{#if field.kind === 'text' || field.kind === 'slug'}
 		{#if field.editor?.props?.multiline}
@@ -72,7 +72,7 @@ async function uploadImage(file: File) {
 			onchange={(e) => onchange((e.target as HTMLSelectElement).value)}
 		>
 			<option value="" disabled>—</option>
-			{#each (field.validation?.enum ?? []) as opt}
+			{#each (field.options ?? []) as opt}
 				<option value={opt}>{opt}</option>
 			{/each}
 		</select>

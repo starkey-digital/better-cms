@@ -7,6 +7,8 @@ export type {
 	FieldsRecord,
 	CollectionDef,
 	CollectionKind,
+	CollectionSchemas,
+	CollectionValidationOverride,
 	FieldDef,
 	SchemaIR,
 } from './ir/types.js';
@@ -21,8 +23,9 @@ export * from './auth/types.js';
 export { generateId } from './util/id.js';
 export { slugify } from './util/slug.js';
 export { CmsError, errors, ok, err, type Result } from './util/result.js';
-export { validateRow, serializeRow, deserializeRow, coerceScalar } from './util/validate.js';
-export { buildSchema, type SchemaVariant } from './util/build-schema.js';
+export { serializeRow, deserializeRow, coerceScalar } from './util/validate.js';
+export { composeSchema, type SchemaVariant } from './util/compose-schema.js';
+export type { StandardSchemaV1 } from './util/standard-schema.js';
 export {
 	fieldToJsonSchema,
 	collectionToJsonSchema,

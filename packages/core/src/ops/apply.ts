@@ -1,8 +1,9 @@
-import type { SchemaIR } from '../ir/types.js';
+import type { CollectionDef, SchemaIR } from '../ir/types.js';
 import type { ContentStore } from '../store/content.js';
 import { generateId } from '../util/id.js';
 import { CmsError, errors } from '../util/result.js';
-import { deserializeRow, serializeRow, validateRow } from '../util/validate.js';
+import type { StandardSchemaV1 } from '../util/standard-schema.js';
+import { deserializeRow, serializeRow } from '../util/validate.js';
 import type { CmsOp, OpResult } from './types.js';
 
 export interface ApplyDeps {
@@ -10,7 +11,7 @@ export interface ApplyDeps {
 	schema: SchemaIR;
 }
 
-/** Apply a single op. Validates, serializes, persists. Wraps errors. */
+/** Apply a single op. Validates via Standard Schema, serializes, persists. */
 export async function applyOp(op: CmsOp, deps: ApplyDeps): Promise<OpResult> {
 	try {
 		const def = deps.schema.collections[op.collection];
@@ -20,21 +21,38 @@ export async function applyOp(op: CmsOp, deps: ApplyDeps): Promise<OpResult> {
 
 		if (op.op === 'create') {
 			const id = (op.data.id as string | undefined) ?? generateId();
-			const data = {
+			const seeded = {
 				...op.data,
 				id,
 				createdAt: op.data.createdAt ?? now,
 				updatedAt: op.data.updatedAt ?? now,
 			};
-			validateRow(op.collection, def, data, false);
-			const row = await deps.store.create(op.collection, serializeRow(def, data));
+			const validated = await validateAgainst(def, 'create', op.data, op.collection);
+			const row = await deps.store.create(
+				op.collection,
+				serializeRow(def, {
+					...validated,
+					id: seeded.id,
+					createdAt: seeded.createdAt,
+					updatedAt: seeded.updatedAt,
+				}),
+			);
 			return { op, ok: true, row: deserializeRow(def, row) };
 		}
 
 		if (op.op === 'set') {
-			const data = { ...op.data, updatedAt: now };
-			validateRow(op.collection, def, data, true);
-			const row = await deps.store.update(op.collection, { id: op.id }, serializeRow(def, data));
+			const validated = await validateAgainst(
+				def,
+				'update',
+				{ id: op.id, ...op.data },
+				op.collection,
+			);
+			const { id: _id, ...patch } = validated;
+			const row = await deps.store.update(
+				op.collection,
+				{ id: op.id },
+				serializeRow(def, { ...patch, updatedAt: now }),
+			);
 			return { op, ok: true, row: deserializeRow(def, row) };
 		}
 
@@ -48,7 +66,6 @@ export async function applyOp(op: CmsOp, deps: ApplyDeps): Promise<OpResult> {
 			if (!current) throw errors.notFound(`${op.collection}#${op.id}`);
 			const merged = applyJsonOp(deserializeRow(def, current), op);
 			merged.updatedAt = now;
-			validateRow(op.collection, def, merged, true);
 			const row = await deps.store.update(op.collection, { id: op.id }, serializeRow(def, merged));
 			return { op, ok: true, row: deserializeRow(def, row) };
 		}
@@ -67,6 +84,29 @@ export async function applyOps(ops: CmsOp[], deps: ApplyDeps): Promise<OpResult[
 	const results: OpResult[] = [];
 	for (const op of ops) results.push(await applyOp(op, deps));
 	return results;
+}
+
+async function validateAgainst(
+	def: CollectionDef,
+	variant: 'create' | 'update' | 'full',
+	input: Record<string, unknown>,
+	collection: string,
+): Promise<Record<string, unknown>> {
+	const schema = def.schemas[variant];
+	const result = await schema['~standard'].validate(input);
+	if (result.issues) throw errors.validation(formatIssues(collection, result.issues));
+	return (result.value ?? input) as Record<string, unknown>;
+}
+
+function formatIssues(collection: string, issues: ReadonlyArray<StandardSchemaV1.Issue>): string {
+	return issues
+		.map((i) => {
+			const path = (i.path ?? [])
+				.map((p) => (typeof p === 'object' && p !== null && 'key' in p ? String(p.key) : String(p)))
+				.join('.');
+			return path ? `${collection}.${path}: ${i.message}` : `${collection}: ${i.message}`;
+		})
+		.join('; ');
 }
 
 function applyJsonOp(

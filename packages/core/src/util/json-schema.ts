@@ -1,3 +1,4 @@
+import type { ValidatorIntegration } from '../config.js';
 import type { CollectionDef, FieldDef, SchemaIR } from '../ir/types.js';
 
 export interface JsonSchema {
@@ -14,32 +15,31 @@ export interface JsonSchema {
 	pattern?: string;
 }
 
+/**
+ * Thin DSL-only JSON Schema for a single field. Carries kind + description +
+ * select options. Min/max/pattern are *not* derived — those live in the
+ * user's per-field `validation` schema. Use the `validator.toJsonSchema`
+ * config knob to get rich constraints.
+ */
 export function fieldToJsonSchema(field: FieldDef): JsonSchema {
 	const out: JsonSchema = {};
 	const desc = [field.description ?? field.label, field.llm?.describe].filter(Boolean).join(' — ');
 	if (desc) out.description = desc;
 
-	const v = field.validation;
-
 	switch (field.kind) {
 		case 'text':
 		case 'slug':
 			out.type = 'string';
-			if (v?.min != null) out.minLength = v.min;
-			if (v?.max != null) out.maxLength = v.max;
-			if (v?.pattern) out.pattern = v.pattern;
 			return out;
 		case 'select':
 			out.type = 'string';
-			if (v?.enum) out.enum = [...v.enum];
+			if (field.options) out.enum = [...field.options];
 			return out;
 		case 'boolean':
 			out.type = 'boolean';
 			return out;
 		case 'number':
 			out.type = 'number';
-			if (v?.min != null) out.minimum = v.min;
-			if (v?.max != null) out.maximum = v.max;
 			return out;
 		case 'integer':
 			out.type = 'integer';
@@ -73,7 +73,7 @@ export function fieldToJsonSchema(field: FieldDef): JsonSchema {
 				const required: string[] = [];
 				for (const [n, f] of Object.entries(field.object.fields)) {
 					out.properties[n] = fieldToJsonSchema(f);
-					if (f.validation?.required) required.push(n);
+					if (f.required) required.push(n);
 				}
 				if (required.length) out.required = required;
 			}
@@ -98,20 +98,43 @@ export function fieldToJsonSchema(field: FieldDef): JsonSchema {
 	return out;
 }
 
-export function collectionToJsonSchema(def: CollectionDef): JsonSchema {
+/**
+ * JSON Schema for a collection's `create` shape.
+ *
+ * If `validator.toJsonSchema` is provided, the user-supplied converter runs
+ * against the composed Standard Schema — yielding rich constraint metadata
+ * (min/max/pattern/enum/etc.) without coupling core to any validation lib.
+ *
+ * Falls back to the thin DSL-only emitter when no converter is configured.
+ */
+export function collectionToJsonSchema(
+	def: CollectionDef,
+	validator?: ValidatorIntegration,
+): JsonSchema {
+	if (validator?.toJsonSchema && def.schemas) {
+		try {
+			const result = validator.toJsonSchema(def.schemas.create);
+			if (result && typeof result === 'object') return result as JsonSchema;
+		} catch {
+			// fall through to DSL-only
+		}
+	}
 	const props: Record<string, JsonSchema> = {};
 	const required: string[] = [];
 	for (const [name, field] of Object.entries(def.fields)) {
 		props[name] = fieldToJsonSchema(field);
-		if (field.validation?.required && name !== 'id') required.push(name);
+		if (field.required && name !== 'id') required.push(name);
 	}
 	return { type: 'object', properties: props, required };
 }
 
-export function schemaToJsonSchemas(schema: SchemaIR): Record<string, JsonSchema> {
+export function schemaToJsonSchemas(
+	schema: SchemaIR,
+	validator?: ValidatorIntegration,
+): Record<string, JsonSchema> {
 	const out: Record<string, JsonSchema> = {};
 	for (const [name, def] of Object.entries(schema.collections)) {
-		out[name] = collectionToJsonSchema(def);
+		out[name] = collectionToJsonSchema(def, validator);
 	}
 	return out;
 }

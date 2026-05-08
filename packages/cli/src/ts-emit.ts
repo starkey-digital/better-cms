@@ -8,7 +8,7 @@ export function tsFields(def: CollectionDef, indent: string): string {
 	const lines: string[] = [];
 	const fields = def.fields as Record<string, FieldDef>;
 	for (const [field, fd] of Object.entries(fields)) {
-		const required = ALWAYS_REQUIRED.has(field) || fd.validation?.required;
+		const required = ALWAYS_REQUIRED.has(field) || fd.required;
 		lines.push(`${indent}${field}${required ? '' : '?'}: ${tsType(fd)};`);
 	}
 	return lines.join('\n');
@@ -18,7 +18,7 @@ export function tsType(field: FieldDef): string {
 	if (field.kind === 'array' && field.array) return `Array<${tsType(field.array.of)}>`;
 	if (field.kind === 'object' && field.object) {
 		const inner = Object.entries(field.object.fields)
-			.map(([n, f]) => `${n}${f.validation?.required ? '' : '?'}: ${tsType(f)}`)
+			.map(([n, f]) => `${n}${f.required ? '' : '?'}: ${tsType(f)}`)
 			.join('; ');
 		return `{ ${inner} }`;
 	}
@@ -28,8 +28,8 @@ export function tsType(field: FieldDef): string {
 	if (field.kind === 'json') return 'unknown';
 	if (field.kind === 'relation' && field.relation)
 		return field.relation.many ? 'string[]' : 'string';
-	if (field.kind === 'select' && field.validation?.enum)
-		return field.validation.enum.map((v) => JSON.stringify(v)).join(' | ');
+	if (field.kind === 'select' && field.options)
+		return field.options.map((v) => JSON.stringify(v)).join(' | ');
 	switch (field.scalarType) {
 		case 'boolean':
 			return 'boolean';

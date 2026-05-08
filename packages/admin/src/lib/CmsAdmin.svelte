@@ -1,6 +1,5 @@
 <script lang="ts">
-import type { CmsOp, CollectionDef } from '@better-cms/core';
-import type { ClientCmsConfig } from '@better-cms/core';
+import type { ClientCmsConfig, ClientCollectionDef, CmsOp } from '@better-cms/core';
 import { onMount } from 'svelte';
 import FieldEditor from './FieldEditor.svelte';
 import LoginScreen from './LoginScreen.svelte';
@@ -63,7 +62,7 @@ onMount(() => {
 	}
 });
 
-function select(name: string, def: CollectionDef) {
+function select(name: string, def: ClientCollectionDef) {
 	if (selectedName === name) return;
 	selectedName = name;
 	void load(name, def.kind);
