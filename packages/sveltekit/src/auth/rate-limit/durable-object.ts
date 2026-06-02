@@ -20,18 +20,17 @@ interface DurableObjectStateLike {
 }
 
 export function durableObjectStore(namespace: DurableObjectNamespaceLike): RateLimitStore {
+	const getStub = (key: string) => namespace.get(namespace.idFromName(key));
 	return {
 		async incr(key, windowSec) {
-			const stub = namespace.get(namespace.idFromName(key));
-			const res = await stub.fetch('https://rl/incr', {
+			const res = await getStub(key).fetch('https://rl/incr', {
 				method: 'POST',
 				body: JSON.stringify({ windowSec }),
 			});
 			return (await res.json()) as RateLimitHit;
 		},
 		async reset(key) {
-			const stub = namespace.get(namespace.idFromName(key));
-			await stub.fetch('https://rl/reset', { method: 'POST' });
+			await getStub(key).fetch('https://rl/reset', { method: 'POST' });
 		},
 	};
 }

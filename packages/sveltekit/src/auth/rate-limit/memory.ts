@@ -5,8 +5,6 @@ export interface MemoryStoreOpts {
 	force?: boolean;
 }
 
-let warned = false;
-
 function isCloudflareWorkers(): boolean {
 	const g = globalThis as unknown as {
 		WebSocketPair?: unknown;
@@ -25,8 +23,7 @@ export function memoryStore(opts: MemoryStoreOpts = {}): RateLimitStore {
 			'[better-cms] memoryStore() detected Cloudflare Workers runtime. In-memory state does not work across isolates — use durableObjectStore() or upstashStore(). Pass { force: true } to override (testing only).',
 		);
 	}
-	if (!opts.silent && !warned) {
-		warned = true;
+	if (!opts.silent) {
 		console.warn(
 			'[better-cms] passwordAuth using in-memory rate limit. Resets on restart, breaks across instances. Use durableObjectStore() or upstashStore() in production.',
 		);

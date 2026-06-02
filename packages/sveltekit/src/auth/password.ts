@@ -89,10 +89,10 @@ export function passwordAuth(opts: PasswordAuthOpts): PasswordAuthResult {
 
 	const store = opts.rateLimit?.store ?? memoryStore();
 	const perIp = opts.rateLimit?.perIp ?? { window: '1m', max: 5 };
-	const global = opts.rateLimit?.global ?? { window: '1m', max: 100 };
+	const globalLimit = opts.rateLimit?.global ?? { window: '1m', max: 100 };
 	const lockoutMs = (opts.rateLimit?.lockoutMinutes ?? 15) * 60 * 1000;
 	const perIpWindow = parseTtl(perIp.window);
-	const globalWindow = parseTtl(global.window);
+	const globalWindow = parseTtl(globalLimit.window);
 	const turnstileAfter = opts.turnstile?.after ?? 3;
 
 	const context: AuthContextFn<PasswordAuthCtx> = async (request) => {
@@ -123,7 +123,7 @@ export function passwordAuth(opts: PasswordAuthOpts): PasswordAuthResult {
 						fail(ipHit.count, 'per-ip');
 						return rateLimited(ipHit.resetAt - Date.now() + lockoutMs);
 					}
-					if (globalHit.count > global.max) {
+					if (globalHit.count > globalLimit.max) {
 						fail(globalHit.count, 'global');
 						return rateLimited(globalHit.resetAt - Date.now());
 					}
@@ -196,7 +196,7 @@ export function passwordAuth(opts: PasswordAuthOpts): PasswordAuthResult {
 						status: 200,
 						headers: {
 							'content-type': 'application/json',
-							'set-cookie': clearCookie(cookieName),
+							'set-cookie': clearCookie(cookieName, '/', cookieSecure),
 						},
 					}),
 			},
@@ -217,20 +217,9 @@ function clientIp(request: Request): string {
 
 function rateLimited(retryMs: number): Response {
 	const retrySec = Math.max(1, Math.ceil(retryMs / 1000));
-	return new Response(
-		JSON.stringify({
-			error: {
-				code: PASSWORD_AUTH_ERROR_CODES.RATE_LIMITED,
-				message: 'too many attempts',
-			},
-		}),
-		{
-			status: 429,
-			headers: {
-				'content-type': 'application/json',
-				'retry-after': String(retrySec),
-			},
-		},
+	return Response.json(
+		{ error: { code: PASSWORD_AUTH_ERROR_CODES.RATE_LIMITED, message: 'too many attempts' } },
+		{ status: 429, headers: { 'retry-after': String(retrySec) } },
 	);
 }
 

@@ -1,11 +1,10 @@
-import { b64urlDecode, b64urlEncode, hmacSign, hmacVerify } from './crypto.js';
+import { b64urlDecode, b64urlEncode, enc, hmacSign, hmacVerify } from './crypto.js';
 
 export interface SessionPayload {
 	uid: string;
 	exp: number;
 }
 
-const enc = new TextEncoder();
 const dec = new TextDecoder();
 
 export async function signSession(payload: SessionPayload, secret: string): Promise<string> {
@@ -68,8 +67,10 @@ export function serializeCookie(opts: CookieSerializeOpts): string {
 	return parts.join('; ');
 }
 
-export function clearCookie(name: string, path = '/'): string {
-	return `${name}=; Path=${path}; Max-Age=0; HttpOnly; SameSite=Lax; Secure`;
+export function clearCookie(name: string, path = '/', secure = true): string {
+	const parts = [`${name}=`, `Path=${path}`, 'Max-Age=0', 'HttpOnly', 'SameSite=Lax'];
+	if (secure) parts.push('Secure');
+	return parts.join('; ');
 }
 
 export function readCookie(request: Request, name: string): string | null {
@@ -97,8 +98,7 @@ export function parseTtl(ttl: string | number): number {
 			return n * 60;
 		case 'h':
 			return n * 3600;
-		case 'd':
-			return n * 86400;
+		default:
+			return n * 86400; // 'd' — regex guarantees [smhd]
 	}
-	throw new Error(`invalid ttl unit: ${ttl}`);
 }
