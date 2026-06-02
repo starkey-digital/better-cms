@@ -27,7 +27,8 @@ export async function runHooks(
 	hc: HookContext,
 ): Promise<void> {
 	if (!config) return;
-	const key = KEYS[`${when}-${verb}` as const];
+	// Template literal is already narrowed by HookWhen/HookVerb; `as const` adds nothing here.
+	const key = KEYS[`${when}-${verb}`];
 	const col = config.collections[collectionName];
 	const fns: HookFn[] = [
 		...asArray(config.hooks?.[key] as HookFn | HookFn[] | undefined),
