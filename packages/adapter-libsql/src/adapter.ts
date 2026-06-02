@@ -1,4 +1,4 @@
-import type { ContentStore, FindManyQuery, Row, SchemaIR, WhereClause } from '@better-cms/core';
+import type { CollectionDef, ContentStore, FindManyQuery, Row, SchemaIR, WhereClause } from '@better-cms/core';
 import { errors } from '@better-cms/core';
 import { type Client, type InValue, createClient } from '@libsql/client';
 import { compileWhere, ddlForSchema, quoteIdent, tableName } from './sql.js';
@@ -17,10 +17,27 @@ export function libsqlAdapter(opts: LibsqlAdapterOpts): ContentStore {
 	const client = opts.client ?? createClient({ url: opts.url, authToken: opts.authToken });
 	let schema: SchemaIR | null = null;
 
-	function defOf(collection: string) {
-		const def = schema?.collections[collection];
+	function defOf(collection: string): CollectionDef {
+		if (!schema) throw new Error('libsqlAdapter: init() has not been called');
+		const def = schema.collections[collection];
 		if (!def) throw errors.notFound(`collection "${collection}"`);
 		return def;
+	}
+
+	function tableOf(collection: string): { def: CollectionDef; tn: string } {
+		const def = defOf(collection);
+		return { def, tn: tableName(collection, def) };
+	}
+
+	async function _findOneRow(collection: string, where: WhereClause | undefined, select?: string[]): Promise<Row | null> {
+		const { tn } = tableOf(collection);
+		const w = compileWhere(where as Record<string, unknown>);
+		const cols = select?.length ? select.map(quoteIdent).join(', ') : '*';
+		const res = await client.execute({
+			sql: `SELECT ${cols} FROM ${quoteIdent(tn)}${w.sql} LIMIT 1`,
+			args: w.args as InValue[],
+		});
+		return (res.rows[0] as unknown as Row) ?? null;
 	}
 
 	return {
@@ -32,8 +49,7 @@ export function libsqlAdapter(opts: LibsqlAdapterOpts): ContentStore {
 		},
 
 		async create(collection, data) {
-			const def = defOf(collection);
-			const tn = tableName(collection, def);
+			const { tn } = tableOf(collection);
 			const cols = Object.keys(data);
 			const placeholders = cols.map(() => '?').join(', ');
 			await client.execute({
@@ -46,22 +62,20 @@ export function libsqlAdapter(opts: LibsqlAdapterOpts): ContentStore {
 		},
 
 		async update(collection, where, data) {
-			const def = defOf(collection);
-			const tn = tableName(collection, def);
+			const { tn } = tableOf(collection);
 			const cols = Object.keys(data);
-			if (cols.length === 0) return (await this.findOne(collection, where)) ?? {};
+			if (cols.length === 0) return (await _findOneRow(collection, where)) ?? {};
 			const setClause = cols.map((c) => `${quoteIdent(c)} = ?`).join(', ');
 			const w = compileWhere(where as Record<string, unknown>);
 			await client.execute({
 				sql: `UPDATE ${quoteIdent(tn)} SET ${setClause}${w.sql}`,
 				args: [...cols.map((c) => data[c] as InValue), ...(w.args as InValue[])],
 			});
-			return (await this.findOne(collection, where)) ?? data;
+			return (await _findOneRow(collection, where)) ?? data;
 		},
 
 		async delete(collection, where) {
-			const def = defOf(collection);
-			const tn = tableName(collection, def);
+			const { tn } = tableOf(collection);
 			const w = compileWhere(where as Record<string, unknown>);
 			const res = await client.execute({
 				sql: `DELETE FROM ${quoteIdent(tn)}${w.sql}`,
@@ -71,29 +85,33 @@ export function libsqlAdapter(opts: LibsqlAdapterOpts): ContentStore {
 		},
 
 		async findOne(collection, where, select) {
-			const def = defOf(collection);
-			const tn = tableName(collection, def);
-			const w = compileWhere(where as Record<string, unknown>);
-			const cols = select?.length ? select.map(quoteIdent).join(', ') : '*';
-			const res = await client.execute({
-				sql: `SELECT ${cols} FROM ${quoteIdent(tn)}${w.sql} LIMIT 1`,
-				args: w.args as InValue[],
-			});
-			return (res.rows[0] as unknown as Row) ?? null;
+			return _findOneRow(collection, where, select);
 		},
 
 		async findMany(collection, query: FindManyQuery = {}) {
-			const def = defOf(collection);
-			const tn = tableName(collection, def);
+			const { def, tn } = tableOf(collection);
 			const w = compileWhere(query.where as Record<string, unknown> | undefined);
 			const cols = query.select?.length ? query.select.map(quoteIdent).join(', ') : '*';
 			const orderBy = query.orderBy?.length
 				? ` ORDER BY ${query.orderBy
-						.map((o) => `${quoteIdent(o.field)} ${o.dir === 'desc' ? 'DESC' : 'ASC'}`)
+						.map((o) => {
+							const field = o.field;
+							if (!(field in def.fields)) throw new Error(`unknown field "${field}" in orderBy`);
+							const dir = o.dir === 'desc' ? 'DESC' : 'ASC';
+							return `${quoteIdent(field)} ${dir}`;
+						})
 						.join(', ')}`
 				: '';
-			const limit = query.limit != null ? ` LIMIT ${Number(query.limit)}` : '';
-			const offset = query.offset != null ? ` OFFSET ${Number(query.offset)}` : '';
+			const limit = query.limit != null
+				? Number.isSafeInteger(query.limit) && query.limit >= 0
+					? ` LIMIT ${query.limit}`
+					: (() => { throw new Error(`invalid limit: ${query.limit}`); })()
+				: '';
+			const offset = query.offset != null
+				? Number.isSafeInteger(query.offset) && query.offset >= 0
+					? ` OFFSET ${query.offset}`
+					: (() => { throw new Error(`invalid offset: ${query.offset}`); })()
+				: '';
 			const res = await client.execute({
 				sql: `SELECT ${cols} FROM ${quoteIdent(tn)}${w.sql}${orderBy}${limit}${offset}`,
 				args: w.args as InValue[],
@@ -102,8 +120,7 @@ export function libsqlAdapter(opts: LibsqlAdapterOpts): ContentStore {
 		},
 
 		async count(collection, where?: WhereClause) {
-			const def = defOf(collection);
-			const tn = tableName(collection, def);
+			const { tn } = tableOf(collection);
 			const w = compileWhere(where as Record<string, unknown> | undefined);
 			const res = await client.execute({
 				sql: `SELECT COUNT(*) as c FROM ${quoteIdent(tn)}${w.sql}`,
