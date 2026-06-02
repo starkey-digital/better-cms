@@ -72,16 +72,10 @@ import config from '$lib/server/cms';
 export const handle = cmsHandle(config);
 `;
 
-const CLIENT_TEMPLATE = `import { createCmsClient } from 'better-cms/sveltekit';
-import type { Cms } from './server/cms';
-
-export const cmsClient = createCmsClient<Cms>({ basePath: '/api/cms' });
-`;
-
 const ADMIN_PAGE_SERVER_TEMPLATE = `import { clientCmsConfig } from 'better-cms/sveltekit/server';
 import { cms } from '$lib/server/cms';
 
-export const load = () => ({ cmsConfig: clientCmsConfig(cms) });
+export const load = () => ({ cms: clientCmsConfig(cms) });
 `;
 
 const ADMIN_PAGE_TEMPLATE = `<script lang="ts">

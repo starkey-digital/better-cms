@@ -50,3 +50,7 @@ export function pascalCase(s: string): string {
 export function camelCase(s: string): string {
 	return s.replace(/[_-](\w)/g, (_, c: string) => c.toUpperCase());
 }
+
+export function emitInterface(name: string, def: CollectionDef): string {
+	return `export interface ${pascalCase(name)} {\n${tsFields(def, '\t')}\n}`;
+}

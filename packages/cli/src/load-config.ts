@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { CmsConfig } from '@better-cms/core';
+import type { Jiti } from 'jiti';
 
 const CANDIDATES = [
 	'src/lib/cms/server/cms',
@@ -10,14 +11,23 @@ const CANDIDATES = [
 	'cms',
 ].flatMap((base) => [`${base}.ts`, `${base}.js`]);
 
+let jitiInstance: Jiti | undefined;
+
+async function getJiti(): Promise<Jiti> {
+	if (!jitiInstance) {
+		const { createJiti } = await import('jiti');
+		jitiInstance = createJiti(import.meta.url, { interopDefault: true });
+	}
+	return jitiInstance;
+}
+
 export async function loadConfig(
 	cwd: string,
 	hint?: string,
 ): Promise<{ config: CmsConfig; path: string }> {
 	const candidates = hint ? [resolve(cwd, hint)] : CANDIDATES.map((p) => resolve(cwd, p));
 
-	const { createJiti } = await import('jiti');
-	const jiti = createJiti(import.meta.url, { interopDefault: true });
+	const jiti = await getJiti();
 
 	const errors: { path: string; error: Error }[] = [];
 

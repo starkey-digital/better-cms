@@ -63,8 +63,8 @@ describe('init', () => {
 		writePackageJson();
 		await init({ cwd: dir, skipInstall: true });
 		const cfg = readFileSync(join(dir, 'src/lib/server/cms.ts'), 'utf8');
-		expect(cfg).toContain('export default config;');
-		expect(cfg).toContain('export const cms = createCms(config);');
+		expect(cfg).toContain('export default cms;');
+		expect(cfg).toContain('export const cms = createCms({');
 	});
 
 	test('admin route uses clientCmsConfig from a +page.server.ts loader', async () => {
