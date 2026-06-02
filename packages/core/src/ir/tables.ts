@@ -49,7 +49,7 @@ export function getCmsTables<C extends CollectionsRecord, Ctx = unknown>(
 					`[better-cms] collection "${name}" declared by plugin "${plugin.id}" already exists`,
 				);
 			}
-			collections[name] = def;
+			collections[name] = withDefaults(def);
 		}
 	}
 

@@ -6,10 +6,7 @@ import type { MediaStore } from './store/media.js';
 
 export type CollectionsRecord = Record<string, CollectionDef<any, any>>;
 
-export interface CmsConfig<
-	C extends CollectionsRecord = CollectionsRecord,
-	Ctx = unknown,
-> {
+export interface CmsConfig<C extends CollectionsRecord = CollectionsRecord, Ctx = unknown> {
 	collections: C;
 	adapter: ContentStore;
 	media?: MediaStore;
@@ -41,7 +38,7 @@ export type InferConfig<Cfg> = Cfg extends CmsConfig<infer C> ? InferRows<Schema
  */
 export type ClientCollectionDef = Omit<
 	CollectionDef,
-	'schemas' | 'validation' | 'access' | 'hooks'
+	'schemas' | 'validation' | 'access' | 'hooks' | 'toJsonSchema' | '__schema'
 >;
 
 export interface ClientCmsConfig<
