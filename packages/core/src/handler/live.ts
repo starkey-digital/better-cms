@@ -31,6 +31,7 @@ export function inMemoryTransport(): LiveTransport {
 const encoder = new TextEncoder();
 
 export function sseResponse(transport: LiveTransport): Response {
+	let cleanup: (() => void) | undefined;
 	const stream = new ReadableStream<Uint8Array>({
 		start(controller) {
 			const send = (event: LiveEvent) => {
@@ -44,15 +45,13 @@ export function sseResponse(transport: LiveTransport): Response {
 					/* closed */
 				}
 			}, 25_000);
-			(controller as unknown as { _cleanup?: () => void })._cleanup = () => {
+			cleanup = () => {
 				unsub();
 				clearInterval(ping);
 			};
 		},
-		cancel(reason) {
-			const c = this as unknown as { _cleanup?: () => void };
-			c._cleanup?.();
-			void reason;
+		cancel(_reason) {
+			cleanup?.();
 		},
 	});
 	return new Response(stream, {

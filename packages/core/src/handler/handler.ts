@@ -1,6 +1,6 @@
 import type { CmsConfig, CmsContext } from '../config.js';
-import type { CollectionDef, FieldDef, SchemaIR } from '../ir/types.js';
 import { getCmsTables } from '../ir/tables.js';
+import type { CollectionDef, FieldDef, SchemaIR } from '../ir/types.js';
 import { applyOps } from '../ops/apply.js';
 import { opToEventType } from '../ops/types.js';
 import type { CmsOp } from '../ops/types.js';
@@ -61,6 +61,161 @@ export async function createCMS<C extends Record<string, any> = any, Ctx = unkno
 	// once and serve the same shape on every admin mount.
 	const metaPayload = buildMeta(schema, basePath);
 
+	async function handleList(url: URL, sub: string, ctx: unknown): Promise<Response> {
+		const listMatch = LIST_RE.exec(sub);
+		if (!listMatch) return new Response('Not found', { status: 404 });
+		const name = listMatch[1]!;
+		const def = schema.collections[name];
+		if (!def) throw errors.notFound(`collection "${name}"`);
+		if (def.kind === 'singleton') throw errors.badRequest(`${name} is a singleton`);
+		if (!(await checkAccess(config, name, 'read', ctx))) {
+			throw errors.notFound(`collection "${name}"`);
+		}
+		const where: Record<string, unknown> = {};
+		for (const [key, value] of url.searchParams.entries()) {
+			if (!key.startsWith('where[') || !key.endsWith(']')) continue;
+			const field = key.slice(6, -1);
+			where[field] = coerceScalar(def.fields[field], value);
+		}
+		const whereOrUndef = Object.keys(where).length ? where : undefined;
+		if (url.searchParams.get('count') === '1') {
+			const total = await context.store.count(name, whereOrUndef);
+			return Response.json({ count: total });
+		}
+		const limit = Number(url.searchParams.get('limit') ?? '50');
+		const offset = Number(url.searchParams.get('offset') ?? '0');
+		const rows = await context.store.findMany(name, {
+			limit,
+			offset,
+			...(whereOrUndef ? { where: whereOrUndef } : {}),
+		});
+		return Response.json({ rows: rows.map((r) => deserializeRow(def, r)) });
+	}
+
+	async function handleOne(sub: string, ctx: unknown): Promise<Response> {
+		const oneMatch = ONE_RE.exec(sub);
+		if (!oneMatch) return new Response('Not found', { status: 404 });
+		const name = oneMatch[1]!;
+		const idOrSlug = oneMatch[2]!;
+		const def = schema.collections[name];
+		if (!def) throw errors.notFound(`collection "${name}"`);
+		let row = await context.store.findOne(name, { id: idOrSlug });
+		if (!row) {
+			const slugField = detectSlugField(def.fields);
+			if (slugField) {
+				const matches = await context.store.findMany(name, {
+					where: { [slugField]: idOrSlug },
+					limit: 1,
+				});
+				row = matches[0] ?? null;
+			}
+		}
+		if (!row) throw errors.notFound(`${name}#${idOrSlug}`);
+		const doc = deserializeRow(def, row);
+		if (!(await checkAccess(config, name, 'read', ctx, doc))) {
+			throw errors.notFound(`${name}#${idOrSlug}`);
+		}
+		return Response.json({ row: doc });
+	}
+
+	async function handleSingletonGet(sub: string, ctx: unknown): Promise<Response> {
+		const singletonMatch = SINGLETON_RE.exec(sub);
+		if (!singletonMatch) return new Response('Not found', { status: 404 });
+		const name = singletonMatch[1]!;
+		const def = schema.collections[name];
+		if (!def || def.kind !== 'singleton') throw errors.notFound(`singleton "${name}"`);
+		const row = await context.store.findOne(name, { id: SINGLETON_ID });
+		const doc = row ? deserializeRow(def, row) : undefined;
+		if (!(await checkAccess(config, name, 'read', ctx, doc))) {
+			throw errors.notFound(`singleton "${name}"`);
+		}
+		return Response.json({ row: doc ?? null });
+	}
+
+	async function handleSingletonPut(
+		request: Request,
+		sub: string,
+		ctx: unknown,
+	): Promise<Response> {
+		const singletonMatch = SINGLETON_RE.exec(sub);
+		if (!singletonMatch) return new Response('Not found', { status: 404 });
+		const name = singletonMatch[1]!;
+		const def = schema.collections[name];
+		if (!def || def.kind !== 'singleton') throw errors.notFound(`singleton "${name}"`);
+		const body = (await request.json()) as Record<string, unknown>;
+		const existing = await context.store.findOne(name, { id: SINGLETON_ID });
+		const op: CmsOp = existing
+			? { op: 'set', collection: name, id: SINGLETON_ID, data: body }
+			: { op: 'create', collection: name, data: { ...body, id: SINGLETON_ID } };
+		const [res] = await applyOps([op], {
+			store: context.store,
+			schema,
+			config,
+			ctx,
+		});
+		if (!res?.ok) {
+			const err = res?.error;
+			if (err?.code === 'FORBIDDEN') throw errors.forbidden(err.message);
+			if (err?.code === 'NOT_FOUND') throw errors.notFound(err.message);
+			throw errors.validation(err?.message ?? 'singleton write failed');
+		}
+		await live.publish({
+			type: opToEventType(res.op),
+			collection: name,
+			id: SINGLETON_ID,
+			at: Date.now(),
+		});
+		return Response.json({ row: res.row });
+	}
+
+	async function handleOps(request: Request, ctx: unknown): Promise<Response> {
+		const body = (await request.json()) as { ops: CmsOp[] };
+		const results = await applyOps(body.ops ?? [], {
+			store: context.store,
+			schema,
+			config,
+			ctx,
+		});
+		for (const r of results) {
+			if (!r.ok) continue;
+			await live.publish({
+				type: opToEventType(r.op),
+				collection: r.op.collection,
+				id: r.op.id ?? (r.row?.id as string | undefined),
+				at: Date.now(),
+			});
+		}
+		return Response.json({ results });
+	}
+
+	async function routeRequest(
+		request: Request,
+		url: URL,
+		sub: string,
+		ctx: unknown,
+	): Promise<Response> {
+		if (sub === '/_live' && request.method === 'GET') return sseResponse(live);
+		if (sub === '/auth/context' && request.method === 'GET')
+			return Response.json({ ctx: ctx ?? null });
+		if (sub === '/_meta' && request.method === 'GET') return Response.json(metaPayload);
+		if (sub === '/ops' && request.method === 'POST') return handleOps(request, ctx);
+
+		if (request.method === 'GET') {
+			if (LIST_RE.test(sub)) return handleList(url, sub, ctx);
+			if (ONE_RE.test(sub)) return handleOne(sub, ctx);
+			if (SINGLETON_RE.test(sub)) return handleSingletonGet(sub, ctx);
+		}
+
+		if (request.method === 'PUT' && SINGLETON_RE.test(sub)) {
+			return handleSingletonPut(request, sub, ctx);
+		}
+
+		const ep = pluginRoutes.get(`${request.method} ${sub}`);
+		if (ep) return ep.handler(request, context);
+
+		return new Response('Not found', { status: 404 });
+	}
+
 	async function handler(request: Request): Promise<Response> {
 		const url = new URL(request.url);
 		if (!url.pathname.startsWith(basePath)) {
@@ -70,144 +225,7 @@ export async function createCMS<C extends Record<string, any> = any, Ctx = unkno
 
 		try {
 			const ctx = config.auth ? await config.auth.context(request) : undefined;
-
-			if (sub === '/_live' && request.method === 'GET') {
-				return sseResponse(live);
-			}
-
-			if (sub === '/auth/context' && request.method === 'GET') {
-				return Response.json({ ctx: ctx ?? null });
-			}
-
-			if (sub === '/_meta' && request.method === 'GET') {
-				return Response.json(metaPayload);
-			}
-
-			if (sub === '/ops' && request.method === 'POST') {
-				const body = (await request.json()) as { ops: CmsOp[] };
-				const results = await applyOps(body.ops ?? [], {
-					store: context.store,
-					schema,
-					config,
-					ctx,
-				});
-				for (const r of results) {
-					if (!r.ok) continue;
-					await live.publish({
-						type: opToEventType(r.op),
-						collection: r.op.collection,
-						id: r.op.id ?? (r.row?.id as string | undefined),
-						at: Date.now(),
-					});
-				}
-				return Response.json({ results });
-			}
-
-			if (request.method === 'GET') {
-				const listMatch = LIST_RE.exec(sub);
-				if (listMatch) {
-					const name = listMatch[1]!;
-					const def = schema.collections[name];
-					if (!def) throw errors.notFound(`collection "${name}"`);
-					if (def.kind === 'singleton') throw errors.badRequest(`${name} is a singleton`);
-					if (!(await checkAccess(config, name, 'read', ctx))) {
-						throw errors.notFound(`collection "${name}"`);
-					}
-					const where: Record<string, unknown> = {};
-					for (const [key, value] of url.searchParams.entries()) {
-						if (!key.startsWith('where[') || !key.endsWith(']')) continue;
-						const field = key.slice(6, -1);
-						where[field] = coerceScalar(def.fields[field], value);
-					}
-					const whereOrUndef = Object.keys(where).length ? where : undefined;
-					if (url.searchParams.get('count') === '1') {
-						const total = await context.store.count(name, whereOrUndef);
-						return Response.json({ count: total });
-					}
-					const limit = Number(url.searchParams.get('limit') ?? '50');
-					const offset = Number(url.searchParams.get('offset') ?? '0');
-					const rows = await context.store.findMany(name, {
-						limit,
-						offset,
-						...(whereOrUndef ? { where: whereOrUndef } : {}),
-					});
-					return Response.json({ rows: rows.map((r) => deserializeRow(def, r)) });
-				}
-				const oneMatch = ONE_RE.exec(sub);
-				if (oneMatch) {
-					const name = oneMatch[1]!;
-					const idOrSlug = oneMatch[2]!;
-					const def = schema.collections[name];
-					if (!def) throw errors.notFound(`collection "${name}"`);
-					let row = await context.store.findOne(name, { id: idOrSlug });
-					if (!row) {
-						const slugField = detectSlugField(def.fields);
-						if (slugField) {
-							const matches = await context.store.findMany(name, {
-								where: { [slugField]: idOrSlug },
-								limit: 1,
-							});
-							row = matches[0] ?? null;
-						}
-					}
-					if (!row) throw errors.notFound(`${name}#${idOrSlug}`);
-					const doc = deserializeRow(def, row);
-					if (!(await checkAccess(config, name, 'read', ctx, doc))) {
-						throw errors.notFound(`${name}#${idOrSlug}`);
-					}
-					return Response.json({ row: doc });
-				}
-				const singletonMatch = SINGLETON_RE.exec(sub);
-				if (singletonMatch) {
-					const name = singletonMatch[1]!;
-					const def = schema.collections[name];
-					if (!def || def.kind !== 'singleton') throw errors.notFound(`singleton "${name}"`);
-					const row = await context.store.findOne(name, { id: SINGLETON_ID });
-					const doc = row ? deserializeRow(def, row) : undefined;
-					if (!(await checkAccess(config, name, 'read', ctx, doc))) {
-						throw errors.notFound(`singleton "${name}"`);
-					}
-					return Response.json({ row: doc ?? null });
-				}
-			}
-
-			if (request.method === 'PUT') {
-				const singletonMatch = SINGLETON_RE.exec(sub);
-				if (singletonMatch) {
-					const name = singletonMatch[1]!;
-					const def = schema.collections[name];
-					if (!def || def.kind !== 'singleton') throw errors.notFound(`singleton "${name}"`);
-					const body = (await request.json()) as Record<string, unknown>;
-					const existing = await context.store.findOne(name, { id: SINGLETON_ID });
-					const op: CmsOp = existing
-						? { op: 'set', collection: name, id: SINGLETON_ID, data: body }
-						: { op: 'create', collection: name, data: { ...body, id: SINGLETON_ID } };
-					const [res] = await applyOps([op], {
-						store: context.store,
-						schema,
-						config,
-						ctx,
-					});
-					if (!res?.ok) {
-						const err = res?.error;
-						if (err?.code === 'FORBIDDEN') throw errors.forbidden(err.message);
-						if (err?.code === 'NOT_FOUND') throw errors.notFound(err.message);
-						throw errors.validation(err?.message ?? 'singleton write failed');
-					}
-					await live.publish({
-						type: opToEventType(res.op),
-						collection: name,
-						id: SINGLETON_ID,
-						at: Date.now(),
-					});
-					return Response.json({ row: res.row });
-				}
-			}
-
-			const ep = pluginRoutes.get(`${request.method} ${sub}`);
-			if (ep) return ep.handler(request, context);
-
-			return new Response('Not found', { status: 404 });
+			return await routeRequest(request, url, sub, ctx);
 		} catch (e) {
 			if (e instanceof CmsError) {
 				return Response.json(
