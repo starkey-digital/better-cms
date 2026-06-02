@@ -9,6 +9,7 @@ import type {
 	SchemaIR,
 	WhereClause,
 } from '@better-cms/core';
+import { normalizeBasePath } from './utils.js';
 
 export interface CollectionApi<T> {
 	list(opts?: FindManyQuery): Promise<T[]>;
@@ -21,9 +22,18 @@ export interface CollectionApi<T> {
 	delete(id: string): Promise<void>;
 	/** Standard Schema validators (`create` / `update` / `full`) for use with SvelteKit `command(...)` / tRPC / hono / anywhere a schema is accepted. */
 	readonly schemas: {
-		readonly create: import('@better-cms/core').StandardSchemaV1<Record<string, unknown>, Record<string, unknown>>;
-		readonly update: import('@better-cms/core').StandardSchemaV1<Record<string, unknown>, Record<string, unknown>>;
-		readonly full: import('@better-cms/core').StandardSchemaV1<Record<string, unknown>, Record<string, unknown>>;
+		readonly create: import('@better-cms/core').StandardSchemaV1<
+			Record<string, unknown>,
+			Record<string, unknown>
+		>;
+		readonly update: import('@better-cms/core').StandardSchemaV1<
+			Record<string, unknown>,
+			Record<string, unknown>
+		>;
+		readonly full: import('@better-cms/core').StandardSchemaV1<
+			Record<string, unknown>,
+			Record<string, unknown>
+		>;
 	};
 }
 
@@ -65,9 +75,9 @@ type CollectionsOf<T> = T extends { __collections?: infer C extends CollectionsR
 	: T extends { collections: infer C extends CollectionsRecord }
 		? C
 		: never;
-type CtxOf<T> = T extends { auth: { context(): Promise<infer R | null> | infer R | null } }
+type CtxOf<T> = T extends { auth: { context(): Promise<infer R | null> } }
 	? R
-	: T extends { auth?: { context: (req: Request) => infer R | Promise<infer R> } }
+	: T extends { auth?: { context: (req: Request) => Promise<infer R> } }
 		? R
 		: unknown;
 
@@ -106,7 +116,7 @@ export interface CreateCmsClientOpts {
 export function createCmsClient<TCms = CmsConfig>(
 	opts: CreateCmsClientOpts = {},
 ): CmsClient<CollectionsOf<TCms>, CtxOf<TCms>> {
-	const basePath = (opts.basePath ?? '/api/cms').replace(/\/$/, '');
+	const basePath = normalizeBasePath(opts.basePath);
 	const fetcher = ssrAwareFetch(opts.fetch ?? fetch);
 
 	const auth = clientAuth(basePath, fetcher);

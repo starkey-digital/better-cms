@@ -37,6 +37,11 @@ const COLLECTION_TOOLS: Record<
 	}),
 };
 
+/** Returns collection names that are not internal CMS system tables. */
+function userCollectionNames(names: string[]): string[] {
+	return names.filter((n) => !n.startsWith('cms_'));
+}
+
 export async function startMcpServer(opts: McpServerOpts = {}): Promise<void> {
 	const cwd = opts.cwd ?? process.cwd();
 	const { config } = await loadConfig(cwd, opts.configPath);
@@ -44,7 +49,7 @@ export async function startMcpServer(opts: McpServerOpts = {}): Promise<void> {
 	const adapter = config.adapter;
 	if (adapter.init) await adapter.init(schema);
 
-	const collections = Object.keys(schema.collections);
+	const collections = userCollectionNames(Object.keys(schema.collections));
 
 	const server = new Server(
 		{ name: 'better-cms', version: '0.0.0' },
@@ -154,7 +159,9 @@ export async function startMcpServer(opts: McpServerOpts = {}): Promise<void> {
 			if (name === 'cms_schema') {
 				return textResult(
 					Object.fromEntries(
-						Object.entries(schema.collections).map(([c, d]) => [c, collectionToJsonSchema(d)]),
+						Object.entries(schema.collections)
+							.filter(([c]) => !c.startsWith('cms_'))
+							.map(([c, d]) => [c, collectionToJsonSchema(d)]),
 					),
 				);
 			}

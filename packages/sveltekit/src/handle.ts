@@ -1,8 +1,9 @@
 import type { CmsConfig, CollectionsRecord, CreateCmsOpts } from '@better-cms/core';
 import type { Handle } from '@sveltejs/kit';
-import { _cmsConfigOf, type Cms } from './api.js';
+import { type Cms, _cmsConfigOf, isCmsInstance } from './api.js';
 import { withRequest } from './request-context.js';
 import { cms as resolveCms } from './server.js';
+import { normalizeBasePath } from './utils.js';
 
 /**
  * SvelteKit hook — wraps every request in an AsyncLocalStorage scope so
@@ -22,7 +23,7 @@ export function cmsHandle<C extends CollectionsRecord, Ctx = unknown>(
 	opts?: CreateCmsOpts,
 ): Handle {
 	const config = isCmsInstance(cmsOrConfig) ? _cmsConfigOf(cmsOrConfig) : cmsOrConfig;
-	const basePath = (config.basePath ?? '/api/cms').replace(/\/$/, '');
+	const basePath = normalizeBasePath(config.basePath);
 	const handle: Handle = ({ event, resolve }) =>
 		withRequest({ request: event.request, fetch: event.fetch }, async () => {
 			const url = new URL(event.request.url);
@@ -33,10 +34,4 @@ export function cmsHandle<C extends CollectionsRecord, Ctx = unknown>(
 			return resolve(event);
 		}) as Promise<Response>;
 	return handle;
-}
-
-function isCmsInstance<C extends CollectionsRecord, Ctx>(
-	x: Cms<C, Ctx> | CmsConfig<C, Ctx>,
-): x is Cms<C, Ctx> {
-	return '__config' in (x as object);
 }

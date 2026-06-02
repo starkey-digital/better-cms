@@ -8,7 +8,7 @@ import {
 } from '@better-cms/core';
 import { z } from 'zod';
 import type { CollectionRef } from './registry.js';
-import { zodToFields } from './walker.js';
+import { SYSTEM_FIELDS, type SystemField, type ZodLike, zodToFields } from './walker.js';
 
 /**
  * Builder exposed inside `createCms({ collections: ({collection, singleton}) => ({...}) })`.
@@ -58,14 +58,11 @@ interface CollectionOpts<S extends z.ZodObject> {
 	timestamps?: boolean;
 }
 
-const SYSTEM = ['id', 'createdAt', 'updatedAt'] as const;
-
 function buildSchemas(schema: z.ZodObject) {
-	const shape = (schema as unknown as { _zod: { def: { shape: Record<string, z.ZodType> } } })._zod
-		.def.shape;
+	const shape = (schema as unknown as ZodLike)._zod.def.shape as Record<string, z.ZodType>;
 	const createShape: Record<string, z.ZodType> = {};
 	for (const [k, v] of Object.entries(shape)) {
-		if (!SYSTEM.includes(k as (typeof SYSTEM)[number])) createShape[k] = v;
+		if (!SYSTEM_FIELDS.includes(k as SystemField)) createShape[k] = v;
 	}
 	const create = z.object(createShape);
 	const update = create.partial().extend({ id: z.string() });

@@ -2,11 +2,11 @@ import type { FieldDef, FieldsRecord } from '@better-cms/core';
 import type { z } from 'zod';
 import { type BcmsFieldMeta, bcmsRegistry } from './registry.js';
 
-interface ZodLike {
+export interface ZodLike {
 	_zod: { def: ZodDef };
 }
 
-interface ZodDef {
+export interface ZodDef {
 	type: string;
 	innerType?: ZodLike;
 	defaultValue?: unknown;
@@ -16,6 +16,10 @@ interface ZodDef {
 	format?: string;
 	checks?: Array<{ _zod?: { def?: { format?: string; check?: string } } }>;
 }
+
+/** System fields automatically injected into every collection. */
+export const SYSTEM_FIELDS = ['id', 'createdAt', 'updatedAt'] as const;
+export type SystemField = (typeof SYSTEM_FIELDS)[number];
 
 const SYSTEM_DEFAULTS: FieldsRecord = {
 	id: { kind: 'text', storage: 'column', columnType: 'text', scalarType: 'string' },

@@ -1,4 +1,5 @@
 import {
+	SINGLETON_ID,
 	applyOps,
 	clientCmsConfig as coreClientCmsConfig,
 	detectSlugField,
@@ -18,12 +19,10 @@ import type {
 	RowOf,
 	SchemaIR,
 } from '@better-cms/core';
-import { _builder, _resolveRelations, type CmsBuilder } from '@better-cms/zod';
+import { type CmsBuilder, _builder, _resolveRelations } from '@better-cms/zod';
 import type { CollectionApi, SingletonApi } from './api-client.js';
 import { getCurrentRequest } from './request-context.js';
 import { cms as resolveCms } from './server.js';
-
-const SINGLETON_ID = 'default';
 
 /**
  * Server-side auth API. Reads the active SvelteKit request via the
@@ -100,9 +99,22 @@ export function _cmsConfigOf<C extends CollectionsRecord, Ctx>(
 ): CmsConfig<C, Ctx> {
 	const cfg = (cms as unknown as { __config?: CmsConfig<C, Ctx> }).__config;
 	if (!cfg) {
-		throw new Error('[better-cms] cms instance is missing its config — was it created via createCms()?');
+		throw new Error(
+			'[better-cms] cms instance is missing its config — was it created via createCms()?',
+		);
 	}
 	return cfg;
+}
+
+/**
+ * Type guard — true when the argument is a `Cms` runtime instance (created via
+ * `createCms`), false when it is a raw `CmsConfig`. The `__config` sentinel is
+ * set as a non-enumerable property by `createCms`.
+ */
+export function isCmsInstance<C extends CollectionsRecord, Ctx>(
+	x: Cms<C, Ctx> | CmsConfig<C, Ctx>,
+): x is Cms<C, Ctx> {
+	return '__config' in (x as object);
 }
 
 /**
@@ -114,8 +126,8 @@ export function _cmsConfigOf<C extends CollectionsRecord, Ctx>(
 export function clientCmsConfig<C extends CollectionsRecord, Ctx = unknown>(
 	cmsOrConfig: Cms<C, Ctx> | CmsConfig<C, Ctx>,
 ): ClientCmsConfig<C, Ctx> {
-	const config = '__config' in (cmsOrConfig as object)
-		? _cmsConfigOf(cmsOrConfig as Cms<C, Ctx>)
+	const config = isCmsInstance(cmsOrConfig)
+		? _cmsConfigOf(cmsOrConfig)
 		: (cmsOrConfig as CmsConfig<C, Ctx>);
 	return coreClientCmsConfig<C, Ctx>(config);
 }

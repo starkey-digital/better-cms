@@ -10,7 +10,7 @@ import type {
 	InferRows,
 	SchemaIR,
 } from '@better-cms/core';
-import { createCMS } from '@better-cms/core';
+import { SINGLETON_ID, createCMS } from '@better-cms/core';
 import { __registerSsrFetchProvider } from './api-client.js';
 import { getCurrentFetch } from './request-context.js';
 
@@ -69,8 +69,6 @@ export interface ServerApi<C extends CollectionsRecord> {
 	count<K extends keyof C>(collection: K, where?: Record<string, unknown>): Promise<number>;
 	getSingleton<K extends keyof C>(name: K): Promise<InferRows<SchemaIR<C>>[K] | null>;
 }
-
-const SINGLETON_ID = 'default';
 
 export function serverApi<C extends CollectionsRecord>(ctx: CmsContext<C>): ServerApi<C> {
 	return {
