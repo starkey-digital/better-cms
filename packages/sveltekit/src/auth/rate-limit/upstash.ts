@@ -6,6 +6,11 @@ export interface UpstashOpts {
 	prefix?: string;
 }
 
+// Lua: INCR key, PEXPIRE only on first increment (count==1), return {count, pttl}.
+// Prevents concurrent first-requests from sliding the window.
+const INCR_SCRIPT =
+	'local c=redis.call("INCR",KEYS[1]) if c==1 then redis.call("PEXPIRE",KEYS[1],ARGV[1]) end return {c,redis.call("PTTL",KEYS[1])}';
+
 export function upstashStore(opts: UpstashOpts): RateLimitStore {
 	const prefix = opts.prefix ?? 'bcms:rl:';
 	const headers = {
@@ -27,16 +32,10 @@ export function upstashStore(opts: UpstashOpts): RateLimitStore {
 	return {
 		async incr(key, windowSec) {
 			const k = prefix + key;
-			const [count, pttl] = (await exec([
-				['INCR', k],
-				['PTTL', k],
-			])) as [number, number];
-			let ttl = pttl;
-			if (count === 1 || pttl < 0) {
-				await exec([['PEXPIRE', k, String(windowSec * 1000)]]);
-				ttl = windowSec * 1000;
-			}
-			return { count, resetAt: Date.now() + ttl } satisfies RateLimitHit;
+			const [[count, pttl]] = (await exec([
+				['EVAL', INCR_SCRIPT, '1', k, String(windowSec * 1000)],
+			])) as [[number, number]];
+			return { count, resetAt: Date.now() + pttl } satisfies RateLimitHit;
 		},
 		async reset(key) {
 			await exec([['DEL', prefix + key]]);

@@ -1,4 +1,4 @@
-const enc = new TextEncoder();
+export const enc = new TextEncoder();
 
 export function b64urlEncode(bytes: Uint8Array): string {
 	let bin = '';
@@ -65,8 +65,13 @@ export async function hmacVerify(
 	payload: string,
 	signature: Uint8Array,
 ): Promise<boolean> {
-	const expected = await hmacSign(secret, payload);
-	return timingSafeEqual(expected, signature);
+	const key = await hmacKey(secret);
+	return crypto.subtle.verify(
+		'HMAC',
+		key,
+		signature as BufferSource,
+		enc.encode(payload) as BufferSource,
+	);
 }
 
 const hmacKeyCache = new Map<string, Promise<CryptoKey>>();
