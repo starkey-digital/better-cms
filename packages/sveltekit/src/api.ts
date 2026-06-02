@@ -158,6 +158,11 @@ function serverAuth<Ctx>(config: CmsConfig<any, Ctx>): ServerAuthApi<Ctx> {
 // commands in one request paid that cost N times. Cache by request reference.
 const ctxByRequest = new WeakMap<Request, unknown>();
 
+// Returns undefined for two distinct cases — both meaning "no auth context":
+//   1. No auth configured (config.auth absent).
+//   2. Not inside an active request scope (getCurrentRequest() returns null).
+// Callers treat both identically, so the dual meaning is intentional. The
+// has()/get() pair still distinguishes a legitimately-cached null ctx.
 async function resolveCtx<Ctx>(config: CmsConfig<any, Ctx>): Promise<Ctx | undefined> {
 	if (!config.auth) return undefined;
 	const request = getCurrentRequest();
@@ -175,18 +180,21 @@ function collectionOps<Ctx>(
 ): CollectionApi<RowOf<CollectionDef>> {
 	const slugField = detectSlugField(schema.collections[name]?.fields ?? {});
 	const def = schema.collections[name]!;
+	// Resolve once at closure-build time — resolveCms is memoized, so this just
+	// captures the same Promise without repeating the lookup on every op call.
+	const instP = resolveCms(config);
 	return {
 		schemas: def.schemas,
 		async list(opts) {
-			const inst = await resolveCms(config);
+			const inst = await instP;
 			return inst.context.store.findMany(name, opts) as Promise<RowOf<CollectionDef>[]>;
 		},
 		async find(id) {
-			const inst = await resolveCms(config);
+			const inst = await instP;
 			return inst.context.store.findOne(name, { id }) as Promise<RowOf<CollectionDef> | null>;
 		},
 		async get(idOrSlug) {
-			const inst = await resolveCms(config);
+			const inst = await instP;
 			const byId = (await inst.context.store.findOne(name, {
 				id: idOrSlug,
 			})) as RowOf<CollectionDef> | null;
@@ -201,11 +209,11 @@ function collectionOps<Ctx>(
 			return null;
 		},
 		async count(where) {
-			const inst = await resolveCms(config);
+			const inst = await instP;
 			return inst.context.store.count(name, where);
 		},
 		async create(data) {
-			const res = await runOp(config, schema, {
+			const res = await runOp(config, schema, instP, {
 				op: 'create',
 				collection: name,
 				data: data as Record<string, unknown>,
@@ -213,7 +221,7 @@ function collectionOps<Ctx>(
 			return res.row as RowOf<CollectionDef>;
 		},
 		async update(id, data) {
-			const res = await runOp(config, schema, {
+			const res = await runOp(config, schema, instP, {
 				op: 'set',
 				collection: name,
 				id,
@@ -222,7 +230,7 @@ function collectionOps<Ctx>(
 			return res.row as RowOf<CollectionDef>;
 		},
 		async delete(id) {
-			await runOp(config, schema, { op: 'remove', collection: name, id });
+			await runOp(config, schema, instP, { op: 'remove', collection: name, id });
 		},
 	};
 }
@@ -230,10 +238,10 @@ function collectionOps<Ctx>(
 async function runOp<Ctx>(
 	config: CmsConfig<any, Ctx>,
 	schema: SchemaIR,
+	instP: Promise<CmsInstance>,
 	op: CmsOp,
 ): Promise<OpResult> {
-	const inst = await resolveCms(config);
-	const ctx = await resolveCtx(config);
+	const [inst, ctx] = await Promise.all([instP, resolveCtx(config)]);
 	const [res] = await applyOps([op], { store: inst.context.store, schema, config, ctx });
 	if (!res?.ok) throw new Error(res?.error?.message ?? `${op.collection}.${op.op} failed`);
 	await publishLive(inst, res);
@@ -255,15 +263,17 @@ function singletonOps<Ctx>(
 	schema: SchemaIR,
 	name: string,
 ): SingletonApi<RowOf<CollectionDef>> {
+	// Resolve once at closure-build time — same memoized Promise reused across calls.
+	const instP = resolveCms(config);
 	return {
 		async get() {
-			const inst = await resolveCms(config);
+			const inst = await instP;
 			return inst.context.store.findOne(name, {
 				id: SINGLETON_ID,
 			}) as Promise<RowOf<CollectionDef> | null>;
 		},
 		async set(data) {
-			const inst = await resolveCms(config);
+			const inst = await instP;
 			const existing = await inst.context.store.findOne(name, { id: SINGLETON_ID });
 			const op: CmsOp = existing
 				? { op: 'set', collection: name, id: SINGLETON_ID, data: data as Record<string, unknown> }
@@ -272,7 +282,7 @@ function singletonOps<Ctx>(
 						collection: name,
 						data: { ...(data as Record<string, unknown>), id: SINGLETON_ID },
 					};
-			const res = await runOp(config, schema, op);
+			const res = await runOp(config, schema, instP, op);
 			return res.row as RowOf<CollectionDef>;
 		},
 	};

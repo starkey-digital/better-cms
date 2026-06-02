@@ -55,6 +55,12 @@ export function _resetCms(): void {
 	_instance = null;
 }
 
+/**
+ * @deprecated Use the `Cms` instance returned by `createCms()` instead
+ * (`cms.posts.list()`, `cms.posts.find()`, etc.). `ServerApi` duplicates those
+ * methods and bypasses the op pipeline (access checks, hooks, live broadcast).
+ * It will be removed in a future major version.
+ */
 export interface ServerApi<C extends CollectionsRecord> {
 	find<K extends keyof C>(collection: K, id: string): Promise<InferRows<SchemaIR<C>>[K] | null>;
 	list<K extends keyof C>(
@@ -70,6 +76,10 @@ export interface ServerApi<C extends CollectionsRecord> {
 	getSingleton<K extends keyof C>(name: K): Promise<InferRows<SchemaIR<C>>[K] | null>;
 }
 
+/**
+ * @deprecated Use the `Cms` instance returned by `createCms()` instead.
+ * @see {@link ServerApi}
+ */
 export function serverApi<C extends CollectionsRecord>(ctx: CmsContext<C>): ServerApi<C> {
 	return {
 		find: (c, id) => ctx.store.findOne(c as string, { id }) as Promise<never>,
