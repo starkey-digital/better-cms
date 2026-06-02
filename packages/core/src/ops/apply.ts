@@ -40,13 +40,9 @@ export async function applyOp(op: CmsOp, deps: ApplyDeps): Promise<OpResult> {
 			throw errors.notFound(`${op.collection}#${op.id}`);
 		}
 
-		const allowed = await checkAccess(
-			deps.config,
-			op.collection,
-			verb,
-			deps.ctx,
-			prev ? deserializeRow(def, prev) : undefined,
-		);
+		const prevDeserialized = prev ? deserializeRow(def, prev) : undefined;
+
+		const allowed = await checkAccess(deps.config, op.collection, verb, deps.ctx, prevDeserialized);
 		if (!allowed) throw errors.forbidden(`${op.collection}.${verb} denied`);
 
 		const now = Date.now();
@@ -55,7 +51,7 @@ export async function applyOp(op: CmsOp, deps: ApplyDeps): Promise<OpResult> {
 			collection: op.collection,
 			verb,
 			id: op.id,
-			prev: prev ? deserializeRow(def, prev) : undefined,
+			prev: prevDeserialized,
 		};
 
 		if (op.op === 'create') {
@@ -200,6 +196,7 @@ function applyJsonOp(
 	}
 	if (op.op === 'move') {
 		const arr = ((getIn(out, segs) as unknown[] | undefined) ?? []).slice();
+		if (op.from < 0 || op.from >= arr.length) return out;
 		const [item] = arr.splice(op.from, 1);
 		arr.splice(op.to, 0, item);
 		return setIn(out, segs, arr);

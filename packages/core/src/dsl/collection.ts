@@ -35,6 +35,12 @@ const PASSTHROUGH: StandardSchemaV1<Record<string, unknown>, Record<string, unkn
 	},
 };
 
+const PASSTHROUGH_SCHEMAS: CollectionSchemas = {
+	create: PASSTHROUGH,
+	update: PASSTHROUGH,
+	full: PASSTHROUGH,
+};
+
 /**
  * Low-level collection primitive. Schema-first builders (e.g. `@better-cms/zod`)
  * call this internally after their walker emits IR fields and their
@@ -45,22 +51,18 @@ const PASSTHROUGH: StandardSchemaV1<Record<string, unknown>, Record<string, unkn
 export function _collection<F extends FieldsRecord, K extends 'collection' | 'singleton'>(
 	opts: CollectionOpts<F, K>,
 ): CollectionDef<F, K> {
-	const validation = opts.validation;
-	const schemas: CollectionSchemas = {
-		create: (validation?.create as CollectionSchemas['create']) ?? PASSTHROUGH,
-		update: (validation?.update as CollectionSchemas['update']) ?? PASSTHROUGH,
-		full: (validation?.full as CollectionSchemas['full']) ?? PASSTHROUGH,
-	};
+	const { validation } = opts;
+	const schemas: CollectionSchemas =
+		validation?.create || validation?.update || validation?.full
+			? {
+					create: (validation.create as CollectionSchemas['create']) ?? PASSTHROUGH,
+					update: (validation.update as CollectionSchemas['update']) ?? PASSTHROUGH,
+					full: (validation.full as CollectionSchemas['full']) ?? PASSTHROUGH,
+				}
+			: PASSTHROUGH_SCHEMAS;
 	return {
-		kind: opts.kind,
-		tableName: opts.tableName,
-		fields: opts.fields,
-		indexes: opts.indexes,
-		hooks: opts.hooks,
-		access: opts.access,
+		...opts,
 		timestamps: opts.timestamps ?? true,
-		validation,
 		schemas,
-		toJsonSchema: opts.toJsonSchema,
 	} as CollectionDef<F, K>;
 }
