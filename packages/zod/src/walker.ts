@@ -70,11 +70,23 @@ function zodToField(schema: z.ZodType): FieldDef {
 		} else if (def.type === 'nonoptional') {
 			required = true;
 			inner = def.innerType!;
+		} else if (def.type === 'catch') {
+			// z.catch() provides a fallback value — treat as having a default (not required)
+			defaultValue =
+				typeof def.defaultValue === 'function'
+					? (def.defaultValue as () => unknown)()
+					: def.defaultValue;
+			required = false;
+			inner = def.innerType!;
+		} else if (def.type === 'readonly') {
+			inner = def.innerType!;
 		} else {
 			break;
 		}
 	}
 
+	// First lookup covers the outermost schema (e.g. registered before .optional());
+	// second covers the unwrapped inner (e.g. registered on the base type itself).
 	const meta = readMeta(schema as unknown as ZodLike) ?? readMeta(inner);
 	const innerDef = inner._zod.def;
 	const base: Partial<FieldDef> = { required };
@@ -96,7 +108,8 @@ function zodToField(schema: z.ZodType): FieldDef {
 			relation: {
 				target: meta.relation.target as unknown as string,
 				many,
-				onDelete: meta.relation.onDelete ?? 'set null',
+				// onDelete is always set by relation() in helpers.ts; no fallback needed here.
+				onDelete: meta.relation.onDelete,
 			},
 			editor: { component: 'RelationField', props: { many } },
 		};
@@ -239,19 +252,7 @@ function zodToField(schema: z.ZodType): FieldDef {
 				editor: { component: 'ObjectField' },
 			};
 		}
-		case 'unknown':
-		case 'any':
-		case 'union':
-		case 'discriminated_union':
-		case 'intersection':
-		case 'transform':
-		case 'pipe':
-		case 'lazy':
-		case 'record':
-		case 'map':
-		case 'set':
-		case 'tuple':
-		case 'literal':
+		default:
 			return {
 				...base,
 				kind: 'json',
@@ -260,14 +261,6 @@ function zodToField(schema: z.ZodType): FieldDef {
 				editor: { component: 'JsonField' },
 			};
 	}
-
-	return {
-		...base,
-		kind: 'json',
-		storage: 'json',
-		columnType: 'text',
-		editor: { component: 'JsonField' },
-	};
 }
 
 function readMeta(s: ZodLike): BcmsFieldMeta | undefined {
