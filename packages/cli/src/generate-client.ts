@@ -1,7 +1,7 @@
 import { dirname, relative } from 'node:path';
 import { detectSlugField } from '@better-cms/core';
 import type { CmsConfig, CollectionDef, SchemaIR } from '@better-cms/core';
-import { pascalCase, tsFields } from './ts-emit.js';
+import { emitInterface, pascalCase } from './ts-emit.js';
 
 export interface GenerateClientOpts {
 	/**
@@ -46,7 +46,7 @@ export function generateClient(
 	for (const [name, def] of Object.entries(collections)) {
 		if (name.startsWith('cms_')) continue;
 		const typeName = pascalCase(name);
-		interfaces.push(`export interface ${typeName} {\n${tsFields(def, '\t')}\n}`);
+		interfaces.push(emitInterface(name, def));
 		const apiKind =
 			def.kind === 'singleton' ? `SingletonApi<${typeName}>` : `CollectionApi<${typeName}>`;
 		cmsLines.push(`\t${name}: ${apiKind};`);
@@ -137,4 +137,3 @@ function stripRuntime(key: string, value: unknown): unknown {
 		return undefined;
 	return value;
 }
-

@@ -1,5 +1,4 @@
 import { pbkdf2 as pbkdf2Cb, randomBytes } from 'node:crypto';
-import { createInterface } from 'node:readline';
 import { promisify } from 'node:util';
 
 const pbkdf2 = promisify(pbkdf2Cb);
@@ -14,11 +13,11 @@ const BACKSPACE = '';
 const BS = '';
 
 function b64url(buf: Buffer): string {
-	return buf.toString('base64').replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
+	return buf.toString('base64url');
 }
 
 export async function hashPasswordCli(input?: string): Promise<string> {
-	const password = input ?? (await prompt('Password: ', true));
+	const password = input ?? (await prompt('Password: '));
 	if (!password || password.length < 8) {
 		throw new Error('password must be ≥8 characters');
 	}
@@ -31,16 +30,8 @@ export function genSecret(bytes = 32): string {
 	return randomBytes(bytes).toString('hex');
 }
 
-function prompt(question: string, masked: boolean): Promise<string> {
+function prompt(question: string): Promise<string> {
 	return new Promise((resolve) => {
-		const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true });
-		if (!masked) {
-			rl.question(question, (answer) => {
-				rl.close();
-				resolve(answer);
-			});
-			return;
-		}
 		const stdin = process.stdin as NodeJS.ReadStream & { isTTY?: boolean };
 		const out = process.stdout;
 		out.write(question);
@@ -50,7 +41,6 @@ function prompt(question: string, masked: boolean): Promise<string> {
 			stdin.setRawMode?.(false);
 			stdin.pause();
 			out.write('\n');
-			rl.close();
 		};
 		const onData = (ch: Buffer): void => {
 			const c = ch.toString();

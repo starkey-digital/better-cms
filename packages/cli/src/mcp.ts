@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { applyOps, collectionToJsonSchema, getCmsTables } from '@better-cms/core';
 import type { CmsOp } from '@better-cms/core';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -9,6 +10,12 @@ import {
 	ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { loadConfig } from './load-config.js';
+
+const PKG_VERSION = (
+	JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
+		version: string;
+	}
+).version;
 
 export interface McpServerOpts {
 	cwd?: string;
@@ -47,7 +54,7 @@ export async function startMcpServer(opts: McpServerOpts = {}): Promise<void> {
 	const collections = Object.keys(schema.collections);
 
 	const server = new Server(
-		{ name: 'better-cms', version: '0.0.0' },
+		{ name: 'better-cms', version: PKG_VERSION },
 		{ capabilities: { tools: {}, resources: {} } },
 	);
 
