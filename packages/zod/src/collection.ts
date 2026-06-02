@@ -73,6 +73,27 @@ function buildSchemas(schema: z.ZodObject) {
 	return { create, update, full };
 }
 
+function _buildDef<K extends 'collection' | 'singleton'>(
+	kind: K,
+	opts: CollectionOpts<z.ZodObject> & { indexes?: CollectionIndexIR[] },
+): CollectionDef<Record<string, FieldDef>, K> & { __schema?: z.ZodObject } {
+	const { create, update, full } = buildSchemas(opts.schema);
+	const def = _collection({
+		kind,
+		tableName: opts.tableName,
+		fields: zodToFields(opts.schema),
+		// indexes only applies to collections; singletons pass undefined
+		indexes: opts.indexes,
+		hooks: opts.hooks,
+		access: opts.access,
+		timestamps: opts.timestamps ?? true,
+		validation: { create, update, full },
+		toJsonSchema: () => z.toJSONSchema(opts.schema),
+	}) as CollectionDef<Record<string, FieldDef>, K> & { __schema?: z.ZodObject };
+	def.__schema = opts.schema;
+	return def;
+}
+
 /**
  * Schema-first collection builder. Walker emits the IR `fields`, while the
  * runtime `schemas.{create,update,full}` use zod's native `.omit/.partial`
@@ -87,42 +108,24 @@ function buildSchemas(schema: z.ZodObject) {
 export function collection<S extends z.ZodObject>(
 	opts: CollectionOpts<S>,
 ): CollectionDef<Record<string, FieldDef>, 'collection'> & { __schema?: S } {
-	const { create, update, full } = buildSchemas(opts.schema);
-	const def = _collection({
-		kind: 'collection',
-		tableName: opts.tableName,
-		fields: zodToFields(opts.schema),
-		indexes: opts.indexes,
-		hooks: opts.hooks,
-		access: opts.access,
-		timestamps: opts.timestamps ?? true,
-		validation: { create, update, full },
-		toJsonSchema: () => z.toJSONSchema(opts.schema),
-	}) as CollectionDef<Record<string, FieldDef>, 'collection'> & { __schema?: S };
-	(def as { __schema?: S }).__schema = opts.schema;
-	return def;
+	return _buildDef('collection', opts as CollectionOpts<z.ZodObject>) as CollectionDef<
+		Record<string, FieldDef>,
+		'collection'
+	> & { __schema?: S };
 }
 
 /**
  * Schema-first singleton builder. Same as `collection()` but `kind: 'singleton'`.
  * Singletons are stored as a single row keyed `id: 'default'`.
+ * Note: singletons do not use indexes (the single row is keyed by fixed id 'default').
  */
 export function singleton<S extends z.ZodObject>(
 	opts: CollectionOpts<S>,
 ): CollectionDef<Record<string, FieldDef>, 'singleton'> & { __schema?: S } {
-	const { create, update, full } = buildSchemas(opts.schema);
-	const def = _collection({
-		kind: 'singleton',
-		tableName: opts.tableName,
-		fields: zodToFields(opts.schema),
-		hooks: opts.hooks,
-		access: opts.access,
-		timestamps: opts.timestamps ?? true,
-		validation: { create, update, full },
-		toJsonSchema: () => z.toJSONSchema(opts.schema),
-	}) as CollectionDef<Record<string, FieldDef>, 'singleton'> & { __schema?: S };
-	(def as { __schema?: S }).__schema = opts.schema;
-	return def;
+	return _buildDef('singleton', opts as CollectionOpts<z.ZodObject>) as CollectionDef<
+		Record<string, FieldDef>,
+		'singleton'
+	> & { __schema?: S };
 }
 
 /**
