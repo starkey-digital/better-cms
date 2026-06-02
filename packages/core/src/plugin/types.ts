@@ -16,8 +16,4 @@ export interface CmsPlugin {
 	schema?: PluginSchemaIR;
 	endpoints?: PluginEndpoint[];
 	init?: (ctx: CmsContext) => void | Promise<void>;
-	hooks?: {
-		beforeWrite?: (collection: string, data: Record<string, unknown>, ctx: CmsContext) => unknown;
-		afterWrite?: (collection: string, data: Record<string, unknown>, ctx: CmsContext) => unknown;
-	};
 }

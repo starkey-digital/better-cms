@@ -1,10 +1,11 @@
 /**
- * URL-safe id. Uses crypto.randomUUID when available, otherwise random base36.
+ * URL-safe id. Uses crypto.randomUUID when available, otherwise CSPRNG bytes serialized to hex.
  */
 export function generateId(prefix?: string): string {
-	const id =
-		typeof crypto !== 'undefined' && 'randomUUID' in crypto
-			? crypto.randomUUID().replace(/-/g, '')
-			: Math.random().toString(36).slice(2) + Date.now().toString(36);
+	const id = globalThis.crypto?.randomUUID
+		? globalThis.crypto.randomUUID().replace(/-/g, '')
+		: Array.from(globalThis.crypto.getRandomValues(new Uint8Array(16)))
+				.map((b) => b.toString(16).padStart(2, '0'))
+				.join('');
 	return prefix ? `${prefix}_${id}` : id;
 }

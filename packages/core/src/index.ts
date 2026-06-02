@@ -29,7 +29,7 @@ export * from './ops/index.js';
 export { opToEventType, type LiveEventType } from './ops/types.js';
 export * from './handler/index.js';
 export type { CmsMeta, CmsMetaCollection, CmsMetaField } from './handler/handler.js';
-export * from './plugin/index.js';
+export * from './plugin/types.js';
 export * from './auth/types.js';
 export { generateId } from './util/id.js';
 export { slugify, detectSlugField } from './util/slug.js';

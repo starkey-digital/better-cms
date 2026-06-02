@@ -26,6 +26,11 @@ export interface MediaListPage {
  * Blob storage adapter. S3-compatible by default but interface is bucket-agnostic.
  */
 export interface MediaStore {
+	/**
+	 * Upload a media object. Adapters may reject body shapes they do not support
+	 * (e.g. an S3 adapter may not accept ReadableStream on all runtimes) — callers
+	 * should prefer Blob or Uint8Array for broadest compatibility.
+	 */
 	put(
 		body: Blob | ArrayBuffer | Uint8Array | ReadableStream<Uint8Array>,
 		opts?: MediaPutOpts,
