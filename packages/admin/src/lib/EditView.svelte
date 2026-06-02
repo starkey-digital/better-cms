@@ -1,3 +1,7 @@
+<script lang="ts" module>
+const SKELETON_ROWS = Array.from({ length: 4 }, (_, i) => i);
+</script>
+
 <script lang="ts">
 import type { CmsMetaCollection } from '@better-cms/sveltekit';
 import { onMount } from 'svelte';
@@ -109,15 +113,15 @@ async function remove() {
 	}
 }
 
-function pageTitle(): string {
+const pageTitle = $derived.by(() => {
 	if (mode === 'singleton') return name;
-	if (mode === 'new') return `New ${name.replace(/s$/, '') || name}`;
+	if (mode === 'new') return `New ${name}`;
 	if (editing) {
 		const t = editing.title ?? editing.name ?? editing.slug;
 		if (typeof t === 'string' && t) return t;
 	}
 	return id ?? 'Edit';
-}
+});
 
 const fieldEntries = $derived(
 	Object.entries(def.fields).filter(([k]) => k !== 'id' && k !== 'createdAt' && k !== 'updatedAt'),
@@ -135,7 +139,7 @@ const fieldEntries = $derived(
 			<small class="bcms-crumb">
 				{name}{#if mode === 'new'} / new{:else if mode === 'edit'} / {id}{/if}
 			</small>
-			<h2>{pageTitle()}</h2>
+			<h2>{pageTitle}</h2>
 		</div>
 	</div>
 	<div class="bcms-actions">
@@ -167,7 +171,7 @@ const fieldEntries = $derived(
 
 {#if loading}
 	<div class="bcms-form-skel">
-		{#each Array(4) as _, i (i)}
+		{#each SKELETON_ROWS as i (i)}
 			<div class="bcms-skel-row" style="height: 64px"></div>
 		{/each}
 	</div>

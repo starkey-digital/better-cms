@@ -53,16 +53,17 @@ const route: Route = $derived.by(() => {
 
 const entries = $derived(meta ? Object.entries(meta.collections) : []);
 const activeName = $derived(route.kind === 'home' ? null : route.name);
+const activeDef = $derived(route.kind !== 'home' ? meta?.collections[route.name] : undefined);
 
 function navigate(path: string, replace = false) {
 	if (typeof location === 'undefined') return;
 	const h = `#/${path.replace(/^\/+/, '')}`;
 	if (replace) {
 		history.replaceState(null, '', `${location.pathname}${location.search}${h}`);
-		hash = h;
 	} else {
 		location.hash = h;
 	}
+	hash = h;
 }
 
 async function checkAuth() {
@@ -86,10 +87,6 @@ async function loadMeta() {
 async function logout() {
 	await client.auth.logout();
 	ctx = null;
-}
-
-function selectFromSidebar(name: string) {
-	navigate(name);
 }
 
 onMount(() => {
@@ -117,7 +114,7 @@ onMount(() => {
 	<LoginScreen
 		{client}
 		{turnstileSiteKey}
-		onLogin={() => {
+		onlogin={() => {
 			void (async () => {
 				await checkAuth();
 				if (!ctx) return;
@@ -143,7 +140,7 @@ onMount(() => {
 					<button
 						type="button"
 						class:active={activeName === name}
-						onclick={() => selectFromSidebar(name)}
+						onclick={() => navigate(name)}
 					>
 						<span class="bcms-nav-name">{name}</span>
 						<small>{d.kind === 'singleton' ? 'single' : 'list'}</small>
@@ -166,58 +163,46 @@ onMount(() => {
 					<h2>No collections</h2>
 					<p>Define a collection in your CMS config to get started.</p>
 				</div>
-			{:else if route.kind === 'list'}
-				{@const def = meta.collections[route.name]}
-				{#if def}
-					<ListView
-						{client}
-						name={route.name}
-						{def}
-						onnew={() => navigate(`${route.name}/new`)}
-						onpick={(id) => navigate(`${route.name}/${encodeURIComponent(id)}`)}
-					/>
-				{/if}
-			{:else if route.kind === 'new'}
-				{@const def = meta.collections[route.name]}
-				{#if def}
-					<EditView
-						{client}
-						name={route.name}
-						{def}
-						mode="new"
-						onback={() => navigate(route.name)}
-						onsaved={(id) =>
-							navigate(`${route.name}/${encodeURIComponent(id)}`, true)}
-						ondeleted={() => navigate(route.name)}
-					/>
-				{/if}
-			{:else if route.kind === 'edit'}
-				{@const def = meta.collections[route.name]}
-				{#if def}
-					<EditView
-						{client}
-						name={route.name}
-						id={route.id}
-						{def}
-						mode="edit"
-						onback={() => navigate(route.name)}
-						onsaved={() => {}}
-						ondeleted={() => navigate(route.name)}
-					/>
-				{/if}
-			{:else if route.kind === 'singleton'}
-				{@const def = meta.collections[route.name]}
-				{#if def}
-					<EditView
-						{client}
-						name={route.name}
-						{def}
-						mode="singleton"
-						onback={() => {}}
-						onsaved={() => {}}
-						ondeleted={() => {}}
-					/>
-				{/if}
+			{:else if route.kind === 'list' && activeDef}
+				<ListView
+					{client}
+					name={route.name}
+					def={activeDef}
+					onnew={() => navigate(`${route.name}/new`)}
+					onpick={(id) => navigate(`${route.name}/${encodeURIComponent(id)}`)}
+				/>
+			{:else if route.kind === 'new' && activeDef}
+				<EditView
+					{client}
+					name={route.name}
+					def={activeDef}
+					mode="new"
+					onback={() => navigate(route.name)}
+					onsaved={(id) =>
+						navigate(`${route.name}/${encodeURIComponent(id)}`, true)}
+					ondeleted={() => navigate(route.name)}
+				/>
+			{:else if route.kind === 'edit' && activeDef}
+				<EditView
+					{client}
+					name={route.name}
+					id={route.id}
+					def={activeDef}
+					mode="edit"
+					onback={() => navigate(route.name)}
+					onsaved={() => {}}
+					ondeleted={() => navigate(route.name)}
+				/>
+			{:else if route.kind === 'singleton' && activeDef}
+				<EditView
+					{client}
+					name={route.name}
+					def={activeDef}
+					mode="singleton"
+					onback={() => {}}
+					onsaved={() => {}}
+					ondeleted={() => {}}
+				/>
 			{/if}
 		</main>
 	</div>

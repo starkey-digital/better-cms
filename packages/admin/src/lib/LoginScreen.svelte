@@ -1,3 +1,8 @@
+<script lang="ts" module>
+const TURNSTILE_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+let scriptLoaded = false;
+</script>
+
 <script lang="ts">
 import { onMount } from 'svelte';
 
@@ -8,13 +13,10 @@ type Props = {
 		};
 	};
 	turnstileSiteKey?: string;
-	onLogin: () => void;
+	onlogin: () => void;
 };
 
-const { client, turnstileSiteKey, onLogin }: Props = $props();
-
-const TURNSTILE_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
-let scriptLoaded = false;
+const { client, turnstileSiteKey, onlogin }: Props = $props();
 
 function loadTurnstile() {
 	if (scriptLoaded || typeof document === 'undefined') return;
@@ -51,7 +53,7 @@ async function submit(e: SubmitEvent) {
 		const res = await client.auth.login(password, turnstileToken);
 		if ('ok' in res) {
 			password = '';
-			onLogin();
+			onlogin();
 			return;
 		}
 		error = res.error;
