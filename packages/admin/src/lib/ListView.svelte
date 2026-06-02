@@ -1,3 +1,7 @@
+<script lang="ts" module>
+const SKELETON_ROWS = Array.from({ length: 4 }, (_, i) => i);
+</script>
+
 <script lang="ts">
 import type { CmsMetaCollection } from '@better-cms/sveltekit';
 import { onMount } from 'svelte';
@@ -53,11 +57,9 @@ function rowMeta(r: Record<string, unknown>): string {
 	return id;
 }
 
-function fieldKeys(): string[] {
-	return Object.keys(def.fields).filter(
-		(k) => k !== 'id' && k !== 'createdAt' && k !== 'updatedAt',
-	);
-}
+const fieldKeys = $derived(
+	Object.keys(def.fields).filter((k) => k !== 'id' && k !== 'createdAt' && k !== 'updatedAt'),
+);
 
 function badgeForBoolean(v: unknown): { label: string; tone: 'on' | 'off' } | null {
 	if (v === true) return { label: 'yes', tone: 'on' };
@@ -80,7 +82,7 @@ function badgeForBoolean(v: unknown): { label: string; tone: 'on' | 'off' } | nu
 
 {#if loading}
 	<div class="bcms-list-skel">
-		{#each Array(4) as _, i (i)}
+		{#each SKELETON_ROWS as i (i)}
 			<div class="bcms-skel-row"></div>
 		{/each}
 	</div>
@@ -104,7 +106,7 @@ function badgeForBoolean(v: unknown): { label: string; tone: 'on' | 'off' } | nu
 					<small>{rowMeta(r)}</small>
 				</div>
 				<div class="bcms-row-meta">
-					{#each fieldKeys().slice(0, 3) as key (key)}
+					{#each fieldKeys.slice(0, 3) as key (key)}
 						{@const f = def.fields[key]}
 						{@const v = r[key]}
 						{#if f && f.kind === 'boolean'}
