@@ -1,5 +1,53 @@
 import type { CollectionDef, FieldDef } from '../ir/types.js';
 
+/** Per-field codec returned by {@link getFieldCodec}. */
+interface FieldCodec {
+	serialize(value: unknown): unknown;
+	deserialize(value: unknown): unknown;
+}
+
+/**
+ * Single dispatch for field-level encode/decode logic.
+ * Both serializeRow and deserializeRow use this so the two sides stay symmetric.
+ */
+export function getFieldCodec(field: FieldDef): FieldCodec {
+	if (field.storage === 'json') {
+		return {
+			serialize: (v) => (typeof v === 'string' ? v : JSON.stringify(v)),
+			deserialize: (v) => {
+				if (typeof v !== 'string') return v;
+				try {
+					return JSON.parse(v);
+				} catch {
+					return v;
+				}
+			},
+		};
+	}
+	if (field.scalarType === 'boolean') {
+		return {
+			serialize: (v) => (v ? 1 : 0),
+			deserialize: (v) => v === 1 || v === true || v === '1',
+		};
+	}
+	if (field.scalarType === 'date') {
+		return {
+			serialize: (v) => (v instanceof Date ? v.getTime() : v),
+			deserialize: (v) => {
+				// Numeric epoch (common path — preserved exactly)
+				if (typeof v === 'number') return new Date(v);
+				// ISO string surviving a JSON round-trip
+				if (typeof v === 'string' && v.length > 0) {
+					const d = new Date(v);
+					if (!Number.isNaN(d.getTime())) return d;
+				}
+				return v;
+			},
+		};
+	}
+	return { serialize: (v) => v, deserialize: (v) => v };
+}
+
 /** Serialize a row according to field storage hints. JSON fields get stringified. */
 export function serializeRow(
 	def: CollectionDef,
@@ -16,15 +64,7 @@ export function serializeRow(
 			out[name] = value;
 			continue;
 		}
-		if (field.storage === 'json') {
-			out[name] = typeof value === 'string' ? value : JSON.stringify(value);
-		} else if (field.scalarType === 'boolean') {
-			out[name] = value ? 1 : 0;
-		} else if (field.scalarType === 'date') {
-			out[name] = value instanceof Date ? value.getTime() : value;
-		} else {
-			out[name] = value;
-		}
+		out[name] = getFieldCodec(field).serialize(value);
 	}
 	return out;
 }
@@ -61,19 +101,7 @@ export function deserializeRow(
 			out[name] = value;
 			continue;
 		}
-		if (field.storage === 'json' && typeof value === 'string') {
-			try {
-				out[name] = JSON.parse(value);
-			} catch {
-				out[name] = value;
-			}
-		} else if (field.scalarType === 'boolean') {
-			out[name] = value === 1 || value === true || value === '1';
-		} else if (field.scalarType === 'date' && typeof value === 'number') {
-			out[name] = new Date(value);
-		} else {
-			out[name] = value;
-		}
+		out[name] = getFieldCodec(field).deserialize(value);
 	}
 	return out;
 }

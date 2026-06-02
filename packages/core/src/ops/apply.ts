@@ -1,13 +1,13 @@
 import type { CmsConfig } from '../config.js';
 import { checkAccess } from '../handler/access.js';
 import { runHooks } from '../handler/hooks.js';
-import type { CollectionDef, HookVerb, SchemaIR } from '../ir/types.js';
+import type { CollectionDef, SchemaIR } from '../ir/types.js';
 import type { ContentStore } from '../store/content.js';
 import { generateId } from '../util/id.js';
 import { CmsError, errors } from '../util/result.js';
 import type { StandardSchemaV1 } from '../util/standard-schema.js';
 import { deserializeRow, serializeRow } from '../util/validate.js';
-import type { CmsOp, OpResult } from './types.js';
+import { type CmsOp, type OpResult, opToEventType } from './types.js';
 
 export interface ApplyDeps {
 	store: ContentStore;
@@ -18,19 +18,13 @@ export interface ApplyDeps {
 	ctx?: unknown;
 }
 
-function opVerb(op: CmsOp): HookVerb {
-	if (op.op === 'create') return 'create';
-	if (op.op === 'remove' && !op.path) return 'delete';
-	return 'update';
-}
-
 /** Apply a single op. Validates via Standard Schema, serializes, persists. */
 export async function applyOp(op: CmsOp, deps: ApplyDeps): Promise<OpResult> {
 	try {
 		const def = deps.schema.collections[op.collection];
 		if (!def) throw errors.notFound(`collection "${op.collection}"`);
 
-		const verb = opVerb(op);
+		const verb = opToEventType(op);
 		const prev =
 			verb === 'create' || op.op === 'create'
 				? undefined
