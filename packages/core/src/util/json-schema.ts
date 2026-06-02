@@ -14,6 +14,10 @@ export interface JsonSchema {
 	pattern?: string;
 }
 
+function appendDesc(base: string | undefined, suffix: string): string {
+	return [base, suffix].filter(Boolean).join(' ').trim();
+}
+
 /**
  * Thin DSL-only JSON Schema for a single field. Carries kind + description +
  * select options. Min/max/pattern are *not* derived — those live in the
@@ -44,7 +48,7 @@ export function fieldToJsonSchema(field: FieldDef): JsonSchema {
 			return out;
 		case 'date':
 			out.type = 'string';
-			out.description = `${out.description ?? ''} (ISO 8601 timestamp)`.trim();
+			out.description = appendDesc(out.description, '(ISO 8601 timestamp)');
 			return out;
 		case 'image':
 		case 'file':
@@ -58,7 +62,7 @@ export function fieldToJsonSchema(field: FieldDef): JsonSchema {
 			return out;
 		case 'richText':
 			out.type = 'object';
-			out.description = `${out.description ?? ''} ProseMirror/Tiptap JSON document.`.trim();
+			out.description = appendDesc(out.description, 'ProseMirror/Tiptap JSON document.');
 			return out;
 		case 'array':
 			out.type = 'array';
@@ -84,9 +88,10 @@ export function fieldToJsonSchema(field: FieldDef): JsonSchema {
 				out.type = 'string';
 			}
 			if (field.relation) {
-				out.description = `${out.description ?? ''} (${
-					field.relation.many ? 'ids' : 'id'
-				} of ${field.relation.target})`.trim();
+				out.description = appendDesc(
+					out.description,
+					`(${field.relation.many ? 'ids' : 'id'} of ${field.relation.target})`,
+				);
 			}
 			return out;
 		case 'json':
@@ -108,8 +113,11 @@ export function collectionToJsonSchema(def: CollectionDef): JsonSchema {
 		try {
 			const result = def.toJsonSchema();
 			if (result && typeof result === 'object') return result as JsonSchema;
-		} catch {
-			// fall through to DSL-only
+		} catch (err) {
+			console.warn(
+				`[better-cms] toJsonSchema() failed for collection "${def.tableName ?? '(unknown)'}":`,
+				err,
+			);
 		}
 	}
 	const props: Record<string, JsonSchema> = {};

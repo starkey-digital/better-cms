@@ -24,6 +24,10 @@ export const errors = {
 	notFound: (what: string) => new CmsError(`${what} not found`, 'NOT_FOUND', 404),
 	forbidden: (msg = 'Forbidden') => new CmsError(msg, 'FORBIDDEN', 403),
 	unauthorized: (msg = 'Unauthorized') => new CmsError(msg, 'UNAUTHORIZED', 401),
+	/**
+	 * VALIDATION (400) always carries `details` — use this when field-level error context is available.
+	 * BAD_REQUEST (400) never carries `details` — use this for structural/protocol errors with no field map.
+	 */
 	validation: (msg: string, details?: Record<string, unknown>) =>
 		new CmsError(msg, 'VALIDATION', 400, details),
 	conflict: (msg: string) => new CmsError(msg, 'CONFLICT', 409),

@@ -11,9 +11,7 @@ export function slugify(input: string): string {
 }
 
 /** First field with `kind: 'slug'`, or undefined. Used by client + server `get(idOrSlug)` to fall back from id to slug lookup. */
-export function detectSlugField(
-	fields: Record<string, { kind: string } | FieldDef>,
-): string | undefined {
+export function detectSlugField(fields: Record<string, FieldDef>): string | undefined {
 	for (const [name, field] of Object.entries(fields)) {
 		if (field?.kind === 'slug') return name;
 	}
