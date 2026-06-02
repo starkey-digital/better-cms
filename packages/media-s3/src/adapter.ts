@@ -39,9 +39,14 @@ export function s3Media(opts: S3MediaOpts): MediaStore {
 	}
 	const client = opts.client ?? new S3Client(cfg);
 
+	// Precompute once so hot-path closures never repeat the replace call.
+	const baseUrl = opts.publicBaseUrl?.replace(/\/$/, '');
+	const endpointBase = opts.endpoint?.replace(/\/$/, '');
+	const defaultFolderBase = opts.defaultFolder?.replace(/\/$/, '');
+
 	function publicUrl(key: string): string {
-		if (opts.publicBaseUrl) return `${opts.publicBaseUrl.replace(/\/$/, '')}/${key}`;
-		if (opts.endpoint) return `${opts.endpoint.replace(/\/$/, '')}/${opts.bucket}/${key}`;
+		if (baseUrl) return `${baseUrl}/${key}`;
+		if (endpointBase) return `${endpointBase}/${opts.bucket}/${key}`;
 		return `https://${opts.bucket}.s3.${opts.region ?? 'us-east-1'}.amazonaws.com/${key}`;
 	}
 
@@ -51,24 +56,30 @@ export function s3Media(opts: S3MediaOpts): MediaStore {
 		mime: string,
 	): string {
 		if (givenKey) return givenKey;
-		const ext = mime.split('/')[1]?.replace(/[^a-z0-9]/gi, '') || 'bin';
-		const f = folder ?? opts.defaultFolder;
+		// Split on '+' (suffix, e.g. svg+xml) and ';' (params, e.g. charset=utf-8) so
+		// image/svg+xml -> svg and text/plain;charset=utf-8 -> plain.
+		const ext =
+			mime
+				.split('/')[1]
+				?.split(/[+;]/)[0]
+				?.replace(/[^a-z0-9-]/gi, '') || 'bin';
+		const f =
+			(folder ?? defaultFolderBase) ? (folder?.replace(/\/$/, '') ?? defaultFolderBase) : undefined;
 		const id = generateId();
-		return f ? `${f.replace(/\/$/, '')}/${id}.${ext}` : `${id}.${ext}`;
+		return f ? `${f}/${id}.${ext}` : `${id}.${ext}`;
 	}
 
 	function describeBody(body: Blob | ArrayBuffer | Uint8Array | ReadableStream<Uint8Array>): {
 		Body: Uint8Array | Blob | ReadableStream<Uint8Array>;
 		ContentLength?: number;
-		mime?: string;
 	} {
 		if (body instanceof Uint8Array) return { Body: body, ContentLength: body.byteLength };
 		if (body instanceof ArrayBuffer) {
 			const u8 = new Uint8Array(body);
 			return { Body: u8, ContentLength: u8.byteLength };
 		}
-		if (typeof Blob !== 'undefined' && body instanceof Blob) {
-			return { Body: body, ContentLength: body.size, mime: body.type || undefined };
+		if (body instanceof Blob) {
+			return { Body: body, ContentLength: body.size };
 		}
 		return { Body: body };
 	}
@@ -76,7 +87,8 @@ export function s3Media(opts: S3MediaOpts): MediaStore {
 	return {
 		async put(body, putOpts: MediaPutOpts = {}) {
 			const desc = describeBody(body);
-			const mime = putOpts.mime ?? desc.mime ?? 'application/octet-stream';
+			const blobMime = body instanceof Blob ? body.type || undefined : undefined;
+			const mime = putOpts.mime ?? blobMime ?? 'application/octet-stream';
 			const key = buildKey(putOpts.key, putOpts.folder, mime);
 			await client.send(
 				new PutObjectCommand({
