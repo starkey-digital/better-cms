@@ -1,7 +1,6 @@
 export {
 	cmsHandle,
 	cms,
-	_resetCms,
 	serverApi,
 	createCms,
 	clientCmsConfig,

@@ -14,14 +14,14 @@ import { normalizeBasePath } from './utils.js';
 export interface CollectionApi<T> {
 	list(opts?: FindManyQuery): Promise<T[]>;
 	find(id: string): Promise<T | null>;
-	/** Look up by id, falling back to the collection's slug field if it has one. Server resolves. */
+	/** Look up by id first; if not found and the collection has a slug field, falls back to slug. Server resolves id-first. */
 	get(idOrSlug: string): Promise<T | null>;
 	count(where?: WhereClause): Promise<number>;
 	create(data: Partial<T>): Promise<T>;
 	update(id: string, data: Partial<T>): Promise<T>;
 	delete(id: string): Promise<void>;
-	/** Standard Schema validators (`create` / `update` / `full`) for use with SvelteKit `command(...)` / tRPC / hono / anywhere a schema is accepted. */
-	readonly schemas: {
+	/** Standard Schema validators (`create` / `update` / `full`) for use with SvelteKit `command(...)` / tRPC / hono / anywhere a schema is accepted. Server-side only; absent on the browser client. */
+	readonly schemas?: {
 		readonly create: import('@better-cms/core').StandardSchemaV1<
 			Record<string, unknown>,
 			Record<string, unknown>

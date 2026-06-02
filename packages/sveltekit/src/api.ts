@@ -187,6 +187,10 @@ function collectionOps<Ctx>(
 		},
 		async get(idOrSlug) {
 			const inst = await resolveCms(config);
+			const byId = (await inst.context.store.findOne(name, {
+				id: idOrSlug,
+			})) as RowOf<CollectionDef> | null;
+			if (byId) return byId;
 			if (slugField) {
 				const [bySlug] = (await inst.context.store.findMany(name, {
 					where: { [slugField]: idOrSlug },
@@ -194,9 +198,7 @@ function collectionOps<Ctx>(
 				})) as RowOf<CollectionDef>[];
 				if (bySlug) return bySlug;
 			}
-			return inst.context.store.findOne(name, {
-				id: idOrSlug,
-			}) as Promise<RowOf<CollectionDef> | null>;
+			return null;
 		},
 		async count(where) {
 			const inst = await resolveCms(config);
