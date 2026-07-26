@@ -13,6 +13,7 @@
 		"format": "biome format --write .",
 		"lint": "biome lint .",
 		"bump": "bun scripts/bump-version.ts",
+		"release:check": "bun scripts/publish-all.ts --dry-run",
 		"release": "bun run --filter better-cms build && bun scripts/publish-all.ts",
 		"prepare": "husky"
 	},
