@@ -1,6 +1,6 @@
 {
 	"name": "@better-cms/auth",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"type": "module",
 	"license": "SEE LICENSE IN LICENSE",
 	"author": "Starkey Digital Ltd",
@@ -12,7 +12,9 @@
 	"description": "better-cms password auth plugin, signed-cookie sessions, rate limiting and Turnstile verification. Framework-agnostic.",
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
-	"files": ["dist"],
+	"files": [
+		"dist"
+	],
 	"exports": {
 		".": {
 			"dev-source": "./src/index.ts",

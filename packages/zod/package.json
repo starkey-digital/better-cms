@@ -1,6 +1,6 @@
 {
 	"name": "@better-cms/zod",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"type": "module",
 	"license": "SEE LICENSE IN LICENSE",
 	"author": "Starkey Digital Ltd",
@@ -12,7 +12,9 @@
 	"description": "better-cms schema-first DSL: zod-powered collection/singleton builders, walker, and helpers (richText, image, relation, …).",
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
-	"files": ["dist"],
+	"files": [
+		"dist"
+	],
 	"exports": {
 		".": {
 			"dev-source": "./src/index.ts",
