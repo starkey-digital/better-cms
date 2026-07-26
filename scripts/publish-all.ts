@@ -17,9 +17,10 @@
  * Skip packages whose current version is already on the registry, so a rerun
  * after a partial release resumes rather than throwing "version exists".
  *
- * `--dry-run` packs every package and reports the order without contacting the
- * registry to write. Worth running before tagging a release that creates new
- * packages, since a tag is otherwise the first time the credentials are tested.
+ * `--dry-run` resolves the order and packs every package via `bun pm pack`,
+ * which needs no registry credentials — so CI can run it on every PR. Note it
+ * does not exercise the `workspace:*` rewrite (only `bun publish` does that),
+ * so it validates packaging and ordering, not the published dependency ranges.
  */
 import { spawnSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -144,15 +145,24 @@ for (const [i, pkg] of order.entries()) {
 		continue;
 	}
 
-	console.log(`${step} → publishing ${pkg.name}@${pkg.version}`);
-	const args = ['publish', '--access', 'public'];
-	if (dryRun) args.push('--dry-run');
-	const res = spawnSync('bun', args, {
-		cwd: join(packagesDir, pkg.dir),
-		stdio: 'inherit',
-	});
+	console.log(`${step} → ${dryRun ? 'packing' : 'publishing'} ${pkg.name}@${pkg.version}`);
+	// `bun publish --dry-run` still authenticates, so it cannot run on PR CI.
+	// `bun pm pack` is the credential-free equivalent for packaging checks.
+	const res = dryRun
+		? spawnSync('bun', ['pm', 'pack', '--dry-run'], {
+				cwd: join(packagesDir, pkg.dir),
+				stdio: ['inherit', 'ignore', 'inherit'],
+			})
+		: spawnSync('bun', ['publish', '--access', 'public'], {
+				cwd: join(packagesDir, pkg.dir),
+				stdio: 'inherit',
+			});
 
 	if (res.status !== 0) {
+		if (dryRun) {
+			console.error(`\n✗ ${pkg.name}@${pkg.version} failed to pack`);
+			process.exit(1);
+		}
 		console.error(`\n✗ ${pkg.name}@${pkg.version} failed — aborting before anything downstream.`);
 		const done = order.slice(0, i).map((p) => p.name);
 		if (done.length > 0) {
