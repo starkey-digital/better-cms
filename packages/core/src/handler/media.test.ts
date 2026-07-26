@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 import type { CmsConfig } from '../config.js';
 import { _collection } from '../dsl/collection.js';
 import type { ContentStore, Row } from '../store/content.js';
@@ -163,5 +163,76 @@ describe('POST /media failure handling', () => {
 		const media = cms.context.media as unknown as { deleted: string[] };
 		expect((await cms.handler(upload())).status).toBe(200);
 		expect(media.deleted).toEqual([]);
+	});
+});
+
+describe('POST /media content addressing', () => {
+	/** Records the keys it is asked to write so a test can assert idempotency. */
+	function keyRecordingMedia(): MediaStore & { written: string[]; deleted: string[] } {
+		const written: string[] = [];
+		const deleted: string[] = [];
+		return {
+			written,
+			deleted,
+			async put(_body, opts): Promise<MediaObject> {
+				const key = opts?.key ?? 'unexpected-generated-key';
+				written.push(key);
+				return { key, url: `https://cdn.test/${key}`, mime: opts?.mime ?? '', size: 3 };
+			},
+			async delete(key: string) {
+				deleted.push(key);
+			},
+		} as MediaStore & { written: string[]; deleted: string[] };
+	}
+
+	test('re-uploading the same bytes reuses the key instead of stranding a copy', async () => {
+		const media = keyRecordingMedia();
+		const cms = await createCMS({
+			collections: { posts },
+			adapter: memoryStore(),
+			media,
+			mediaAccess: { upload: () => true },
+		} as unknown as CmsConfig<any, any>);
+
+		await cms.handler(upload());
+		await cms.handler(upload());
+
+		expect(media.written).toHaveLength(2);
+		expect(media.written[0]).toBe(media.written[1]!);
+		expect(media.written[0]).toMatch(/^[0-9a-f]{32}\.png$/);
+	});
+
+	test('different bytes land on different keys', async () => {
+		const media = keyRecordingMedia();
+		const cms = await createCMS({
+			collections: { posts },
+			adapter: memoryStore(),
+			media,
+			mediaAccess: { upload: () => true },
+		} as unknown as CmsConfig<any, any>);
+
+		await cms.handler(upload(new Blob(['one'], { type: 'image/png' })));
+		await cms.handler(upload(new Blob(['two'], { type: 'image/png' })));
+
+		expect(media.written[0]).not.toBe(media.written[1]!);
+	});
+
+	test('a failed insert strands one object across repeated retries, not one each', async () => {
+		const media = keyRecordingMedia();
+		// The compensating delete fails too, so nothing is cleaned up in-band.
+		media.delete = async () => {
+			throw new Error('bucket unreachable');
+		};
+		const cms = await createCMS({
+			collections: { posts },
+			adapter: memoryStore('cms_media'),
+			media,
+			mediaAccess: { upload: () => true },
+		} as unknown as CmsConfig<any, any>);
+
+		for (let i = 0; i < 3; i++) expect((await cms.handler(upload())).status).toBe(500);
+
+		// Three attempts, one distinct object left behind for `bcms media:gc`.
+		expect(new Set(media.written).size).toBe(1);
 	});
 });

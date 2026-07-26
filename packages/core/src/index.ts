@@ -33,6 +33,7 @@ export type { CmsMeta, CmsMetaCollection, CmsMetaField } from './handler/handler
 export * from './plugin/types.js';
 export * from './auth/types.js';
 export { generateId } from './util/id.js';
+export { contentKey, extensionForMime } from './util/media-key.js';
 export { slugify, detectSlugField } from './util/slug.js';
 export { CmsError, errors, ok, err, type Result } from './util/result.js';
 export { serializeRow, deserializeRow, coerceScalar, serializeWhere } from './util/validate.js';

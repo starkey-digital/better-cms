@@ -16,6 +16,23 @@ Flags:
 - `--force` — overwrite existing files
 - `--skip-install` — print install commands instead of running them
 
+### `bcms media:gc`
+
+Report bucket objects that no `cms_media` row references, and optionally delete them.
+
+```bash
+bunx -p @better-cms/cli bcms media:gc            # report only
+bunx -p @better-cms/cli bcms media:gc --apply    # delete what it found
+```
+
+Uploads write the blob before the row that references it. The request path compensates a failed insert by deleting the object, but a process that dies mid-upload leaves one nothing points at and nothing will ever look for. This sweep is what finds those — it is the only mechanism that catches crash-orphans, since by definition no handler survived to clean up.
+
+It reports by default; deleting from a bucket should not be a side effect of asking what is in it. Objects newer than `--min-age-hours` (default 24) are skipped so an upload still in flight is never removed, as is any object whose backend reports no modified time.
+
+Flags: `--apply`, `--min-age-hours <n>`, `--prefix <p>`, `--config <path>`.
+
+Content-addressed keys keep the damage bounded in the meantime: an upload is keyed by the hash of its bytes, so a client retrying a failing upload overwrites the same object instead of stranding a fresh copy each attempt.
+
 ### `bcms generate`
 
 Default target = `drizzle`. The other targets are opt-in.

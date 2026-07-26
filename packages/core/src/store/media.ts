@@ -6,6 +6,12 @@ export interface MediaObject {
 	width?: number;
 	height?: number;
 	etag?: string;
+	/**
+	 * When the object was last written, if the backend reports it. Listing
+	 * fills this in; `put` generally does not. A reclaim sweep needs it to
+	 * avoid deleting an upload that is still mid-request.
+	 */
+	lastModified?: Date;
 }
 
 export interface MediaPutOpts {

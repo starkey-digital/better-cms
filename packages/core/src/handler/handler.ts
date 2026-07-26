@@ -9,6 +9,7 @@ import type { CmsOp, OpResult } from '../ops/types.js';
 import { opToEventType } from '../ops/types.js';
 import type { PluginEndpoint } from '../plugin/types.js';
 import { generateId } from '../util/id.js';
+import { contentKey } from '../util/media-key.js';
 import { CmsError, errors } from '../util/result.js';
 import { detectSlugField } from '../util/slug.js';
 import { coerceScalar } from '../util/validate.js';
@@ -185,15 +186,23 @@ export async function createCMS<C extends Record<string, any> = any, Ctx = unkno
 		assertUploadAllowed(config.mediaAccess as MediaAccessConfig | undefined, file);
 
 		const folder = form.get('folder');
-		const object = await media.put(file, {
-			folder: typeof folder === 'string' && folder ? folder : undefined,
-			mime: file.type || undefined,
+		const mime = file.type || 'application/octet-stream';
+		// Read once and address the object by its content hash. Uploads become
+		// idempotent: a client retrying after a failure overwrites the same key
+		// instead of stranding another copy, and the same asset uploaded twice
+		// occupies one object. Safe to buffer — `assertUploadAllowed` has
+		// already capped the size.
+		const bytes = new Uint8Array(await file.arrayBuffer());
+		const object = await media.put(bytes, {
+			key: await contentKey(bytes, mime, typeof folder === 'string' ? folder : undefined),
+			mime,
 		});
 
-		// The blob is already durable at this point but the row that makes it
+		// The blob is durable at this point but the row that makes it
 		// discoverable is not. If the insert fails, delete the object rather
-		// than leaving one nothing references and nothing will ever clean up —
-		// a retry would otherwise add another billed orphan each time.
+		// than leaving one nothing references. Content addressing bounds the
+		// damage when even that fails — repeated retries strand one object, not
+		// one per attempt — and `bcms media:gc` reclaims whatever is left.
 		try {
 			await context.store.create('cms_media', {
 				id: generateId(),
