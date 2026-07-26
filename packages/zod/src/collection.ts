@@ -7,6 +7,7 @@ import {
 	_collection,
 } from '@better-cms/core';
 import { z } from 'zod';
+import { toFormSchema } from './form.js';
 import type { CollectionRef } from './registry.js';
 import { SYSTEM_FIELDS, type SystemField, type ZodLike, zodToFields } from './walker.js';
 
@@ -67,14 +68,14 @@ function buildSchemas(schema: z.ZodObject) {
 	const create = z.object(createShape);
 	const update = create.partial().extend({ id: z.string() });
 	const full = schema.partial();
-	return { create, update, full };
+	return { create, update, full, form: toFormSchema(createShape) };
 }
 
 function _buildDef<K extends 'collection' | 'singleton'>(
 	kind: K,
 	opts: CollectionOpts<z.ZodObject> & { indexes?: CollectionIndexIR[] },
 ): CollectionDef<Record<string, FieldDef>, K> & { __schema?: z.ZodObject } {
-	const { create, update, full } = buildSchemas(opts.schema);
+	const { create, update, full, form } = buildSchemas(opts.schema);
 	const def = _collection({
 		kind,
 		tableName: opts.tableName,
@@ -84,7 +85,7 @@ function _buildDef<K extends 'collection' | 'singleton'>(
 		hooks: opts.hooks,
 		access: opts.access,
 		timestamps: opts.timestamps ?? true,
-		validation: { create, update, full },
+		validation: { create, update, full, form },
 		toJsonSchema: () => z.toJSONSchema(opts.schema),
 	}) as CollectionDef<Record<string, FieldDef>, K> & { __schema?: z.ZodObject };
 	def.__schema = opts.schema;

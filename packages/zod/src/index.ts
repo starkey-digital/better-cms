@@ -18,3 +18,4 @@ export {
 } from './helpers.js';
 export { type BcmsFieldMeta, bcmsRegistry, type CollectionRef } from './registry.js';
 export { zodToFields } from './walker.js';
+export { toFormSchema } from './form.js';

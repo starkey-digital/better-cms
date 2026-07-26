@@ -1,24 +1,33 @@
+import { SINGLETON_ID, createCmsApi, isSystemCollection } from '../api/create.js';
+import type { CmsApi, CollectionApi, SingletonApi } from '../api/types.js';
 import type { CmsConfig, CmsContext } from '../config.js';
 import { getCmsTables } from '../ir/tables.js';
 import type { CollectionDef, FieldDef, SchemaIR } from '../ir/types.js';
 import { applyOps } from '../ops/apply.js';
-import { opToEventType } from '../ops/types.js';
 import type { CmsOp } from '../ops/types.js';
+import { opToEventType } from '../ops/types.js';
 import type { PluginEndpoint } from '../plugin/types.js';
+import { generateId } from '../util/id.js';
 import { CmsError, errors } from '../util/result.js';
 import { detectSlugField } from '../util/slug.js';
-import { coerceScalar, deserializeRow } from '../util/validate.js';
-import { checkAccess } from './access.js';
+import { coerceScalar } from '../util/validate.js';
 import { type LiveTransport, inMemoryTransport, sseResponse } from './live.js';
 
 const LIST_RE = /^\/collections\/([^/]+)$/;
 const ONE_RE = /^\/collections\/([^/]+)\/([^/]+)$/;
 const SINGLETON_RE = /^\/singletons\/([^/]+)$/;
 type RouteKey = `${string} ${string}`;
-export const SINGLETON_ID = 'default';
 
-export interface CmsInstance {
+export { SINGLETON_ID };
+
+export interface CmsInstance<C extends Record<string, any> = any> {
 	context: CmsContext;
+	/**
+	 * Build the typed API bound to a resolved auth context. Pass the context
+	 * for the current request; omit it outside a request (access policies then
+	 * see `undefined`, the same as an unauthenticated caller).
+	 */
+	api(ctx?: unknown): CmsApi<C>;
 	handler: (request: Request) => Promise<Response>;
 	live: LiveTransport;
 	close(): Promise<void>;
@@ -29,15 +38,16 @@ export interface CreateCmsOpts {
 }
 
 /**
- * Build the runtime from a config. Returns:
- *  - context (schema, store, media) for direct server-side calls (SSR loaders)
- *  - handler (Request→Response) for the HTTP boundary
- *  - live transport for SSE broadcasts
+ * Build the runtime from a config. The returned `handler` is a thin HTTP
+ * adapter over `api()` — it parses the request, delegates, and formats the
+ * response. It deliberately holds no read or write logic of its own, so HTTP
+ * callers and in-process callers cannot drift apart on access checks or on
+ * how stored values are decoded.
  */
 export async function createCMS<C extends Record<string, any> = any, Ctx = unknown>(
 	config: CmsConfig<C, Ctx>,
 	opts: CreateCmsOpts = {},
-): Promise<CmsInstance> {
+): Promise<CmsInstance<C>> {
 	const schema = getCmsTables(config);
 	const live = opts.live ?? inMemoryTransport();
 	const context: CmsContext = {
@@ -45,6 +55,7 @@ export async function createCMS<C extends Record<string, any> = any, Ctx = unkno
 		schema,
 		store: config.adapter,
 		media: config.media,
+		live,
 	};
 
 	if (config.adapter.init) await config.adapter.init(schema);
@@ -61,121 +72,64 @@ export async function createCMS<C extends Record<string, any> = any, Ctx = unkno
 	// once and serve the same shape on every admin mount.
 	const metaPayload = buildMeta(schema, basePath);
 
-	async function handleList(url: URL, sub: string, ctx: unknown): Promise<Response> {
-		const listMatch = LIST_RE.exec(sub);
-		if (!listMatch) return new Response('Not found', { status: 404 });
-		const name = listMatch[1]!;
-		const def = schema.collections[name];
+	const api = (ctx?: unknown): CmsApi<C> => createCmsApi<C>(context, () => ctx);
+
+	function collectionApi(ctx: unknown, name: string): CollectionApi<Record<string, unknown>> {
+		const def = isSystemCollection(name) ? undefined : schema.collections[name];
 		if (!def) throw errors.notFound(`collection "${name}"`);
 		if (def.kind === 'singleton') throw errors.badRequest(`${name} is a singleton`);
-		if (!(await checkAccess(config, name, 'read', ctx))) {
-			throw errors.notFound(`collection "${name}"`);
-		}
-		const where: Record<string, unknown> = {};
-		for (const [key, value] of url.searchParams.entries()) {
-			if (!key.startsWith('where[') || !key.endsWith(']')) continue;
-			const field = key.slice(6, -1);
-			where[field] = coerceScalar(def.fields[field], value);
-		}
-		const whereOrUndef = Object.keys(where).length ? where : undefined;
-		if (url.searchParams.get('count') === '1') {
-			const total = await context.store.count(name, whereOrUndef);
-			return Response.json({ count: total });
-		}
-		const limit = Number(url.searchParams.get('limit') ?? '50');
-		const offset = Number(url.searchParams.get('offset') ?? '0');
-		const rows = await context.store.findMany(name, {
-			limit,
-			offset,
-			...(whereOrUndef ? { where: whereOrUndef } : {}),
-		});
-		return Response.json({ rows: rows.map((r) => deserializeRow(def, r)) });
+		return (api(ctx) as Record<string, CollectionApi<Record<string, unknown>>>)[name]!;
 	}
 
-	async function handleOne(sub: string, ctx: unknown): Promise<Response> {
-		const oneMatch = ONE_RE.exec(sub);
-		if (!oneMatch) return new Response('Not found', { status: 404 });
-		const name = oneMatch[1]!;
-		const idOrSlug = oneMatch[2]!;
-		const def = schema.collections[name];
-		if (!def) throw errors.notFound(`collection "${name}"`);
-		let row = await context.store.findOne(name, { id: idOrSlug });
-		if (!row) {
-			const slugField = detectSlugField(def.fields);
-			if (slugField) {
-				const matches = await context.store.findMany(name, {
-					where: { [slugField]: idOrSlug },
-					limit: 1,
-				});
-				row = matches[0] ?? null;
-			}
-		}
-		if (!row) throw errors.notFound(`${name}#${idOrSlug}`);
-		const doc = deserializeRow(def, row);
-		if (!(await checkAccess(config, name, 'read', ctx, doc))) {
-			throw errors.notFound(`${name}#${idOrSlug}`);
-		}
-		return Response.json({ row: doc });
-	}
-
-	async function handleSingletonGet(sub: string, ctx: unknown): Promise<Response> {
-		const singletonMatch = SINGLETON_RE.exec(sub);
-		if (!singletonMatch) return new Response('Not found', { status: 404 });
-		const name = singletonMatch[1]!;
-		const def = schema.collections[name];
+	function singletonApi(ctx: unknown, name: string): SingletonApi<Record<string, unknown>> {
+		const def = isSystemCollection(name) ? undefined : schema.collections[name];
 		if (!def || def.kind !== 'singleton') throw errors.notFound(`singleton "${name}"`);
-		const row = await context.store.findOne(name, { id: SINGLETON_ID });
-		const doc = row ? deserializeRow(def, row) : undefined;
-		if (!(await checkAccess(config, name, 'read', ctx, doc))) {
-			throw errors.notFound(`singleton "${name}"`);
+		return (api(ctx) as Record<string, SingletonApi<Record<string, unknown>>>)[name]!;
+	}
+
+	async function handleList(url: URL, name: string, ctx: unknown): Promise<Response> {
+		const col = collectionApi(ctx, name);
+		const where = parseWhere(url, schema.collections[name]!);
+		if (url.searchParams.get('count') === '1') {
+			return Response.json({ count: await col.count(where) });
 		}
-		return Response.json({ row: doc ?? null });
+		const rows = await col.list({
+			limit: Number(url.searchParams.get('limit') ?? '50'),
+			offset: Number(url.searchParams.get('offset') ?? '0'),
+			...(where ? { where } : {}),
+			...parseOrderBy(url),
+		});
+		return Response.json({ rows });
+	}
+
+	async function handleOne(name: string, idOrSlug: string, ctx: unknown): Promise<Response> {
+		const row = await collectionApi(ctx, name).get(idOrSlug);
+		if (!row) throw errors.notFound(`${name}#${idOrSlug}`);
+		return Response.json({ row });
+	}
+
+	async function handleSingletonGet(name: string, ctx: unknown): Promise<Response> {
+		return Response.json({ row: (await singletonApi(ctx, name).get()) ?? null });
 	}
 
 	async function handleSingletonPut(
 		request: Request,
-		sub: string,
+		name: string,
 		ctx: unknown,
 	): Promise<Response> {
-		const singletonMatch = SINGLETON_RE.exec(sub);
-		if (!singletonMatch) return new Response('Not found', { status: 404 });
-		const name = singletonMatch[1]!;
-		const def = schema.collections[name];
-		if (!def || def.kind !== 'singleton') throw errors.notFound(`singleton "${name}"`);
 		const body = (await request.json()) as Record<string, unknown>;
-		const existing = await context.store.findOne(name, { id: SINGLETON_ID });
-		const op: CmsOp = existing
-			? { op: 'set', collection: name, id: SINGLETON_ID, data: body }
-			: { op: 'create', collection: name, data: { ...body, id: SINGLETON_ID } };
-		const [res] = await applyOps([op], {
-			store: context.store,
-			schema,
-			config,
-			ctx,
-		});
-		if (!res?.ok) {
-			const err = res?.error;
-			if (err?.code === 'FORBIDDEN') throw errors.forbidden(err.message);
-			if (err?.code === 'NOT_FOUND') throw errors.notFound(err.message);
-			throw errors.validation(err?.message ?? 'singleton write failed');
-		}
-		await live.publish({
-			type: opToEventType(res.op),
-			collection: name,
-			id: SINGLETON_ID,
-			at: Date.now(),
-		});
-		return Response.json({ row: res.row });
+		return Response.json({ row: await singletonApi(ctx, name).set(body) });
 	}
 
+	/**
+	 * Batch op endpoint. Unlike the other routes this reports per-op results
+	 * instead of throwing, so a partially-successful batch still tells the
+	 * caller which entries landed.
+	 */
 	async function handleOps(request: Request, ctx: unknown): Promise<Response> {
 		const body = (await request.json()) as { ops: CmsOp[] };
-		const results = await applyOps(body.ops ?? [], {
-			store: context.store,
-			schema,
-			config,
-			ctx,
-		});
+		const ops = (body.ops ?? []).filter((op) => !isSystemCollection(op.collection));
+		const results = await applyOps(ops, { store: context.store, schema, config, ctx });
 		for (const r of results) {
 			if (!r.ok) continue;
 			await live.publish({
@@ -186,6 +140,43 @@ export async function createCMS<C extends Record<string, any> = any, Ctx = unkno
 			});
 		}
 		return Response.json({ results });
+	}
+
+	/**
+	 * Media upload. Gated on the global `create` policy so an anonymous
+	 * visitor cannot fill the bucket, then recorded in `cms_media` for the
+	 * asset picker.
+	 */
+	async function handleMediaPost(request: Request, ctx: unknown): Promise<Response> {
+		const media = context.media;
+		if (!media) throw errors.badRequest('media store not configured');
+		const canCreate = config.access?.create as
+			| ((ctx: unknown) => boolean | Promise<boolean>)
+			| undefined;
+		if (!canCreate || !(await canCreate(ctx))) throw errors.forbidden('media upload denied');
+
+		const form = await request.formData();
+		const file = form.get('file');
+		if (!(file instanceof Blob)) throw errors.badRequest('expected a "file" field');
+		const folder = form.get('folder');
+		const object = await media.put(file, {
+			folder: typeof folder === 'string' && folder ? folder : undefined,
+			mime: file.type || undefined,
+		});
+
+		await context.store.create('cms_media', {
+			id: generateId(),
+			key: object.key,
+			url: object.url,
+			mime: object.mime,
+			size: object.size,
+			width: object.width ?? null,
+			height: object.height ?? null,
+			alt: null,
+			createdAt: Date.now(),
+		});
+
+		return Response.json(object);
 	}
 
 	async function routeRequest(
@@ -199,15 +190,20 @@ export async function createCMS<C extends Record<string, any> = any, Ctx = unkno
 			return Response.json({ ctx: ctx ?? null });
 		if (sub === '/_meta' && request.method === 'GET') return Response.json(metaPayload);
 		if (sub === '/ops' && request.method === 'POST') return handleOps(request, ctx);
+		if (sub === '/media' && request.method === 'POST') return handleMediaPost(request, ctx);
 
 		if (request.method === 'GET') {
-			if (LIST_RE.test(sub)) return handleList(url, sub, ctx);
-			if (ONE_RE.test(sub)) return handleOne(sub, ctx);
-			if (SINGLETON_RE.test(sub)) return handleSingletonGet(sub, ctx);
+			const list = LIST_RE.exec(sub);
+			if (list) return handleList(url, list[1]!, ctx);
+			const one = ONE_RE.exec(sub);
+			if (one) return handleOne(one[1]!, one[2]!, ctx);
+			const single = SINGLETON_RE.exec(sub);
+			if (single) return handleSingletonGet(single[1]!, ctx);
 		}
 
-		if (request.method === 'PUT' && SINGLETON_RE.test(sub)) {
-			return handleSingletonPut(request, sub, ctx);
+		if (request.method === 'PUT') {
+			const single = SINGLETON_RE.exec(sub);
+			if (single) return handleSingletonPut(request, single[1]!, ctx);
 		}
 
 		const ep = pluginRoutes.get(`${request.method} ${sub}`);
@@ -227,21 +223,13 @@ export async function createCMS<C extends Record<string, any> = any, Ctx = unkno
 			const ctx = config.auth ? await config.auth.context(request) : undefined;
 			return await routeRequest(request, url, sub, ctx);
 		} catch (e) {
-			if (e instanceof CmsError) {
-				return Response.json(
-					{ error: { code: e.code, message: e.message, details: e.details } },
-					{ status: e.status },
-				);
-			}
-			return Response.json(
-				{ error: { code: 'INTERNAL', message: (e as Error).message ?? 'unknown' } },
-				{ status: 500 },
-			);
+			return errorResponse(e, request.method);
 		}
 	}
 
 	return {
 		context,
+		api,
 		handler,
 		live,
 		async close() {
@@ -249,6 +237,54 @@ export async function createCMS<C extends Record<string, any> = any, Ctx = unkno
 			await context.media?.close?.();
 		},
 	};
+}
+
+/**
+ * A read denied by policy is reported as 404, not 403, so the API never
+ * confirms the existence of records the caller may not see. Writes report 403
+ * honestly — the caller already knows what it tried to write.
+ */
+function errorResponse(e: unknown, method: string): Response {
+	if (e instanceof CmsError) {
+		const hideExistence = e.code === 'FORBIDDEN' && (method === 'GET' || method === 'HEAD');
+		if (hideExistence) {
+			return Response.json({ error: { code: 'NOT_FOUND', message: 'not found' } }, { status: 404 });
+		}
+		return Response.json(
+			{ error: { code: e.code, message: e.message, details: e.details } },
+			{ status: e.status },
+		);
+	}
+	return Response.json(
+		{ error: { code: 'INTERNAL', message: (e as Error).message ?? 'unknown' } },
+		{ status: 500 },
+	);
+}
+
+function parseWhere(url: URL, def: CollectionDef): Record<string, unknown> | undefined {
+	const where: Record<string, unknown> = {};
+	for (const [key, value] of url.searchParams.entries()) {
+		if (!key.startsWith('where[') || !key.endsWith(']')) continue;
+		const field = key.slice(6, -1);
+		where[field] = coerceScalar(def.fields[field], value);
+	}
+	return Object.keys(where).length ? where : undefined;
+}
+
+/** `?orderBy=-createdAt,title` → newest first, then title ascending. */
+function parseOrderBy(url: URL): { orderBy?: { field: string; dir?: 'asc' | 'desc' }[] } {
+	const raw = url.searchParams.get('orderBy');
+	if (!raw) return {};
+	const orderBy = raw
+		.split(',')
+		.map((part) => part.trim())
+		.filter(Boolean)
+		.map((part) =>
+			part.startsWith('-')
+				? { field: part.slice(1), dir: 'desc' as const }
+				: { field: part, dir: 'asc' as const },
+		);
+	return orderBy.length ? { orderBy } : {};
 }
 
 /**
@@ -262,7 +298,7 @@ function buildMeta(
 ): { collections: Record<string, CmsMetaCollection>; basePath: string } {
 	const out: Record<string, CmsMetaCollection> = {};
 	for (const [name, def] of Object.entries(schema.collections) as [string, CollectionDef][]) {
-		if (name.startsWith('cms_')) continue;
+		if (isSystemCollection(name)) continue;
 		out[name] = {
 			kind: def.kind,
 			fields: stripFields(def.fields),

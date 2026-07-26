@@ -49,7 +49,7 @@ export function durableObjectStore(namespace: DurableObjectNamespaceLike): RateL
  *
  * Then export from your Worker entry:
  *
- *   export { RateLimiter } from 'better-cms/sveltekit/auth';
+ *   export { RateLimiter } from 'better-cms/auth';
  */
 export class RateLimiter {
 	private state: DurableObjectStateLike;

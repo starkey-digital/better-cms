@@ -50,7 +50,8 @@ export function zodToFields(objectSchema: z.ZodType): FieldsRecord {
 	return out;
 }
 
-function zodToField(schema: z.ZodType): FieldDef {
+/** Walk one field schema to its IR. Exported so the form-schema builder can reuse the unwrap + type detection. */
+export function zodToField(schema: z.ZodType): FieldDef {
 	let inner = schema as unknown as ZodLike;
 	let required = true;
 	let defaultValue: unknown;
@@ -96,7 +97,7 @@ function zodToField(schema: z.ZodType): FieldDef {
 
 	if (meta?.kind === 'relation' && meta.relation) {
 		const many = meta.relation.many;
-		// `target` carries a `CollectionDef`/thunk here; `defineCMS()` swaps it
+		// `target` carries a `CollectionDef`/thunk here; `createCms()` swaps it
 		// for the registered name string before any consumer sees it.
 		return {
 			...base,

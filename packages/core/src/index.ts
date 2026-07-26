@@ -24,6 +24,7 @@ export type {
 	SchemaIR,
 } from './ir/types.js';
 export { _collection } from './dsl/collection.js';
+export * from './api/index.js';
 export * from './store/index.js';
 export * from './ops/index.js';
 export { opToEventType, type LiveEventType } from './ops/types.js';
@@ -34,7 +35,7 @@ export * from './auth/types.js';
 export { generateId } from './util/id.js';
 export { slugify, detectSlugField } from './util/slug.js';
 export { CmsError, errors, ok, err, type Result } from './util/result.js';
-export { serializeRow, deserializeRow, coerceScalar } from './util/validate.js';
+export { serializeRow, deserializeRow, coerceScalar, serializeWhere } from './util/validate.js';
 export type { StandardSchemaV1 } from './util/standard-schema.js';
 export {
 	fieldToJsonSchema,

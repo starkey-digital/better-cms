@@ -23,16 +23,6 @@
 			"dev-source": "./src/server.ts",
 			"types": "./dist/server.d.ts",
 			"default": "./dist/server.js"
-		},
-		"./remote": {
-			"dev-source": "./src/remote.ts",
-			"types": "./dist/remote.d.ts",
-			"default": "./dist/remote.js"
-		},
-		"./auth": {
-			"dev-source": "./src/auth/index.ts",
-			"types": "./dist/auth/index.d.ts",
-			"default": "./dist/auth/index.js"
 		}
 	},
 	"scripts": {

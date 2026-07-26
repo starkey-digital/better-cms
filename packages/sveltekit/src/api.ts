@@ -1,148 +1,111 @@
-import {
-	SINGLETON_ID,
-	applyOps,
-	clientCmsConfig as coreClientCmsConfig,
-	detectSlugField,
-	getCmsTables,
-	opToEventType,
-} from '@better-cms/core';
 import type {
-	ClientCmsConfig,
+	CmsApi,
 	CmsConfig,
-	CmsInstance,
-	CmsOp,
+	CollectionApi,
 	CollectionDef,
 	CollectionsRecord,
-	FieldsRecord,
-	InferRows,
-	OpResult,
-	RowOf,
-	SchemaIR,
+	CreateCmsOpts,
+	SingletonApi,
 } from '@better-cms/core';
+import { createCmsApi } from '@better-cms/core';
 import { type CmsBuilder, _builder, _resolveRelations } from '@better-cms/zod';
-import type { CollectionApi, SingletonApi } from './api-client.js';
-import { getCurrentRequest } from './request-context.js';
-import { cms as resolveCms } from './server.js';
+import { cmsInstance } from './instance.js';
+import { resolveRequestCtx } from './request.js';
 
 /**
- * Server-side auth API. Reads the active SvelteKit request via the
- * AsyncLocalStorage scope set by `cmsHandle`, then calls the configured
- * `auth.context(request)` provider.
+ * Server-side auth API. Reads the active SvelteKit request via
+ * `getRequestEvent()`, then calls the configured `auth.context(request)`.
  */
 export interface ServerAuthApi<Ctx = unknown> {
 	context(): Promise<Ctx | null>;
 	requireContext(): Promise<NonNullable<Ctx>>;
 }
 
-export type Cms<C extends CollectionsRecord, Ctx = unknown> = {
-	[K in keyof C]: C[K] extends CollectionDef<FieldsRecord, 'singleton'>
-		? SingletonApi<InferRows<SchemaIR<C>>[K]>
-		: CollectionApi<InferRows<SchemaIR<C>>[K]>;
-} & {
+/** Slot carrying the original config. A Symbol so it can never collide with a collection name. */
+const CONFIG = Symbol.for('better-cms.config');
+
+export type Cms<C extends CollectionsRecord, Ctx = unknown> = CmsApi<C> & {
 	auth: ServerAuthApi<Ctx>;
-	/** Phantom — never set at runtime; carries collection types forward to `createCmsClient<Cms>` for type extraction. */
+	/** Phantom — never set at runtime; carries collection types forward to `createCmsClient<Cms>`. */
 	readonly __collections?: C;
 };
 
+export type CmsInput<C extends CollectionsRecord, Ctx> = Omit<CmsConfig<C, Ctx>, 'collections'> & {
+	collections: C | ((b: CmsBuilder<Ctx>) => C);
+	/** Advanced: swap the live-event transport (e.g. Redis) for multi-instance deploys. */
+	runtime?: CreateCmsOpts;
+};
+
 /**
- * Build the CMS. Resolves relation targets, attaches typed runtime methods
- * (`cms.posts.list(...)`, `cms.auth.context()`, etc.), and returns a single
- * object that doubles as the typed config. `typeof cms` carries collections
- * and Ctx forward — re-export it as a `Cms` type and a hand-written
- * `createClientCms<Cms>(...)` lifts the same types into the browser client
- * via `import type` (erased pre-bundle).
+ * Build the CMS. Returns the typed API surface — `cms.posts.list()`,
+ * `cms.settings.get()`, `cms.auth.context()` — backed by core's single
+ * implementation, so these calls enforce the same access policies and return
+ * the same decoded shapes as the HTTP endpoints.
  *
- *   import { createCms, collection, singleton } from 'better-cms/sveltekit/server';
- *
- *   const context: AuthContextFn<AppCtx> = async (req) => { ... };
- *
+ *   // src/lib/cms/server/cms.ts
  *   export const cms = createCms({
- *     collections: { posts, settings },
- *     adapter: libsqlAdapter({ ... }),
+ *     collections: ({ collection, singleton }) => ({ posts, settings }),
+ *     adapter: libsqlAdapter({ url: process.env.DATABASE_URL! }),
  *     auth: { context },
  *     access: { create: (ctx) => ctx?.user.role === 'admin' },
  *   });
  *   export type Cms = typeof cms;
+ *
+ * The CMS boots lazily on first use, so this is safe to call at module scope.
  */
-export type CmsInput<C extends CollectionsRecord, Ctx> = Omit<CmsConfig<C, Ctx>, 'collections'> & {
-	collections: C | ((b: CmsBuilder<Ctx>) => C);
-};
-
 export function createCms<C extends CollectionsRecord, Ctx = unknown>(
 	input: CmsInput<C, Ctx>,
 ): Cms<C, Ctx> {
+	const { runtime, ...rest } = input;
 	const collections =
 		typeof input.collections === 'function'
 			? (input.collections as (b: CmsBuilder<Ctx>) => C)(_builder<Ctx>())
 			: input.collections;
-	const config: CmsConfig<C, Ctx> = { ...input, collections };
+	const config = { ...rest, collections } as CmsConfig<C, Ctx>;
 	_resolveRelations(config.collections as unknown as Record<string, CollectionDef>);
-	const schema = getCmsTables(config);
-	const runtime: Record<string, unknown> = { auth: serverAuth(config) };
+
+	const api = cmsInstance(config, runtime).then((inst) =>
+		createCmsApi<C>(inst.context, () => resolveRequestCtx(config)),
+	);
+
+	const cms: Record<string, unknown> = { auth: serverAuth(config) };
 	for (const [name, def] of Object.entries(config.collections) as [string, CollectionDef][]) {
-		runtime[name] =
-			def.kind === 'singleton'
-				? singletonOps(config, schema, name)
-				: collectionOps(config, schema, name);
+		cms[name] =
+			def.kind === 'singleton' ? deferSingleton(api, name, def) : deferCollection(api, name, def);
 	}
-	Object.defineProperty(runtime, '__config', { value: config, enumerable: false });
-	return runtime as Cms<C, Ctx>;
+	Object.defineProperty(cms, CONFIG, { value: config, enumerable: false });
+	return cms as Cms<C, Ctx>;
 }
 
 /**
- * Pull the original `CmsConfig` back out of a `Cms` runtime instance. Used by
- * `cmsHandle` and `clientCmsConfig` so consumers don't have to thread the
- * config object separately.
+ * Pull the original `CmsConfig` back out of a `Cms`. Lets `cmsHandle(cms)`
+ * take the same object the user already exported instead of making them
+ * thread the config separately.
  */
 export function _cmsConfigOf<C extends CollectionsRecord, Ctx>(
 	cms: Cms<C, Ctx>,
 ): CmsConfig<C, Ctx> {
-	const cfg = (cms as unknown as { __config?: CmsConfig<C, Ctx> }).__config;
-	if (!cfg) {
+	const config = (cms as unknown as Record<symbol, CmsConfig<C, Ctx> | undefined>)[CONFIG];
+	if (!config) {
 		throw new Error(
 			'[better-cms] cms instance is missing its config — was it created via createCms()?',
 		);
 	}
-	return cfg;
+	return config;
 }
 
-/**
- * Type guard — true when the argument is a `Cms` runtime instance (created via
- * `createCms`), false when it is a raw `CmsConfig`. The `__config` sentinel is
- * set as a non-enumerable property by `createCms`.
- */
+/** True when the argument is a `Cms` runtime instance rather than a raw `CmsConfig`. */
 export function isCmsInstance<C extends CollectionsRecord, Ctx>(
 	x: Cms<C, Ctx> | CmsConfig<C, Ctx>,
 ): x is Cms<C, Ctx> {
-	return '__config' in (x as object);
-}
-
-/**
- * Browser-safe slice of a Cms instance — strips adapter, auth, plugins,
- * media. Pass to `<CmsAdmin config={cmsConfig} />` from a `+page.server.ts`
- * loader so the admin UI gets editor metadata without dragging server-only
- * dependencies into the client bundle.
- */
-export function clientCmsConfig<C extends CollectionsRecord, Ctx = unknown>(
-	cmsOrConfig: Cms<C, Ctx> | CmsConfig<C, Ctx>,
-): ClientCmsConfig<C, Ctx> {
-	const config = isCmsInstance(cmsOrConfig)
-		? _cmsConfigOf(cmsOrConfig)
-		: (cmsOrConfig as CmsConfig<C, Ctx>);
-	return coreClientCmsConfig<C, Ctx>(config);
+	return CONFIG in (x as object);
 }
 
 function serverAuth<Ctx>(config: CmsConfig<any, Ctx>): ServerAuthApi<Ctx> {
 	const api: ServerAuthApi<Ctx> = {
 		async context() {
 			if (!config.auth) return null;
-			const request = getCurrentRequest();
-			if (!request) {
-				throw new Error(
-					'[better-cms] cms.auth.context() called outside a request scope. cmsHandle wraps every SvelteKit request — call from a load function or +server.ts handler.',
-				);
-			}
-			return (await config.auth.context(request)) as Ctx | null;
+			return (await resolveRequestCtx(config)) ?? null;
 		},
 		async requireContext() {
 			const ctx = await api.context();
@@ -153,137 +116,43 @@ function serverAuth<Ctx>(config: CmsConfig<any, Ctx>): ServerAuthApi<Ctx> {
 	return api;
 }
 
-// Per-request ctx cache. `cms.posts.create()` (etc.) goes through `runOp`,
-// which previously re-resolved `auth.context(request)` on every op — chained
-// commands in one request paid that cost N times. Cache by request reference.
-const ctxByRequest = new WeakMap<Request, unknown>();
+/**
+ * The CMS boots asynchronously (the adapter may create tables), but users
+ * export `cms` at module scope and call it from load functions. These thin
+ * wrappers await the boot on first use and forward to core's API — no read or
+ * write behaviour is reimplemented here.
+ */
+type ApiPromise<C extends CollectionsRecord> = Promise<CmsApi<C>>;
 
-// Returns undefined for two distinct cases — both meaning "no auth context":
-//   1. No auth configured (config.auth absent).
-//   2. Not inside an active request scope (getCurrentRequest() returns null).
-// Callers treat both identically, so the dual meaning is intentional. The
-// has()/get() pair still distinguishes a legitimately-cached null ctx.
-async function resolveCtx<Ctx>(config: CmsConfig<any, Ctx>): Promise<Ctx | undefined> {
-	if (!config.auth) return undefined;
-	const request = getCurrentRequest();
-	if (!request) return undefined;
-	if (ctxByRequest.has(request)) return ctxByRequest.get(request) as Ctx;
-	const ctx = (await config.auth.context(request)) as Ctx;
-	ctxByRequest.set(request, ctx);
-	return ctx;
-}
-
-function collectionOps<Ctx>(
-	config: CmsConfig<any, Ctx>,
-	schema: SchemaIR,
+function deferCollection<C extends CollectionsRecord>(
+	api: ApiPromise<C>,
 	name: string,
-): CollectionApi<RowOf<CollectionDef>> {
-	const slugField = detectSlugField(schema.collections[name]?.fields ?? {});
-	const def = schema.collections[name]!;
-	// Resolve once at closure-build time — resolveCms is memoized, so this just
-	// captures the same Promise without repeating the lookup on every op call.
-	const instP = resolveCms(config);
+	def: CollectionDef,
+): CollectionApi<Record<string, unknown>> {
+	const target = async () =>
+		(await api)[name as keyof CmsApi<C>] as unknown as CollectionApi<Record<string, unknown>>;
 	return {
 		schemas: def.schemas,
-		async list(opts) {
-			const inst = await instP;
-			return inst.context.store.findMany(name, opts) as Promise<RowOf<CollectionDef>[]>;
-		},
-		async find(id) {
-			const inst = await instP;
-			return inst.context.store.findOne(name, { id }) as Promise<RowOf<CollectionDef> | null>;
-		},
-		async get(idOrSlug) {
-			const inst = await instP;
-			const byId = (await inst.context.store.findOne(name, {
-				id: idOrSlug,
-			})) as RowOf<CollectionDef> | null;
-			if (byId) return byId;
-			if (slugField) {
-				const [bySlug] = (await inst.context.store.findMany(name, {
-					where: { [slugField]: idOrSlug },
-					limit: 1,
-				})) as RowOf<CollectionDef>[];
-				if (bySlug) return bySlug;
-			}
-			return null;
-		},
-		async count(where) {
-			const inst = await instP;
-			return inst.context.store.count(name, where);
-		},
-		async create(data) {
-			const res = await runOp(config, schema, instP, {
-				op: 'create',
-				collection: name,
-				data: data as Record<string, unknown>,
-			});
-			return res.row as RowOf<CollectionDef>;
-		},
-		async update(id, data) {
-			const res = await runOp(config, schema, instP, {
-				op: 'set',
-				collection: name,
-				id,
-				data: data as Record<string, unknown>,
-			});
-			return res.row as RowOf<CollectionDef>;
-		},
-		async delete(id) {
-			await runOp(config, schema, instP, { op: 'remove', collection: name, id });
-		},
+		list: async (query) => (await target()).list(query),
+		find: async (id) => (await target()).find(id),
+		get: async (idOrSlug) => (await target()).get(idOrSlug),
+		count: async (where) => (await target()).count(where),
+		create: async (data) => (await target()).create(data),
+		update: async (id, data) => (await target()).update(id, data),
+		delete: async (id) => (await target()).delete(id),
 	};
 }
 
-async function runOp<Ctx>(
-	config: CmsConfig<any, Ctx>,
-	schema: SchemaIR,
-	instP: Promise<CmsInstance>,
-	op: CmsOp,
-): Promise<OpResult> {
-	const [inst, ctx] = await Promise.all([instP, resolveCtx(config)]);
-	const [res] = await applyOps([op], { store: inst.context.store, schema, config, ctx });
-	if (!res?.ok) throw new Error(res?.error?.message ?? `${op.collection}.${op.op} failed`);
-	await publishLive(inst, res);
-	return res;
-}
-
-async function publishLive(inst: CmsInstance, res: OpResult): Promise<void> {
-	if (!res.ok) return;
-	await inst.live.publish({
-		type: opToEventType(res.op),
-		collection: res.op.collection,
-		id: res.op.id ?? (res.row?.id as string | undefined),
-		at: Date.now(),
-	});
-}
-
-function singletonOps<Ctx>(
-	config: CmsConfig<any, Ctx>,
-	schema: SchemaIR,
+function deferSingleton<C extends CollectionsRecord>(
+	api: ApiPromise<C>,
 	name: string,
-): SingletonApi<RowOf<CollectionDef>> {
-	// Resolve once at closure-build time — same memoized Promise reused across calls.
-	const instP = resolveCms(config);
+	def: CollectionDef,
+): SingletonApi<Record<string, unknown>> {
+	const target = async () =>
+		(await api)[name as keyof CmsApi<C>] as unknown as SingletonApi<Record<string, unknown>>;
 	return {
-		async get() {
-			const inst = await instP;
-			return inst.context.store.findOne(name, {
-				id: SINGLETON_ID,
-			}) as Promise<RowOf<CollectionDef> | null>;
-		},
-		async set(data) {
-			const inst = await instP;
-			const existing = await inst.context.store.findOne(name, { id: SINGLETON_ID });
-			const op: CmsOp = existing
-				? { op: 'set', collection: name, id: SINGLETON_ID, data: data as Record<string, unknown> }
-				: {
-						op: 'create',
-						collection: name,
-						data: { ...(data as Record<string, unknown>), id: SINGLETON_ID },
-					};
-			const res = await runOp(config, schema, instP, op);
-			return res.row as RowOf<CollectionDef>;
-		},
+		schemas: def.schemas,
+		get: async () => (await target()).get(),
+		set: async (data) => (await target()).set(data),
 	};
 }

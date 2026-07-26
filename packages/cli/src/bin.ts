@@ -25,7 +25,6 @@ Commands:
   init                       Scaffold cms.ts, hooks, .env.example, drizzle config
   generate                   Emit drizzle schema (default)
   generate --target=types    Emit TypeScript interfaces for collections
-  generate --target=client   Emit src/lib/cmsClient.ts (typed client API)
   mcp                        Run MCP server (stdio) — for Claude Code / Desktop
   hash-password [pw]         PBKDF2 hash for CMS_PASSWORD_HASH (prompts if omitted)
   gen-secret [bytes]         Random hex secret for CMS_AUTH_SECRET (default 32 bytes)
@@ -56,8 +55,7 @@ async function main() {
 			}
 			case 'generate': {
 				const raw = flag('target');
-				const target: GenerateTarget =
-					raw === 'types' || raw === 'client' || raw === 'drizzle' ? raw : 'drizzle';
+				const target: GenerateTarget = raw === 'types' || raw === 'drizzle' ? raw : 'drizzle';
 				const res = await generate({
 					configPath: flag('config'),
 					out: flag('out'),

@@ -10,10 +10,11 @@ bcms hash-password        # prompts → CMS_PASSWORD_HASH
 ```
 
 ```ts
-// src/lib/cms.config.ts
-import { defineCMS, collection, text } from 'better-cms';
-import { passwordAuth } from 'better-cms/sveltekit/auth';
+// src/lib/cms/server/cms.ts
+import { createCms } from 'better-cms/sveltekit/server';
+import { passwordAuth } from 'better-cms/auth';
 import { libsqlAdapter } from 'better-cms/adapters/libsql';
+import { z } from 'zod';
 
 const auth = passwordAuth({
   passwordHash: process.env.CMS_PASSWORD_HASH!,
@@ -21,14 +22,17 @@ const auth = passwordAuth({
   cookieTtl: '24h',
 });
 
-export default defineCMS({
-  collections: {
-    posts: collection({ fields: { title: text() } }),
-  },
+export const cms = createCms({
+  collections: ({ collection }) => ({
+    posts: collection({ schema: z.object({ title: z.string() }) }),
+  }),
   adapter: libsqlAdapter({ url: process.env.DATABASE_URL! }),
   auth,
   plugins: [auth],
 });
+
+export default cms;
+export type Cms = typeof cms;
 ```
 
 ```svelte
@@ -65,7 +69,7 @@ Fine for dev, single-instance Node/Bun, single Docker container. Throws hard err
 ### Cloudflare Durable Object
 
 ```ts
-import { passwordAuth, durableObjectStore, RateLimiter } from 'better-cms/sveltekit/auth';
+import { passwordAuth, durableObjectStore, RateLimiter } from 'better-cms/auth';
 
 passwordAuth({
   passwordHash,
@@ -74,7 +78,7 @@ passwordAuth({
 });
 
 // Worker entry must export the DO class
-export { RateLimiter } from 'better-cms/sveltekit/auth';
+export { RateLimiter } from 'better-cms/auth';
 ```
 
 `wrangler.toml`:
@@ -92,7 +96,7 @@ new_sqlite_classes = ["RateLimiter"]
 ### Upstash Redis (multi-instance Node, Vercel, Lambda)
 
 ```ts
-import { upstashStore } from 'better-cms/sveltekit/auth';
+import { upstashStore } from 'better-cms/auth';
 
 passwordAuth({
   passwordHash,
@@ -170,7 +174,7 @@ const context: AuthContextFn<AppCtx> = async (request) => {
   return { user: { id: session.user.id, email: session.user.email } };
 };
 
-defineCMS({
+createCms({
   auth: { context },
   access: {
     create: (ctx) => ctx !== null,
@@ -181,7 +185,7 @@ defineCMS({
 });
 ```
 
-`Ctx` is whatever shape your auth library returns — `{ session, user, organization }`, `{ tenantId, user }`, anything. Pass it to `createCms<Ctx>()` (from `better-cms/zod`) to get typed `access` and `hooks` everywhere. See [docs/concepts/auth.md](../../docs/concepts/auth.md) for the full BYOA walkthrough.
+`Ctx` is whatever shape your auth library returns — `{ session, user, organization }`, `{ tenantId, user }`, anything. `createCms` infers it from `auth.context`, so `access` and `hooks` are typed everywhere without a manual generic. See [docs/concepts/auth.md](../../docs/concepts/auth.md) for the full BYOA walkthrough.
 
 ## Hooks
 

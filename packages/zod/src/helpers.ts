@@ -60,19 +60,23 @@ export interface RelationOpts<M extends boolean = false> {
 
 /**
  * Type-safe relation to another collection. Pass the `CollectionDef` directly
- * (or a thunk for forward / circular refs). `defineCMS()` resolves the ref to
+ * (or a thunk for forward / circular refs). `createCms()` resolves the ref to
  * the registered name at startup; typos are TS errors.
+ *
+ * The return type is pinned on `many` so a to-one relation infers as `string`
+ * and a to-many as `string[]`. Without the annotation the runtime ternary
+ * widens both to a union, which then leaks into every row type.
  */
 export function relation<M extends boolean = false>(
 	target: CollectionRef,
 	opts: RelationOpts<M> = {} as RelationOpts<M>,
-) {
+): M extends true ? z.ZodArray<z.ZodString> : z.ZodString {
 	const many = (opts.many ?? false) as boolean;
 	const base = many ? z.array(z.string()) : z.string();
 	return base.register(bcmsRegistry, {
 		kind: 'relation',
 		relation: { target, many, onDelete: opts.onDelete ?? 'set null' },
-	});
+	}) as M extends true ? z.ZodArray<z.ZodString> : z.ZodString;
 }
 
 /** Mark a field as `UNIQUE` at the column level. */

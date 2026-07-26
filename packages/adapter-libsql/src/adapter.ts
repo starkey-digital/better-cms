@@ -1,4 +1,11 @@
-import type { CollectionDef, ContentStore, FindManyQuery, Row, SchemaIR, WhereClause } from '@better-cms/core';
+import type {
+	CollectionDef,
+	ContentStore,
+	FindManyQuery,
+	Row,
+	SchemaIR,
+	WhereClause,
+} from '@better-cms/core';
 import { errors } from '@better-cms/core';
 import { type Client, type InValue, createClient } from '@libsql/client';
 import { compileWhere, ddlForSchema, quoteIdent, tableName } from './sql.js';
@@ -29,7 +36,11 @@ export function libsqlAdapter(opts: LibsqlAdapterOpts): ContentStore {
 		return { def, tn: tableName(collection, def) };
 	}
 
-	async function _findOneRow(collection: string, where: WhereClause | undefined, select?: string[]): Promise<Row | null> {
+	async function _findOneRow(
+		collection: string,
+		where: WhereClause | undefined,
+		select?: string[],
+	): Promise<Row | null> {
 		const { tn } = tableOf(collection);
 		const w = compileWhere(where as Record<string, unknown>);
 		const cols = select?.length ? select.map(quoteIdent).join(', ') : '*';
@@ -102,16 +113,22 @@ export function libsqlAdapter(opts: LibsqlAdapterOpts): ContentStore {
 						})
 						.join(', ')}`
 				: '';
-			const limit = query.limit != null
-				? Number.isSafeInteger(query.limit) && query.limit >= 0
-					? ` LIMIT ${query.limit}`
-					: (() => { throw new Error(`invalid limit: ${query.limit}`); })()
-				: '';
-			const offset = query.offset != null
-				? Number.isSafeInteger(query.offset) && query.offset >= 0
-					? ` OFFSET ${query.offset}`
-					: (() => { throw new Error(`invalid offset: ${query.offset}`); })()
-				: '';
+			const limit =
+				query.limit != null
+					? Number.isSafeInteger(query.limit) && query.limit >= 0
+						? ` LIMIT ${query.limit}`
+						: (() => {
+								throw new Error(`invalid limit: ${query.limit}`);
+							})()
+					: '';
+			const offset =
+				query.offset != null
+					? Number.isSafeInteger(query.offset) && query.offset >= 0
+						? ` OFFSET ${query.offset}`
+						: (() => {
+								throw new Error(`invalid offset: ${query.offset}`);
+							})()
+					: '';
 			const res = await client.execute({
 				sql: `SELECT ${cols} FROM ${quoteIdent(tn)}${w.sql}${orderBy}${limit}${offset}`,
 				args: w.args as InValue[],

@@ -23,7 +23,7 @@ src/lib/cms/
 ```ts
 type AuthContextFn<Ctx> = (request: Request) => Ctx | Promise<Ctx>;
 
-defineCMS({
+createCms({
   auth: { context: (req) => /* resolve to your Ctx shape */ },
   ...
 });
@@ -37,10 +37,10 @@ To pin `Ctx` once for the whole CMS, use `createCms<Ctx>()`:
 import { createCms } from 'better-cms/zod';
 
 type AppCtx = { user: { id: string; role: 'admin' | 'editor' } } | null;
-const { defineCMS } = createCms<AppCtx>();
+// `Ctx` is inferred from `auth.context`; the builder form propagates it.
 ```
 
-`access` policies, `hooks`, `auth.context`, and `serverCollections[*].access/hooks` slots on the resulting `defineCMS` are all typed against `AppCtx`.
+Global `access` and `hooks`, plus each collection's own `access` and `hooks`, are all typed against `AppCtx`.
 
 ## Bundled `passwordAuth`
 
@@ -71,14 +71,13 @@ export const basePath = '/api/cms' as const;
 import 'dotenv/config';
 import type { AuthContextFn } from 'better-cms';
 import { libsqlAdapter } from 'better-cms/adapters/libsql';
-import { passwordAuth } from 'better-cms/sveltekit/auth';
-import { createCms as createServerCms } from 'better-cms/sveltekit/server';
-import { createCms } from 'better-cms/zod';
-import { basePath, collections } from '../schemas';
+import { passwordAuth } from 'better-cms/auth';
+import { createCms } from 'better-cms/sveltekit/server';
+import { PostSchema } from './schemas';
 
 export type AppCtx = { user: { id: string; role: 'admin' | 'editor' } } | null;
 
-const { defineCMS } = createCms<AppCtx>();
+// `Ctx` is inferred from `auth.context`; the builder form propagates it.
 
 const password = passwordAuth({
   password: process.env.CMS_PASSWORD!,
@@ -92,47 +91,39 @@ const context: AuthContextFn<AppCtx> = async (request) => {
   return { user: { id: ctx.user.id, role: 'admin' } };
 };
 
-const config = defineCMS({
-  collections,
-  basePath,
+export const cms = createCms({
+  collections: ({ collection }) => ({
+    posts: collection({ schema: PostSchema }),
+  }),
+  basePath: '/api/cms',
   adapter: libsqlAdapter({ url: process.env.DATABASE_URL! }),
   plugins: [password],
   auth: { context },
   access: {
-    list: () => true,
     read: () => true,
     create: (ctx) => ctx?.user.role === 'admin',
     update: (ctx) => ctx?.user.role === 'admin',
     delete: (ctx) => ctx?.user.role === 'admin',
   },
-  serverCollections: {
-    posts: {
-      hooks: {
-        beforeDelete: ({ prev }) => {
-          if (prev?.published) throw new Error('unpublish first');
-        },
-      },
-    },
-  },
 });
 
-export default config;
-export const cms = createServerCms(config);
+export default cms;
+export type Cms = typeof cms;
 ```
 
 ### `client.ts` (browser-safe)
 
 ```ts
-import { clientCmsConfig, createCmsClient } from 'better-cms/sveltekit';
-import { basePath, collections } from './schemas';
-import type { AppCtx } from './server/cms';   // type-only — erased
+import { createCmsClient } from 'better-cms/sveltekit';
+import type { Cms } from './server/cms';   // type-only — erased before bundling
 
-export const cmsConfig = clientCmsConfig<typeof collections, AppCtx>({ collections, basePath });
-export const cmsClient = createCmsClient(cmsConfig);
-//      ^? CmsClient<typeof collections, AppCtx>
+export const cmsClient = createCmsClient<Cms>({ basePath: '/api/cms' });
+//      ^? CmsClient<collections, AppCtx>
 //         - posts/settings typed from RowOf<C[K]>
 //         - auth.context() returns Promise<AppCtx | null>
 ```
+
+The single `Cms` generic carries both the collection shapes and `AppCtx`, so nothing has to be re-declared on the client.
 
 `passwordAuth(opts)` returns a CmsPlugin that mounts `/login` + `/logout` HTTP endpoints and exposes a `context(request)` function. Pass `password.context` directly if you don't need to remap the shape, or wrap it (as above) to attach role/org/etc.
 
