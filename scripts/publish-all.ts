@@ -1,7 +1,20 @@
 #!/usr/bin/env bun
 /**
- * Publish every workspace package via `bun publish`, which rewrites
- * `workspace:*` → resolved version in the produced tarball.
+ * Publish every workspace package by packing with `bun pm pack` and uploading
+ * the tarball with `npm publish <tgz>`.
+ *
+ * Bun remains the package manager; only the upload is npm's. `bun pm pack`
+ * resolves `workspace:*` to real versions in the packed package.json — the same
+ * rewrite `bun publish` does — so the reason we could not use `npm publish`
+ * historically (it leaves the workspace protocol literal when it packs) does
+ * not apply once bun has already produced the tarball.
+ *
+ * Why npm does the upload: `bun publish` supports no OIDC, so it cannot use
+ * npm trusted publishing. npm tokens are now capped at 90 days, which makes a
+ * token-based release a recurring outage waiting to happen. `npm publish` reads
+ * a token from .npmrc when one is present and falls back to OIDC when it is
+ * not, so this works for both the bootstrap release and the token-free setup
+ * that replaces it.
  *
  * Order is topological, not filesystem order: a package is only published once
  * everything it depends on is already on the registry. `better-cms` re-exports
@@ -17,13 +30,14 @@
  * Skip packages whose current version is already on the registry, so a rerun
  * after a partial release resumes rather than throwing "version exists".
  *
- * `--dry-run` resolves the order and packs every package via `bun pm pack`,
- * which needs no registry credentials — so CI can run it on every PR. Note it
- * does not exercise the `workspace:*` rewrite (only `bun publish` does that),
- * so it validates packaging and ordering, not the published dependency ranges.
+ * `--dry-run` resolves the order and packs every package without uploading, so
+ * it needs no credentials and CI can run it on every PR. Since packing is now
+ * the same step the real publish uses, the dry run does exercise the
+ * `workspace:*` rewrite.
  */
 import { spawnSync } from 'node:child_process';
-import { readFileSync, readdirSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 interface Pkg {
@@ -119,6 +133,38 @@ function packageExists(name: string): boolean {
 	return res.stdout?.trim() === '200';
 }
 
+/**
+ * Pack with bun, upload with npm. Packing into a fresh empty directory means we
+ * can name the tarball by reading the directory rather than reconstructing npm's
+ * scope-flattening filename rule.
+ */
+function packAndPublish(pkg: Pkg): { status: number | null } {
+	const cwd = join(packagesDir, pkg.dir);
+	const out = mkdtempSync(join(tmpdir(), 'bcms-pack-'));
+	try {
+		const packed = spawnSync('bun', ['pm', 'pack', '--destination', out], {
+			cwd,
+			stdio: ['inherit', 'ignore', 'inherit'],
+		});
+		if (packed.status !== 0) return packed;
+
+		const tarball = readdirSync(out).find((f) => f.endsWith('.tgz'));
+		if (!tarball) {
+			console.error(`  no tarball produced for ${pkg.name}`);
+			return { status: 1 };
+		}
+
+		// --access public is required for the first publish of a scoped package
+		// and is a no-op afterwards.
+		return spawnSync('npm', ['publish', join(out, tarball), '--access', 'public'], {
+			cwd,
+			stdio: 'inherit',
+		});
+	} finally {
+		rmSync(out, { recursive: true, force: true });
+	}
+}
+
 const order = topoSort(packages);
 
 // Creating a scoped package for the first time needs broader credentials than
@@ -146,17 +192,12 @@ for (const [i, pkg] of order.entries()) {
 	}
 
 	console.log(`${step} → ${dryRun ? 'packing' : 'publishing'} ${pkg.name}@${pkg.version}`);
-	// `bun publish --dry-run` still authenticates, so it cannot run on PR CI.
-	// `bun pm pack` is the credential-free equivalent for packaging checks.
 	const res = dryRun
 		? spawnSync('bun', ['pm', 'pack', '--dry-run'], {
 				cwd: join(packagesDir, pkg.dir),
 				stdio: ['inherit', 'ignore', 'inherit'],
 			})
-		: spawnSync('bun', ['publish', '--access', 'public'], {
-				cwd: join(packagesDir, pkg.dir),
-				stdio: 'inherit',
-			});
+		: packAndPublish(pkg);
 
 	if (res.status !== 0) {
 		if (dryRun) {
