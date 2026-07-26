@@ -59,14 +59,41 @@ interface CollectionOpts<S extends z.ZodObject> {
 	timestamps?: boolean;
 }
 
+/**
+ * Drop `.default()` wrappers for the update schema.
+ *
+ * `.partial()` makes every key optional, but zod still applies a field's
+ * default when that key is absent. On a patch that means a request touching
+ * only `title` parses back as `{ title, published: false }` and writes the
+ * default straight over whatever was stored — silent data loss on every
+ * defaulted field. Defaults belong to `create`; an update has to leave fields
+ * it was not given alone.
+ */
+function withoutDefault(schema: z.ZodType): z.ZodType {
+	const def = (schema as unknown as ZodLike)._zod.def;
+	const inner = def.innerType as unknown as z.ZodType | undefined;
+	if (def.type === 'default' || def.type === 'prefault') {
+		return inner ? withoutDefault(inner) : schema;
+	}
+	// `.default().optional()` nests the other way round.
+	if (def.type === 'optional' && inner) {
+		const stripped = withoutDefault(inner);
+		return stripped === inner ? schema : stripped.optional();
+	}
+	return schema;
+}
+
 function buildSchemas(schema: z.ZodObject) {
 	const shape = (schema as unknown as ZodLike)._zod.def.shape as Record<string, z.ZodType>;
 	const createShape: Record<string, z.ZodType> = {};
 	for (const [k, v] of Object.entries(shape)) {
 		if (!SYSTEM_FIELDS.includes(k as SystemField)) createShape[k] = v;
 	}
+	const updateShape: Record<string, z.ZodType> = {};
+	for (const [k, v] of Object.entries(createShape)) updateShape[k] = withoutDefault(v);
+
 	const create = z.object(createShape);
-	const update = create.partial().extend({ id: z.string() });
+	const update = z.object(updateShape).partial().extend({ id: z.string() });
 	const full = schema.partial();
 	return { create, update, full, form: toFormSchema(createShape) };
 }
