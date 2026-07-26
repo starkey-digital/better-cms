@@ -1,6 +1,7 @@
 import { SINGLETON_ID, createCmsApi, isSystemCollection } from '../api/create.js';
 import type { CmsApi, CollectionApi, SingletonApi } from '../api/types.js';
-import type { CmsConfig, CmsContext } from '../config.js';
+import type { CmsConfig, CmsContext, MediaAccessConfig } from '../config.js';
+import { DEFAULT_MAX_UPLOAD_BYTES, DEFAULT_UPLOAD_MIME_TYPES } from '../config.js';
 import { getCmsTables } from '../ir/tables.js';
 import type { CollectionDef, FieldDef, SchemaIR } from '../ir/types.js';
 import { applyOps } from '../ops/apply.js';
@@ -158,51 +159,66 @@ export async function createCMS<C extends Record<string, any> = any, Ctx = unkno
 	}
 
 	/**
-	 * Media upload. Uploading is not tied to one collection, so it is allowed
-	 * when the caller may create *anything*: the global `create` policy, or
-	 * failing that any collection's own. A project that declares write access
-	 * only per-collection would otherwise be unable to upload at all.
+	 * Media upload.
+	 *
+	 * Authorization comes from the dedicated `mediaAccess.upload` policy and
+	 * defaults to deny. It is deliberately not inferred from collection
+	 * `create` policies: permission to submit a comment says nothing about
+	 * permission to write arbitrary bytes into the asset bucket, and equating
+	 * them would turn any publicly-writable collection into open file hosting.
 	 *
 	 * The access check runs before the store check so an anonymous caller
 	 * cannot probe whether media is configured.
 	 */
-	async function canUploadMedia(ctx: unknown): Promise<boolean> {
-		const policies = [
-			config.access?.create,
-			...Object.values(config.collections).map((def) => (def as CollectionDef).access?.create),
-		].filter(Boolean) as ((ctx: unknown, doc?: unknown) => boolean | Promise<boolean>)[];
-		if (policies.length === 0) return false;
-		for (const allow of policies) {
-			if (await allow(ctx)) return true;
-		}
-		return false;
-	}
-
 	async function handleMediaPost(request: Request, ctx: unknown): Promise<Response> {
-		if (!(await canUploadMedia(ctx))) throw errors.forbidden('media upload denied');
+		const upload = config.mediaAccess?.upload as
+			| ((ctx: unknown) => boolean | Promise<boolean>)
+			| undefined;
+		if (!upload || !(await upload(ctx))) throw errors.forbidden('media upload denied');
+
 		const media = context.media;
 		if (!media) throw errors.badRequest('media store not configured');
 
 		const form = await request.formData();
 		const file = form.get('file');
 		if (!(file instanceof Blob)) throw errors.badRequest('expected a "file" field');
+		assertUploadAllowed(config.mediaAccess as MediaAccessConfig | undefined, file);
+
 		const folder = form.get('folder');
 		const object = await media.put(file, {
 			folder: typeof folder === 'string' && folder ? folder : undefined,
 			mime: file.type || undefined,
 		});
 
-		await context.store.create('cms_media', {
-			id: generateId(),
-			key: object.key,
-			url: object.url,
-			mime: object.mime,
-			size: object.size,
-			width: object.width ?? null,
-			height: object.height ?? null,
-			alt: null,
-			createdAt: Date.now(),
-		});
+		// The blob is already durable at this point but the row that makes it
+		// discoverable is not. If the insert fails, delete the object rather
+		// than leaving one nothing references and nothing will ever clean up —
+		// a retry would otherwise add another billed orphan each time.
+		try {
+			await context.store.create('cms_media', {
+				id: generateId(),
+				key: object.key,
+				url: object.url,
+				mime: object.mime,
+				size: object.size,
+				width: object.width ?? null,
+				height: object.height ?? null,
+				alt: null,
+				createdAt: Date.now(),
+			});
+		} catch (e) {
+			try {
+				await media.delete(object.key);
+			} catch (cleanupError) {
+				// Surface the key: the object outlived the request and only a
+				// human (or a sweeper) can reclaim it now.
+				console.error(
+					`[better-cms] uploaded object "${object.key}" was orphaned — its metadata insert failed and the cleanup delete also failed:`,
+					cleanupError,
+				);
+			}
+			throw e;
+		}
 
 		return Response.json(object);
 	}
@@ -296,6 +312,27 @@ function errorResponse(e: unknown): Response {
 		{ error: { code: 'INTERNAL', message: (e as Error).message ?? 'unknown' } },
 		{ status: 500 },
 	);
+}
+
+/**
+ * Enforce the configured size and MIME limits. Both default to something
+ * restrictive: an upload endpoint with no ceiling is a storage-cost and
+ * arbitrary-file-hosting problem, and defaults only help if they apply when
+ * the operator has not thought about it.
+ */
+function assertUploadAllowed(media: MediaAccessConfig | undefined, file: Blob): void {
+	const maxBytes = media?.maxBytes ?? DEFAULT_MAX_UPLOAD_BYTES;
+	if (maxBytes > 0 && file.size > maxBytes) {
+		throw errors.badRequest(`file is ${file.size} bytes; the limit is ${maxBytes}`);
+	}
+
+	const allowed = media?.mimeTypes ?? DEFAULT_UPLOAD_MIME_TYPES;
+	if (allowed.length === 0) return;
+	const mime = file.type || 'application/octet-stream';
+	const ok = allowed.some((pattern) =>
+		pattern.endsWith('/*') ? mime.startsWith(pattern.slice(0, -1)) : pattern === mime,
+	);
+	if (!ok) throw errors.badRequest(`mime type "${mime}" is not accepted`);
 }
 
 function parseWhere(url: URL, def: CollectionDef): Record<string, unknown> | undefined {

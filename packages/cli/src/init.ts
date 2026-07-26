@@ -39,6 +39,13 @@ export const cms = createCms({
 		secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
 		publicBaseUrl: process.env.S3_PUBLIC_URL,
 	}),
+	// Uploads are denied until you say who may make them — this is writing
+	// arbitrary bytes into your bucket, so it is deliberately not inferred
+	// from the collection \`create\` policies below.
+	mediaAccess: {
+		upload: (ctx) => ctx?.user.role === 'admin',
+		// maxBytes defaults to 10 MiB; mimeTypes default to images + PDF.
+	},
 	auth: {
 		context: async (_request) => ({ user: { id: 'dev', role: 'admin' as const } }),
 	},

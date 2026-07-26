@@ -88,6 +88,10 @@ export const cms = createCms({
 		authToken: process.env.DATABASE_AUTH_TOKEN,
 	}),
 	plugins: [password],
+	// No media store is wired in this example, but the policy is what decides
+	// whether POST /api/cms/media is reachable at all — uploads are denied
+	// until an explicit policy allows them.
+	mediaAccess: { upload: (ctx) => ctx?.user.role === 'admin' },
 	auth: { context },
 	access: {
 		read: () => true,

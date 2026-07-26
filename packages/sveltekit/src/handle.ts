@@ -1,6 +1,6 @@
 import type { CmsConfig, CollectionsRecord, CreateCmsOpts } from '@better-cms/core';
 import type { Handle } from '@sveltejs/kit';
-import { type Cms, _cmsConfigOf, isCmsInstance } from './api.js';
+import { type Cms, _cmsConfigOf, _cmsRuntimeOf, isCmsInstance } from './api.js';
 import { cmsInstance } from './instance.js';
 import { withRequestEvent } from './request.js';
 import { normalizeBasePath } from './utils.js';
@@ -28,15 +28,16 @@ export function cmsHandle<C extends CollectionsRecord, Ctx = unknown>(
 	const fromCreateCms = isCmsInstance(cmsOrConfig);
 	const config = fromCreateCms ? _cmsConfigOf(cmsOrConfig) : cmsOrConfig;
 
-	// Whichever caller boots the config first supplies its runtime options, so
-	// passing them in both places is a coin flip. `createCms({ runtime })` owns
-	// the setting for an instance; say so rather than dropping these silently.
+	// Whichever caller boots the config first supplies its runtime options, and
+	// an HTTP request frequently beats the first `cms.*` call. Reuse the options
+	// the instance was built with so the booted CMS is identical either way —
+	// otherwise a configured live transport is installed or lost by ordering.
 	if (fromCreateCms && opts) {
 		console.warn(
 			'[better-cms] cmsHandle(cms, opts) ignores opts for an instance built by createCms — pass them as createCms({ runtime }) instead.',
 		);
 	}
-	const runtime = fromCreateCms ? undefined : opts;
+	const runtime = fromCreateCms ? _cmsRuntimeOf(cmsOrConfig) : opts;
 	const basePath = normalizeBasePath(config.basePath);
 	return ({ event, resolve }) =>
 		withRequestEvent(event, async () => {

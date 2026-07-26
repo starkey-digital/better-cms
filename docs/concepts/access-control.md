@@ -130,6 +130,25 @@ This matters most in remote functions: `query(() => cms.secrets.list())` compile
 
 A read denied by policy is reported over HTTP as `404`, not `403`, so the API never confirms that a hidden record exists. In-process callers get a thrown `CmsError` with `FORBIDDEN`.
 
+## Media uploads
+
+`POST /media` has its own policy, separate from the four collection verbs:
+
+```ts
+createCms({
+  media: s3Media({ /* ... */ }),
+  mediaAccess: {
+    upload: (ctx) => ctx?.user.role === 'admin',   // defaults to deny
+    maxBytes: 10 * 1024 * 1024,                    // default
+    mimeTypes: ['image/*', 'application/pdf'],     // default
+  },
+});
+```
+
+Uploading is **denied unless `mediaAccess.upload` allows it**, and it is deliberately not inferred from collection `create` policies. Permission to submit a comment says nothing about permission to write arbitrary bytes into your asset bucket — equating the two would turn any publicly-writable collection into open file hosting.
+
+`maxBytes` and `mimeTypes` default to something restrictive for the same reason; set `maxBytes: 0` or `mimeTypes: []` to opt out of either check deliberately.
+
 ## Why server-only?
 
 `access` and `hooks` reference server-runtime state — db handles, auth helpers, side-effect imports — so the whole CMS config lives under `src/lib/server/` (or `src/lib/cms/server/`), where SvelteKit's import guard keeps it out of client bundles.

@@ -70,6 +70,15 @@ test.describe('media upload', () => {
 		expect(res.status()).toBe(403);
 	});
 
+	test('a public collection create policy does not confer upload rights', async ({ request }) => {
+		// The example allows anonymous reads and admin-only writes, but the point
+		// holds generally: upload authorization comes from mediaAccess.upload
+		// alone, never inferred from what a caller may create elsewhere.
+		const res = await request.post(`${BASE}/media`, upload);
+		expect(res.status()).toBe(403);
+		expect(await res.text()).toContain('media upload denied');
+	});
+
 	test('an authenticated upload gets past the gate', async ({ page }) => {
 		await login(page.request);
 		const res = await page.request.post(`${BASE}/media`, upload);

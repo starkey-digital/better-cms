@@ -21,8 +21,9 @@ export interface ServerAuthApi<Ctx = unknown> {
 	requireContext(): Promise<NonNullable<Ctx>>;
 }
 
-/** Slot carrying the original config. A Symbol so it can never collide with a collection name. */
+/** Slots carrying the original config and its runtime options. Symbols so they can never collide with a collection name. */
 const CONFIG = Symbol.for('better-cms.config');
+const RUNTIME = Symbol.for('better-cms.runtime');
 
 export type Cms<C extends CollectionsRecord, Ctx = unknown> = CmsApi<C> & {
 	auth: ServerAuthApi<Ctx>;
@@ -85,6 +86,11 @@ export function createCms<C extends CollectionsRecord, Ctx = unknown>(
 				: deferCollection(resolveApi, name, def);
 	}
 	Object.defineProperty(cms, CONFIG, { value: config, enumerable: false });
+	// Kept on the instance so cmsHandle boots with the same options. Whichever
+	// caller reaches the config first wins the boot, and an HTTP request often
+	// beats the first `cms.*` call — without this, a configured Redis live
+	// transport would be replaced by the in-memory default purely by ordering.
+	Object.defineProperty(cms, RUNTIME, { value: runtime, enumerable: false });
 	return cms as Cms<C, Ctx>;
 }
 
@@ -103,6 +109,13 @@ export function _cmsConfigOf<C extends CollectionsRecord, Ctx>(
 		);
 	}
 	return config;
+}
+
+/** The `runtime` options a `Cms` was built with, so every boot path uses the same ones. */
+export function _cmsRuntimeOf<C extends CollectionsRecord, Ctx>(
+	cms: Cms<C, Ctx>,
+): CreateCmsOpts | undefined {
+	return (cms as unknown as Record<symbol, CreateCmsOpts | undefined>)[RUNTIME];
 }
 
 /** True when the argument is a `Cms` runtime instance rather than a raw `CmsConfig`. */
