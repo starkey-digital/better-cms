@@ -1,6 +1,6 @@
 # Access control
 
-Access policies decide who can read, create, update, or delete each collection. Authentication ([auth.md](./auth.md)) resolves the request to a `Ctx`; access functions consume that `Ctx` and decide.
+Access policies decide who can read, create, update, or delete each collection. Authentication ([auth.md](/concepts/auth)) resolves the request to a `Ctx`; access functions consume that `Ctx` and decide.
 
 The CMS config is server-only, so policies can close over server state (db handles, secrets, auth helpers) freely.
 

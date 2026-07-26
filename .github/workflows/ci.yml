@@ -27,3 +27,16 @@ jobs:
 
       - name: Typecheck
         run: bun run --filter '*' typecheck
+
+      - name: Unit tests
+        run: bun test packages
+
+      # The docs site prerenders every page and fails the build on a dead
+      # internal link. Deploying only happens on a `v*` tag, so without this
+      # step a broken link sits undetected until a release tries to ship it —
+      # which is exactly how it last went unnoticed for two months.
+      - name: Build docs (catches dead links before a release does)
+        env:
+          BASE_PATH: /better-cms
+          NODE_ENV: production
+        run: bun run --filter '@better-cms-apps/docs' build
