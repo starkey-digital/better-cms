@@ -35,6 +35,12 @@ jobs:
       # internal link. Deploying only happens on a `v*` tag, so without this
       # step a broken link sits undetected until a release tries to ship it —
       # which is exactly how it last went unnoticed for two months.
+      # Packs every package and resolves the publish order without writing to
+      # the registry. A tag is otherwise the first time packaging is exercised,
+      # and npm versions are immutable — a bad one cannot be taken back.
+      - name: Release dry run (packaging + publish order)
+        run: bun run release:check
+
       - name: Build docs (catches dead links before a release does)
         env:
           BASE_PATH: /better-cms
