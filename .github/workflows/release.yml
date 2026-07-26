@@ -41,6 +41,16 @@ jobs:
         with:
           bun-version: 1.3.14
 
+      # npm uploads the tarballs bun packs. Trusted publishing (OIDC) needs
+      # npm >= 11.5.1, so pin rather than trusting the runner default.
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Pin npm
+        run: npm install -g npm@latest
+
       - name: Derive version from tag
         id: ver
         run: |
@@ -70,7 +80,12 @@ jobs:
             git push origin HEAD:main
           fi
 
-      - name: Configure npm auth (literal token — bun publish doesn't expand env in .npmrc)
+      # Only needed while bootstrapping. `npm publish` uses a token when one is
+      # present and falls back to OIDC when it is not, so deleting the NPM_TOKEN
+      # secret is the whole of the switch to trusted publishing — provided each
+      # package has a trusted publisher configured on npmjs.com first.
+      - name: Configure npm auth (skipped when NPM_TOKEN is unset — OIDC takes over)
+        if: ${{ secrets.NPM_TOKEN != '' }}
         run: |
           echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
           echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > .npmrc
