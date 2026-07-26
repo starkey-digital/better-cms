@@ -2,6 +2,12 @@
 
 Use Drizzle ORM as the persistence layer. Works with any Drizzle-supported database (Postgres, MySQL, SQLite).
 
+`drizzle-orm` is an optional peer dependency — install it, plus your database driver, alongside `better-cms`:
+
+```bash
+bun add drizzle-orm postgres
+```
+
 ```ts
 import { drizzleAdapter } from 'better-cms/adapters/drizzle';
 import { drizzle } from 'drizzle-orm/postgres-js';

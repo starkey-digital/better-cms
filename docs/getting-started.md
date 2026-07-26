@@ -18,7 +18,9 @@ Writes the `$lib/cms/` layout:
 - `.env.example` — DB + S3 vars
 - `drizzle.config.ts`
 
-Then installs `better-cms`, `zod`, `dotenv` (runtime) and `drizzle-kit`, `@libsql/client` (dev). `--skip-install` prints the install commands instead.
+Then installs `better-cms`, `zod`, `dotenv`, `@libsql/client` (runtime) and `drizzle-kit` (dev). `--skip-install` prints the install commands instead.
+
+`@libsql/client` is installed because the scaffold defaults to the libsql adapter. Database drivers and storage SDKs are optional peer dependencies rather than transitive ones — see [Install](/) for the full table.
 
 ## 2. Define your schemas
 
