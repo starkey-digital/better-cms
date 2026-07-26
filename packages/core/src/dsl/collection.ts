@@ -39,6 +39,7 @@ const PASSTHROUGH_SCHEMAS: CollectionSchemas = {
 	create: PASSTHROUGH,
 	update: PASSTHROUGH,
 	full: PASSTHROUGH,
+	form: PASSTHROUGH,
 };
 
 /**
@@ -53,11 +54,12 @@ export function _collection<F extends FieldsRecord, K extends 'collection' | 'si
 ): CollectionDef<F, K> {
 	const { validation } = opts;
 	const schemas: CollectionSchemas =
-		validation?.create || validation?.update || validation?.full
+		validation?.create || validation?.update || validation?.full || validation?.form
 			? {
 					create: (validation.create as CollectionSchemas['create']) ?? PASSTHROUGH,
 					update: (validation.update as CollectionSchemas['update']) ?? PASSTHROUGH,
 					full: (validation.full as CollectionSchemas['full']) ?? PASSTHROUGH,
+					form: (validation.form as CollectionSchemas['form']) ?? PASSTHROUGH,
 				}
 			: PASSTHROUGH_SCHEMAS;
 	return {

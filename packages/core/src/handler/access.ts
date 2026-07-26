@@ -1,9 +1,9 @@
-import type { CmsConfig } from '../config.js';
 import type { AccessVerb } from '../auth/types.js';
+import type { CmsConfig } from '../config.js';
 
 /**
  * Default policy when no explicit access function is configured. Reads are
- * public; writes are denied. Set the matching slot in `defineCMS({ access })`
+ * public; writes are denied. Set the matching slot in `createCms({ access })`
  * or per-collection on `collection({ access })` to override.
  */
 const DEFAULTS: Record<AccessVerb, boolean> = {

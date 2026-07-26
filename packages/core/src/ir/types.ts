@@ -127,13 +127,26 @@ export interface CollectionValidationOverride {
 	create?: StandardSchemaV1;
 	update?: StandardSchemaV1;
 	full?: StandardSchemaV1;
+	form?: StandardSchemaV1<any, any>;
 }
 
-/** Lazily-composed Standard Schemas attached to every collection. */
+/** Composed Standard Schemas attached to every collection. */
 export interface CollectionSchemas {
 	readonly create: StandardSchemaV1<Record<string, unknown>, Record<string, unknown>>;
 	readonly update: StandardSchemaV1<Record<string, unknown>, Record<string, unknown>>;
 	readonly full: StandardSchemaV1<Record<string, unknown>, Record<string, unknown>>;
+	/**
+	 * `create` plus an optional `id`, with every field coerced from the string
+	 * form `FormData` submits. Pass to SvelteKit's `form(schema, handler)`;
+	 * presence of `id` distinguishes an edit from a create.
+	 *
+	 * The input side is `any` on purpose: each host framework describes a
+	 * decoded form payload with its own type (SvelteKit's `RemoteFormInput`),
+	 * and core cannot name them all without depending on them. Declaring a
+	 * structural equivalent here instead makes `CollectionDef` recursive
+	 * enough to destabilise inference in the zod builder.
+	 */
+	readonly form: StandardSchemaV1<any, Record<string, unknown>>;
 }
 
 export interface CollectionDef<

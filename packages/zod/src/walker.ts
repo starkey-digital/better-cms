@@ -50,7 +50,8 @@ export function zodToFields(objectSchema: z.ZodType): FieldsRecord {
 	return out;
 }
 
-function zodToField(schema: z.ZodType): FieldDef {
+/** Walk one field schema to its IR. Exported so the form-schema builder can reuse the unwrap + type detection. */
+export function zodToField(schema: z.ZodType): FieldDef {
 	let inner = schema as unknown as ZodLike;
 	let required = true;
 	let defaultValue: unknown;
@@ -96,7 +97,7 @@ function zodToField(schema: z.ZodType): FieldDef {
 
 	if (meta?.kind === 'relation' && meta.relation) {
 		const many = meta.relation.many;
-		// `target` carries a `CollectionDef`/thunk here; `defineCMS()` swaps it
+		// `target` carries a `CollectionDef`/thunk here; `createCms()` swaps it
 		// for the registered name string before any consumer sees it.
 		return {
 			...base,
@@ -260,6 +261,33 @@ function zodToField(schema: z.ZodType): FieldDef {
 				columnType: 'text',
 				editor: { component: 'JsonField' },
 			};
+	}
+}
+
+/**
+ * The underlying zod type name, with `optional` / `default` / `nullable` /
+ * `catch` / `readonly` wrappers peeled off. Lets callers ask what a field
+ * *is* rather than inferring it from the storage hint — `richText()` is a
+ * plain string that happens to be stored as json, and the two answers differ.
+ */
+export function baseZodType(schema: z.ZodType): string {
+	let inner = schema as unknown as ZodLike;
+	while (true) {
+		const def = inner._zod.def;
+		if (
+			(def.type === 'optional' ||
+				def.type === 'nullable' ||
+				def.type === 'default' ||
+				def.type === 'prefault' ||
+				def.type === 'nonoptional' ||
+				def.type === 'catch' ||
+				def.type === 'readonly') &&
+			def.innerType
+		) {
+			inner = def.innerType;
+			continue;
+		}
+		return def.type;
 	}
 }
 

@@ -72,7 +72,11 @@ const OPS: Record<string, string> = {
 	in: 'IN',
 };
 
-function compileOp(field: string, opName: string, opVal: unknown): { sql: string; args: unknown[] } {
+function compileOp(
+	field: string,
+	opName: string,
+	opVal: unknown,
+): { sql: string; args: unknown[] } {
 	const op = OPS[opName];
 	if (!op) throw new Error(`unknown where op "${opName}"`);
 	if (opName === 'in') {

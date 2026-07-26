@@ -8,7 +8,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { MediaListPage, MediaObject, MediaPutOpts, MediaStore } from '@better-cms/core';
-import { generateId } from '@better-cms/core';
+import { extensionForMime, generateId } from '@better-cms/core';
 
 export interface S3MediaOpts {
 	bucket: string;
@@ -56,13 +56,7 @@ export function s3Media(opts: S3MediaOpts): MediaStore {
 		mime: string,
 	): string {
 		if (givenKey) return givenKey;
-		// Split on '+' (suffix, e.g. svg+xml) and ';' (params, e.g. charset=utf-8) so
-		// image/svg+xml -> svg and text/plain;charset=utf-8 -> plain.
-		const ext =
-			mime
-				.split('/')[1]
-				?.split(/[+;]/)[0]
-				?.replace(/[^a-z0-9-]/gi, '') || 'bin';
+		const ext = extensionForMime(mime);
 		const f =
 			(folder ?? defaultFolderBase) ? (folder?.replace(/\/$/, '') ?? defaultFolderBase) : undefined;
 		const id = generateId();
@@ -146,6 +140,7 @@ export function s3Media(opts: S3MediaOpts): MediaStore {
 				mime: 'application/octet-stream',
 				size: o.Size ?? 0,
 				etag: o.ETag,
+				lastModified: o.LastModified,
 			}));
 			return { items, cursor: res.NextContinuationToken };
 		},

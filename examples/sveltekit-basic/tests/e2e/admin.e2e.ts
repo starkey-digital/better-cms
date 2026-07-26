@@ -1,7 +1,8 @@
 import { expect, test } from '@playwright/test';
 import { BASE, createPost, login } from './fixtures.js';
 
-const uniq = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+const uniq = (prefix: string) =>
+	`${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
 test.describe('admin UI — round-trip', () => {
 	test('GET /collections/:name returns deserialized rows (no nulls for optional fields)', async ({

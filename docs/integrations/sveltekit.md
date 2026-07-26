@@ -2,32 +2,36 @@
 
 Mount the handler, render the admin, read content from server load functions or remote functions.
 
-The `$lib/cms/` layout splits browser-safe schemas/client from the server-only adapter+plugins config. SvelteKit's bundler rejects any client-side import of files under `$lib/cms/server/`, so adapter credentials, media keys, and auth secrets stay on the server.
+The whole CMS config lives under `$lib/cms/server/`, which SvelteKit's bundler refuses to import from client code — adapter credentials, media keys, and auth secrets stay on the server. Components reach the CMS through remote functions, or through the HTTP client for the admin UI.
 
 ## Handler
 
 ```ts
 // src/hooks.server.ts
-import config from '$lib/cms/server/cms';
+import cms from '$lib/cms/server/cms';
 import { cmsHandle } from 'better-cms/sveltekit/server';
 
-export const handle = cmsHandle(config);
+export const handle = cmsHandle(cms);
 ```
+
+`cmsHandle` does two things: it opens the request scope that `cms.auth.context()` and access policies read, and it serves the CMS HTTP endpoints under `basePath` (default `/api/cms`). It must be installed even if you never call those endpoints directly.
 
 ## The `cms` API — server side
 
-`bcms init` writes a `cms.ts` that exports both the raw `config` (default) and a typed property-style API (named export `cms`):
+`bcms init` writes a `cms.ts` exporting a typed, property-style API:
 
 ```ts
 // src/lib/cms/server/cms.ts
 import { createCms } from 'better-cms/sveltekit/server';
-import { defineCMS } from 'better-cms/zod';
-import { collections } from '../schemas.js';
 
-const config = defineCMS({ collections, adapter: ..., plugins: [...] });
+export const cms = createCms({
+	collections: ({ collection, singleton }) => ({ posts: collection({ schema: PostSchema }) }),
+	adapter: libsqlAdapter({ url: process.env.DATABASE_URL! }),
+	plugins: [password],
+});
 
-export default config;
-export const cms = createCms(config);
+export default cms;
+export type Cms = typeof cms;
 ```
 
 Use it from any server load function, hook, or remote function:
@@ -54,44 +58,34 @@ export async function load({ params }) {
 }
 ```
 
-Each collection key has `list / find / get / count / create / update / delete`; each singleton has `get / set`. Methods are typed from your zod schemas — `cms.posts.list()` returns `Post[]`, `cms.settings.get()` returns `Settings | null`. Mutations run through `applyOps` and publish live events. The first call lazily boots the CMS singleton; subsequent calls reuse it.
+Each collection key has `list / find / get / count / create / update / delete`; each singleton has `get / set`. Methods are typed from your zod schemas — `cms.posts.list()` returns `Post[]`, `cms.settings.get()` returns `Settings | null`.
 
-`cms.auth.context()` reads the request from `cmsHandle`'s AsyncLocalStorage scope and resolves it through the configured `auth.context` provider. `cms.auth.requireContext()` throws when the resolved context is null. See [Authentication](/concepts/auth) for full BYOA wiring.
+This is the same implementation the HTTP endpoints call, so reads and writes apply the same access policies and return the same decoded values either way — booleans as booleans, dates as `Date`s, json fields parsed. Mutations run through `applyOps` and publish live events. The first call lazily boots the CMS; subsequent calls reuse it.
 
-## The `cms` client — browser side (in components)
+`cms.auth.context()` resolves the active request through the configured `auth.context` provider, memoized per request. `cms.auth.requireContext()` throws when the resolved context is null. See [Authentication](/concepts/auth) for full BYOA wiring.
 
-`cms` is server-only. Components use the browser-safe `cmsClient` you build once in `$lib/cms/client.ts`:
+## Reaching the CMS from components
 
-```ts
-// src/lib/cms/client.ts
-import { clientCmsConfig, createCmsClient } from 'better-cms/sveltekit';
-import { collections } from './schemas.js';
-
-export const cmsConfig = clientCmsConfig({ collections, basePath: '/api/cms' });
-export const cmsClient = createCmsClient(cmsConfig);
-```
+Components can't import `cms` — it's server-only. Use a remote function:
 
 ```svelte
 <!-- src/routes/blog/[slug]/+page.svelte -->
 <script lang="ts">
-	import { cmsClient } from '$lib/cms/client';
+	import { postBySlug } from '$lib/cms/cms.remote';
 	const { params } = $props();
-	const post = $derived(await cmsClient.posts.get(params.slug));
+	const post = $derived(await postBySlug(params.slug));
 </script>
 
 {#if post}<h1>{post.title}</h1>{/if}
 ```
 
-Same property shape as the server `cms`, same types. Methods talk to the CMS over HTTP (`/api/cms/...`). During SSR the request-scoped `event.fetch` is used so relative URLs resolve.
-
-> **Bundle.** Importing `./schemas` here pulls zod (~30 kB gz) into the browser bundle. Most apps already bundle zod for form validation. For zero-zod SSR-only sites, see [`bcms generate --target=client`](/reference/cli) which bakes a static manifest.
+The HTTP client (`createCmsClient`) also exists, but it's aimed at the admin UI and at clients outside this server — a mobile app, another service, an MCP tool. Inside SvelteKit, a remote function is a better fit: it's typed end to end, it skips a round trip during SSR, and only the fields you actually return cross the wire.
 
 ## Remote functions (typed RPC)
 
 ```ts
 // src/lib/cms/cms.remote.ts
 import { command, query } from '$app/server';
-import { posts } from '$lib/cms/schemas';
 import { cms } from '$lib/cms/server/cms';
 import { z } from 'zod';
 
@@ -105,13 +99,36 @@ export const recentPosts = query(RecentLimit, async (limit) =>
 	}),
 );
 
-export const createPost = command(posts.schemas.create, async (input) => {
+export const createPost = command(cms.posts.schemas.create, async (input) => {
 	await cms.auth.requireContext();
 	return cms.posts.create(input);
 });
 ```
 
-`posts.schemas.create` / `.update` / `.full` are the auto-composed Standard Schemas — built from your zod schema via the lossless `omit`/`partial` flow. Drop straight into `command(schema, fn)` / `query(schema, fn)`. Same applies to tRPC, hono, anywhere a Standard Schema validator is accepted.
+`cms.posts.schemas.create` / `.update` / `.full` / `.form` are the auto-composed Standard Schemas — built from your zod schema via the lossless `omit`/`partial` flow. Drop straight into `command(schema, fn)` / `query(schema, fn)`. Same applies to tRPC, hono, anywhere a Standard Schema validator is accepted.
+
+`.form` is the create schema with an optional `id` and every field coerced from the strings `FormData` carries, so it can back a progressively-enhanced `form()` directly:
+
+```ts
+export const savePost = form(cms.posts.schemas.form, async (data) => {
+	const { id, ...values } = data;
+	const row = id ? await cms.posts.update(id, values) : await cms.posts.create(values);
+	await recentPosts(10).refresh();
+	return { id: row.id };
+});
+```
+
+In the component, wire each input with `.as(type, initial)` so its name, value and `aria-invalid` bind to the form's field state — hand-written `name`/`value` attributes stay outside it, and `issues()` never populates:
+
+```svelte
+<form {...savePost}>
+	<input {...savePost.fields.title.as('text', post.title)} />
+	{#each savePost.fields.title.issues() ?? [] as issue}
+		<p class="error">{issue.message}</p>
+	{/each}
+	<button>Save</button>
+</form>
+```
 
 For bespoke inputs (custom args, multi-collection commands), hand-roll with zod:
 
@@ -129,14 +146,14 @@ export const togglePublished = command(ToggleInput, async ({ id, published }) =>
 ```svelte
 <!-- src/routes/cms/+page.svelte -->
 <script lang="ts">
-	import { cmsConfig } from '$lib/cms/client';
+	import { cmsClient } from '$lib/cms/client';
 	import { CmsAdmin } from 'better-cms/admin';
 </script>
 
-<CmsAdmin config={cmsConfig} auth />
+<CmsAdmin client={cmsClient} auth />
 ```
 
-No `+page.server.ts` needed — schemas live in the browser bundle (via `$lib/cms/schemas`), so the admin manifest builds client-side.
+No `+page.server.ts` needed. `<CmsAdmin>` fetches its field metadata from `GET /api/cms/_meta`, which serves static editor descriptors only — validators, access policies and hooks never reach the browser.
 
 ### Routing
 

@@ -10,7 +10,7 @@ import { z } from 'zod';
  *     schema: z.object({ posts: relation(() => posts, { many: true }) }),
  *   });
  *
- * `defineCMS()` resolves the ref to a string name at registration time by
+ * `createCms()` resolves the ref to a string name at registration time by
  * matching the def against `config.collections`. Typo-safe — TS rejects
  * anything that isn't a CollectionDef.
  */

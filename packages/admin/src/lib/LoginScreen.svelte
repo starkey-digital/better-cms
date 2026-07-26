@@ -1,5 +1,9 @@
 <script lang="ts" module>
 const TURNSTILE_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+// Module-scoped so the Turnstile script is injected once per page, not once
+// per component mount. Reassigned below — biome's useConst autofix cannot see
+// the writes across the module/instance script boundary, so keep `let`.
+// biome-ignore lint/style/useConst: reassigned in loadTurnstile()
 let scriptLoaded = false;
 </script>
 

@@ -39,11 +39,17 @@ export const cms = createCms({
 		secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
 		publicBaseUrl: process.env.S3_PUBLIC_URL,
 	}),
+	// Uploads are denied until you say who may make them — this is writing
+	// arbitrary bytes into your bucket, so it is deliberately not inferred
+	// from the collection \`create\` policies below.
+	mediaAccess: {
+		upload: (ctx) => ctx?.user.role === 'admin',
+		// maxBytes defaults to 10 MiB; mimeTypes default to images + PDF.
+	},
 	auth: {
 		context: async (_request) => ({ user: { id: 'dev', role: 'admin' as const } }),
 	},
 	access: {
-		list: () => true,
 		read: () => true,
 		create: (ctx) => ctx?.user.role === 'admin',
 		update: (ctx) => ctx?.user.role === 'admin',
@@ -53,6 +59,39 @@ export const cms = createCms({
 
 export default cms;
 export type Cms = typeof cms;
+`;
+
+const CLIENT_TEMPLATE = `import { createCmsClient } from 'better-cms/sveltekit';
+import type { Cms } from './server/cms';
+
+// HTTP client for the admin UI. Server code should import \`cms\` from
+// ./server/cms directly instead — same API, no round trip.
+export const cmsClient = createCmsClient<Cms>({ basePath: '/api/cms' });
+`;
+
+const REMOTE_TEMPLATE = `import { command, form, query } from '$app/server';
+import { cms } from '$lib/cms/server/cms';
+import { z } from 'zod';
+
+export const recentPosts = query(async () =>
+	cms.posts.list({ limit: 10, orderBy: [{ field: 'createdAt', dir: 'desc' }] }),
+);
+
+export const getPost = query(z.string(), async (slug) => cms.posts.get(slug));
+
+// \`schemas.form\` coerces FormData strings back to the declared types and
+// accepts an optional \`id\`, so one form handles both create and edit.
+export const savePost = form(cms.posts.schemas.form, async (data) => {
+	const { id, ...values } = data;
+	const row = id ? await cms.posts.update(id, values) : await cms.posts.create(values);
+	await recentPosts().refresh();
+	return { id: row.id };
+});
+
+export const deletePost = command(z.string(), async (id) => {
+	await cms.posts.delete(id);
+	await recentPosts().refresh();
+});
 `;
 
 const ENV_TEMPLATE = `DATABASE_URL=file:./local.db
@@ -67,24 +106,17 @@ S3_PUBLIC_URL=
 `;
 
 const HOOKS_TEMPLATE = `import { cmsHandle } from 'better-cms/sveltekit/server';
-import config from '$lib/server/cms';
+import cms from '$lib/cms/server/cms';
 
-export const handle = cmsHandle(config);
-`;
-
-const ADMIN_PAGE_SERVER_TEMPLATE = `import { clientCmsConfig } from 'better-cms/sveltekit/server';
-import { cms } from '$lib/server/cms';
-
-export const load = () => ({ cms: clientCmsConfig(cms) });
+export const handle = cmsHandle(cms);
 `;
 
 const ADMIN_PAGE_TEMPLATE = `<script lang="ts">
 import { CmsAdmin } from 'better-cms/admin';
-
-let { data } = $props();
+import { cmsClient } from '$lib/cms/client';
 </script>
 
-<CmsAdmin config={data.cms} />
+<CmsAdmin client={cmsClient} />
 `;
 
 const DRIZZLE_CONFIG_TEMPLATE = `import 'dotenv/config';
@@ -187,11 +219,12 @@ export async function init(
 	}
 
 	const files: { path: string; content: string }[] = [
-		{ path: resolve(cwd, 'src/lib/server/cms.ts'), content: CONFIG_TEMPLATE },
+		{ path: resolve(cwd, 'src/lib/cms/server/cms.ts'), content: CONFIG_TEMPLATE },
+		{ path: resolve(cwd, 'src/lib/cms/client.ts'), content: CLIENT_TEMPLATE },
+		{ path: resolve(cwd, 'src/lib/cms/cms.remote.ts'), content: REMOTE_TEMPLATE },
 		{ path: resolve(cwd, '.env.example'), content: ENV_TEMPLATE },
 		{ path: resolve(cwd, 'src/hooks.server.ts'), content: HOOKS_TEMPLATE },
 		{ path: resolve(cwd, 'drizzle.config.ts'), content: DRIZZLE_CONFIG_TEMPLATE },
-		{ path: resolve(cwd, 'src/routes/cms/+page.server.ts'), content: ADMIN_PAGE_SERVER_TEMPLATE },
 		{ path: resolve(cwd, 'src/routes/cms/+page.svelte'), content: ADMIN_PAGE_TEMPLATE },
 	];
 

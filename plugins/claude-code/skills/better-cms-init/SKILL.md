@@ -9,7 +9,8 @@ Bootstrap a new better-cms project. `bcms init` writes the schema-first `$lib/cm
 
 - `src/lib/cms/schemas.ts` — zod schemas + `collection()`/`singleton()` defs (browser-safe)
 - `src/lib/cms/client.ts` — `cmsClient` + `cmsConfig` for `<CmsAdmin>` (no codegen)
-- `src/lib/cms/server/cms.ts` — adapter + plugins + auth + `defineCMS` (server-only)
+- `src/lib/cms/server/cms.ts` — schemas, collections, adapter, plugins, auth (server-only)
+- `src/lib/cms/cms.remote.ts` — remote `query` / `command` / `form` endpoints
 - `src/hooks.server.ts` — wires `cmsHandle(cms)`
 - `src/routes/cms/+page.svelte` — admin route, imports `cmsConfig` direct (no `+page.server.ts`)
 - `.env.example` — DB + S3 vars
@@ -52,5 +53,5 @@ If the user is on a non-SvelteKit framework (React/Next/Astro), tell them the Sv
 - Don't run `drizzle-kit push` automatically — it touches the database.
 - Don't write secrets into `.env` for the user. Show what to put there; let them paste their own credentials.
 - Don't move `server/cms.ts` out of `$lib/cms/server/`. The `server/` directory is what makes Vite enforce server-only — moving it elsewhere exposes adapter credentials to the client bundle. If the user insists, use a `*.server.ts` filename (e.g. `cms.server.ts`) which gets the same guard.
-- Don't import `$lib/cms/server/cms` from a `.svelte` component — Vite blocks it. Use `cmsClient` from `$lib/cms/client` or pass `clientCmsConfig(...)` results through a `+page.server.ts` load function.
-- Don't `import { defineCMS } from 'better-cms'`. Schema-first lives at `better-cms/zod`. The bare `better-cms` entry exposes core types (`RowOf`, `CollectionDef`, `StandardSchemaV1`) but no DSL.
+- Don't import `$lib/cms/server/cms` from a `.svelte` component — Vite blocks it. Use a remote function from `$lib/cms/cms.remote`, or `cmsClient` from `$lib/cms/client` for the admin UI.
+- Don't `import { createCms } from 'better-cms'`. Schema-first lives at `better-cms/zod`. The bare `better-cms` entry exposes core types (`RowOf`, `CollectionDef`, `StandardSchemaV1`) but no DSL.

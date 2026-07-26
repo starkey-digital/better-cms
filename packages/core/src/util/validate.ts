@@ -48,23 +48,78 @@ export function getFieldCodec(field: FieldDef): FieldCodec {
 	return { serialize: (v) => v, deserialize: (v) => v };
 }
 
-/** Serialize a row according to field storage hints. JSON fields get stringified. */
+/**
+ * Serialize a row according to field storage hints. JSON fields get stringified.
+ *
+ * A present-but-`undefined` key becomes SQL `null`: drivers reject `undefined`
+ * as a bind argument, and a caller who included the key at all is saying
+ * "this field has no value" — which on a column is null. An absent key is
+ * never visited, so a partial update still leaves untouched columns alone.
+ * `deserializeRow` drops nulls again, so an optional field survives the
+ * round trip as absent rather than as an explicit null.
+ */
 export function serializeRow(
 	def: CollectionDef,
 	data: Record<string, unknown>,
 ): Record<string, unknown> {
 	const out: Record<string, unknown> = {};
 	for (const [name, value] of Object.entries(data)) {
-		const field: FieldDef | undefined = def.fields[name];
-		if (!field) {
-			out[name] = value;
-			continue;
-		}
 		if (value === undefined || value === null) {
-			out[name] = value;
+			out[name] = null;
 			continue;
 		}
-		out[name] = getFieldCodec(field).serialize(value);
+		const field: FieldDef | undefined = def.fields[name];
+		out[name] = field ? getFieldCodec(field).serialize(value) : value;
+	}
+	return out;
+}
+
+/**
+ * A condition is an operator bag when it is a plain object — the same test
+ * adapters use when compiling SQL. Adapters iterate *every* key of such an
+ * object (`{ gte, lte }` is a legal range), so this must not require a single
+ * key: treating a two-op condition as a plain value would re-encode it as an
+ * equality against the object itself and silently match the wrong rows.
+ */
+function isOperatorCondition(v: unknown): v is Record<string, unknown> {
+	return v != null && typeof v === 'object' && !Array.isArray(v) && !(v instanceof Date);
+}
+
+/**
+ * Push where-clause values through the same field codecs as row writes, so a
+ * query written in domain terms matches what is on disk — `{ published: true }`
+ * has to become `1` for a sqlite boolean column, and a `Date` has to become an
+ * epoch. Without this a caller-supplied filter silently matches nothing.
+ *
+ * `like` values are left alone: they are SQL patterns, not field values.
+ */
+export function serializeWhere(
+	def: CollectionDef,
+	where: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+	if (!where) return undefined;
+	const out: Record<string, unknown> = {};
+	for (const [name, condition] of Object.entries(where)) {
+		const field: FieldDef | undefined = def.fields[name];
+		if (!field || condition === undefined || condition === null) {
+			out[name] = condition;
+			continue;
+		}
+		const codec = getFieldCodec(field);
+		if (isOperatorCondition(condition)) {
+			const ops: Record<string, unknown> = {};
+			for (const [op, value] of Object.entries(condition)) {
+				ops[op] =
+					op === 'like'
+						? value
+						: op === 'in' && Array.isArray(value)
+							? value.map((v) => codec.serialize(v))
+							: codec.serialize(value);
+			}
+			out[name] = ops;
+			continue;
+		}
+		out[name] = codec.serialize(condition);
 	}
 	return out;
 }

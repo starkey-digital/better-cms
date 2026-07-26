@@ -8,11 +8,11 @@ Five-minute setup for SvelteKit. Schema-first, zod-powered.
 bunx -p @better-cms/cli bcms init
 ```
 
-Writes the new `$lib/cms/` layout:
+Writes the `$lib/cms/` layout:
 
-- `src/lib/cms/schemas.ts` — zod schemas + collection definitions
-- `src/lib/cms/client.ts` — `cmsClient` + `cmsConfig` for the admin UI
-- `src/lib/cms/server/cms.ts` — adapter + plugins + auth + `defineCMS`
+- `src/lib/cms/server/cms.ts` — schemas, collections, adapter, plugins, auth. Server-only.
+- `src/lib/cms/cms.remote.ts` — remote `query` / `command` / `form` endpoints
+- `src/lib/cms/client.ts` — `cmsClient` for the admin UI
 - `src/hooks.server.ts` — wires `cmsHandle(cms)`
 - `src/routes/cms/+page.svelte` — admin route
 - `.env.example` — DB + S3 vars
@@ -59,22 +59,25 @@ The walker derives the IR (drizzle columns, admin widgets, MCP descriptors) from
 import 'dotenv/config';
 import { libsqlAdapter } from 'better-cms/adapters/libsql';
 import { createCms } from 'better-cms/sveltekit/server';
-import { defineCMS } from 'better-cms/zod';
-import { collections } from '../schemas.js';
+import { PostSchema } from './schemas.js';
 
-const config = defineCMS({
-	collections,
+export const cms = createCms({
+	collections: ({ collection, singleton }) => ({
+		posts: collection({ schema: PostSchema }),
+	}),
 	adapter: libsqlAdapter({
 		url: process.env.DATABASE_URL!,
 		authToken: process.env.DATABASE_AUTH_TOKEN,
 	}),
 });
 
-export default config;
-export const cms = createCms(config);
+export default cms;
+export type Cms = typeof cms;
 ```
 
-`defineCMS` resolves any `relation(otherCollection)` refs to the registered name strings and throws if a target isn't in `collections`.
+The `({ collection, singleton })` builder form pins `Ctx` from `auth.context`, so per-collection `access` and `hooks` see a typed context without a generic at every call site.
+
+`createCms` resolves any `relation(otherCollection)` refs to the registered name strings and throws if a target isn't in `collections`.
 
 ## 4. Mount the handler
 
@@ -88,62 +91,81 @@ export const handle = cmsHandle(cms);
 
 Default base path is `/api/cms`. Override with `config.basePath` if you need a different mount point.
 
-## 5. Build the typed client
+## 5. Read content on the server
 
-```ts
-// src/lib/cms/client.ts
-import { clientCmsConfig, createCmsClient } from 'better-cms/sveltekit';
-import { collections } from './schemas.js';
-
-export const cmsConfig = clientCmsConfig({ collections, basePath: '/api/cms' });
-export const cmsClient = createCmsClient(cmsConfig);
-```
-
-`clientCmsConfig` strips the server-only fields (`schemas`, `validation`, `toJsonSchema`) so the result is browser-safe. No codegen — types flow from the zod schemas via `z.infer`.
-
-> **Bundle note.** Importing `./schemas` into the client pulls zod (~30 kB gz) into the browser bundle. For zero-zod SSR-only sites, see the [CLI codegen path](/reference/cli#client-manifest-codegen) which bakes a static manifest instead.
-
-## 6. Render the admin UI
-
-```svelte
-<!-- src/routes/cms/+page.svelte -->
-<script lang="ts">
-	import { cmsConfig } from '$lib/cms/client';
-	import { CmsAdmin } from 'better-cms/admin';
-</script>
-
-<CmsAdmin config={cmsConfig} auth />
-```
-
-No `+page.server.ts` needed — schemas are browser-importable now.
-
-## 7. Use the client anywhere
-
-```svelte
-<!-- src/routes/posts/[slug]/+page.svelte -->
-<script lang="ts">
-	import { cmsClient } from '$lib/cms/client';
-
-	const { params } = $props();
-	const post = $derived(await cmsClient.posts.get(params.slug));
-</script>
-
-{#if post}
-	<h1>{post.title}</h1>
-	{#if post.body}<div>{@html post.body}</div>{/if}
-{/if}
-```
-
-Server-side, the same shape works through `cms` from `createCms(config)`:
+Inside the SvelteKit server — load functions, remote functions, `+server.ts` — call the `cms` object directly. No HTTP round trip, and the same access policies apply.
 
 ```ts
 // src/routes/+page.server.ts
 import { cms } from '$lib/cms/server/cms';
 
-export const load = async () => ({
-	posts: await cms.posts.list({ limit: 20 }),
+export async function load() {
+	return {
+		posts: await cms.posts.list({ limit: 20, orderBy: [{ field: 'createdAt', dir: 'desc' }] }),
+	};
+}
+```
+
+Rows come back decoded: booleans are booleans, dates are `Date`s, json fields are parsed.
+
+## 6. Render the admin UI
+
+The admin talks to the CMS over HTTP, so give it a client:
+
+```ts
+// src/lib/cms/client.ts
+import { createCmsClient } from 'better-cms/sveltekit';
+import type { Cms } from './server/cms';
+
+export const cmsClient = createCmsClient<Cms>({ basePath: '/api/cms' });
+```
+
+`import type` is erased before bundling, so this pulls no server code into the browser.
+
+```svelte
+<!-- src/routes/cms/+page.svelte -->
+<script lang="ts">
+	import { cmsClient } from '$lib/cms/client';
+	import { CmsAdmin } from 'better-cms/admin';
+</script>
+
+<CmsAdmin client={cmsClient} auth />
+```
+
+`<CmsAdmin>` fetches its field metadata from `GET /api/cms/_meta` — no config crosses to the browser, and no codegen step.
+
+## 7. Write content with remote functions
+
+`*.remote.ts` files give you typed `query` / `command` / `form` endpoints backed by the same `cms` object. Every collection also carries ready-made validators.
+
+```ts
+// src/lib/cms/cms.remote.ts
+import { command, form, query } from '$app/server';
+import { cms } from '$lib/cms/server/cms';
+import { z } from 'zod';
+
+export const recentPosts = query(async () =>
+	cms.posts.list({ limit: 10, where: { published: true } }),
+);
+
+// `schemas.form` is the create schema with FormData coercion plus an optional
+// `id`, so one handler serves both create and edit.
+export const savePost = form(cms.posts.schemas.form, async (data) => {
+	const { id, ...values } = data;
+	const row = id ? await cms.posts.update(id, values) : await cms.posts.create(values);
+	await recentPosts().refresh();
+	return { id: row.id };
+});
+
+export const deletePost = command(z.string(), async (id) => {
+	await cms.posts.delete(id);
+	await recentPosts().refresh();
 });
 ```
+
+Remote functions need `kit.experimental.remoteFunctions` in `svelte.config.js`, and `compilerOptions.experimental.async` for `$derived(await ...)` in templates.
+
+> **Access policies apply here.** A `query` compiles to a public HTTP endpoint, so `query(() => cms.secrets.list())` exposes whatever that collection's `read` policy permits — and nothing more.
 
 ## 8. Generate the database schema
 

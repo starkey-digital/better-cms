@@ -6,7 +6,7 @@ Hooks live on the **server config** alongside access policies, not on the collec
 
 ## Slots
 
-Six slots per scope (global on `defineCMS({ hooks })`, per-collection on `defineCMS({ serverCollections: { name: { hooks } } })`):
+Six slots per scope (global on `createCms({ hooks })`, per-collection on `collection({ hooks })`):
 
 ```
 beforeCreate / afterCreate
@@ -34,14 +34,14 @@ interface HookContext<Ctx, Doc> {
 - `after*` sees everything `before*` saw plus `result` (the persisted row).
 - `data` is the *validated* input that produced the change — for path-based ops (`patch`, `append`, `move`), it's the merged row, not the raw op fragment.
 
-`Doc` is `RowOf<C[K]>` per collection when wired via `serverCollections`, so `prev.authorId` / `result.title` autocomplete with full inference.
+`Doc` is `RowOf<C[K]>` for per-collection hooks, so `prev.authorId` / `result.title` autocomplete with full inference.
 
 ## Global hooks
 
-Set on `defineCMS({ hooks })`. Applies to every collection.
+Set on `createCms({ hooks })`. Applies to every collection.
 
 ```ts
-defineCMS({
+createCms({
   collections,
   hooks: {
     afterCreate: ({ collection, id, ctx }) => audit.log(ctx, `${collection}.created`, id),
@@ -53,14 +53,13 @@ defineCMS({
 
 ## Per-collection hooks
 
-Wire under `serverCollections[name].hooks`. Per-collection hooks fire *after* the global slot for the same verb (global → collection). Both fire; collection hooks don't replace global hooks.
+Wire under `collection({ hooks })`. Per-collection hooks fire *after* the global slot for the same verb (global → collection). Both fire; collection hooks don't replace global hooks.
 
 ```ts
-defineCMS({
-  collections,
-  hooks: { /* global */ },
-  serverCollections: {
-    posts: {
+createCms({
+  collections: ({ collection }) => ({
+    posts: collection({
+      schema: PostSchema,
       hooks: {
         beforeDelete: ({ prev }) => {
           if (prev?.published) {
@@ -71,8 +70,9 @@ defineCMS({
         afterUpdate: ({ result }) => searchIndex.update(result.id, result),
         afterDelete: ({ id }) => searchIndex.remove(id),
       },
-    },
-  },
+    }),
+  }),
+  hooks: { /* global */ },
 });
 ```
 
@@ -81,15 +81,14 @@ defineCMS({
 Any hook can throw; the surrounding op fails:
 
 ```ts
-serverCollections: {
-  posts: {
-    hooks: {
-      beforeCreate: ({ data }) => {
-        if (data?.title.includes('spam')) throw new Error('spam detected');
-      },
+posts: collection({
+  schema: PostSchema,
+  hooks: {
+    beforeCreate: ({ data }) => {
+      if (data?.title.includes('spam')) throw new Error('spam detected');
     },
   },
-}
+}),
 ```
 
 `POST /ops` returns `OpResult[]` with `{ ok: false, error: { message: 'spam detected' } }` for the failing op. Other ops in the same batch still execute.
@@ -98,9 +97,9 @@ serverCollections: {
 
 - HTTP `POST /ops` — every op runs before/after hooks.
 - HTTP `PUT /singletons/:name` — fires create-or-update hooks depending on whether the row existed.
-- `serverApi.create / update / delete` — same as HTTP, since both routes go through `applyOps`.
+- `cms.<collection>.create / update / delete` — same as HTTP; both go through `applyOps`.
 
-`serverApi.list / find / get` reads bypass hooks — they're not write ops.
+Reads (`list` / `find` / `get` / `count`) don't fire hooks — they're not write ops. They are still subject to access policies.
 
 ## Tips
 

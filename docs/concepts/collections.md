@@ -54,7 +54,7 @@ const AuthorSchema = z.object({
 });
 ```
 
-`defineCMS({ collections })` resolves each target to the registered key name at startup. An unregistered target throws — no silent orphan FK.
+`createCms({ collections })` resolves each target to the registered key name at startup. An unregistered target throws — no silent orphan FK.
 
 ## Type inference
 
@@ -67,7 +67,7 @@ type Post = z.infer<typeof PostSchema>;
 // export type Post = z.infer<typeof PostSchema>;
 ```
 
-`defineCMS<C>` captures your collections verbatim. `RowOf<typeof posts>` resolves to `z.infer<PostSchema> & { id, createdAt, updatedAt }`. The same types flow into:
+`createCms<C>` captures your collections verbatim. `RowOf<typeof posts>` resolves to `z.infer<PostSchema> & { id, createdAt, updatedAt }`. The same types flow into:
 
 - `cms.posts.*` (server) and `cmsClient.posts.*` (browser)
 - `<CmsAdmin config={cmsConfig} />`
@@ -77,23 +77,22 @@ No codegen for types — zod is the single source of truth.
 
 ## Access + hooks live on the server config
 
-`collection()` takes only the schema — per-collection `access` policies and lifecycle `hooks` reference server-only state (db, secrets, side-effects), so they're declared on `defineCMS({ serverCollections })` in your `server/cms.ts`. The collection definition stays browser-safe and JSON-serializable.
+`collection()` takes the schema plus optional `access` and `hooks`. All three live in your server-only `server/cms.ts`, so policies and hooks can close over db handles and secrets freely.
 
 ```ts
 // schemas.ts (browser-safe)
 export const posts = collection({ schema: PostSchema });
 
 // server/cms.ts (server-only)
-import { createCms } from 'better-cms/zod';
+import { createCms } from 'better-cms/sveltekit/server';
 
 type AppCtx = { user: { id: string; role: 'admin' | 'editor' } } | null;
-const { defineCMS } = createCms<AppCtx>();
+// `Ctx` is inferred from `auth.context`; the builder form propagates it.
 
-defineCMS({
-  collections,
-  access: { /* global */ },
-  serverCollections: {
-    posts: {
+export const cms = createCms({
+  collections: ({ collection }) => ({
+    posts: collection({
+      schema: PostSchema,
       access: {
         update: (ctx, doc) => doc?.authorId === ctx?.user.id,    // doc: Post + sys
       },
@@ -103,8 +102,11 @@ defineCMS({
           if (prev?.published) throw new Error('unpublish first');
         },
       },
-    },
-  },
+    }),
+  }),
+  adapter,
+  auth: { context },
+  access: { /* global */ },
 });
 ```
 

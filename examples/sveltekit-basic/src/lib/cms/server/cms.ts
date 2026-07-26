@@ -1,8 +1,15 @@
 import 'dotenv/config';
 import type { AuthContextFn } from 'better-cms';
 import { libsqlAdapter } from 'better-cms/adapters/libsql';
-import { passwordAuth } from 'better-cms/sveltekit/auth';
-import { createCms, image, richText, slug } from 'better-cms/sveltekit/server';
+import { passwordAuth } from 'better-cms/auth';
+import {
+	collection,
+	createCms,
+	image,
+	relation,
+	richText,
+	slug,
+} from 'better-cms/sveltekit/server';
 import { z } from 'zod';
 
 function required(name: string): string {
@@ -13,6 +20,15 @@ function required(name: string): string {
 
 export type AppCtx = { user: { id: string; role: 'admin' | 'editor' } } | null;
 
+export const AuthorSchema = z.object({
+	name: z.string().min(1).max(120),
+	bio: z.string().max(500).optional(),
+});
+
+// Declared before PostSchema so `relation(authors)` can take the def directly.
+// Use a `() => authors` thunk instead when the reference points forward.
+export const authors = collection({ schema: AuthorSchema });
+
 export const PostSchema = z.object({
 	title: z.string().min(1).max(120),
 	slug: slug(),
@@ -20,7 +36,7 @@ export const PostSchema = z.object({
 	body: richText().optional(),
 	cover: image().optional(),
 	published: z.boolean().default(false),
-	authorId: z.string().optional(),
+	authorId: relation(authors).optional(),
 });
 
 export const SettingsSchema = z.object({
@@ -57,6 +73,7 @@ export const cms = createCms({
 				},
 			},
 		}),
+		authors,
 		settings: singleton({ schema: SettingsSchema }),
 		secrets: collection({
 			schema: SecretSchema,
@@ -71,6 +88,10 @@ export const cms = createCms({
 		authToken: process.env.DATABASE_AUTH_TOKEN,
 	}),
 	plugins: [password],
+	// No media store is wired in this example, but the policy is what decides
+	// whether POST /api/cms/media is reachable at all — uploads are denied
+	// until an explicit policy allows them.
+	mediaAccess: { upload: (ctx) => ctx?.user.role === 'admin' },
 	auth: { context },
 	access: {
 		read: () => true,

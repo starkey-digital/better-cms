@@ -7,7 +7,7 @@ description: Use whenever the user asks to add, change, rename, or remove fields
 
 Schema-first: edit `src/lib/cms/schemas.ts`. Use zod + the helpers from `better-cms/zod`. There is no field DSL; the walker derives the IR from the zod schema.
 
-1. **Always import from `better-cms/zod`**: `collection`, `singleton`, `defineCMS`, plus helpers `richText`, `image`, `file`, `slug`, `relation`, `unique`, `indexed`. Plain field types come straight from `z` (`z.string()`, `z.number()`, `z.boolean()`, `z.date()`, `z.enum([...])`, `z.array(...)`, `z.object({...})`).
+1. **Import `collection` / `singleton` and helpers from `better-cms/sveltekit/server`** (or `better-cms/zod` outside SvelteKit); `createCms` comes from `better-cms/sveltekit/server`. Helpers: `richText`, `image`, `file`, `slug`, `relation`, `unique`, `indexed`. Plain field types come straight from `z` (`z.string()`, `z.number()`, `z.boolean()`, `z.date()`, `z.enum([...])`, `z.array(...)`, `z.object({...})`).
 
 2. **Required vs optional**: a plain `z.string()` is required. Chain `.optional()` (or `.nullable()`) to make the field nullable in the column / optional on input. Use `.default(value)` for a server-side default.
 
@@ -15,7 +15,7 @@ Schema-first: edit `src/lib/cms/schemas.ts`. Use zod + the helpers from `better-
    - `richText()` → `z.string()` tagged as rich text (storage: json).
    - `image()` / `file()` → tagged object schemas with the standard `{ key, url, ... }` shape.
    - `slug()` → `z.string()` with the slug regex + kind tag (unique + indexed by default).
-   - `relation(target, opts?)` → typed FK. **Pass the `CollectionDef` directly** (`relation(authors)`) or a thunk for forward/circular refs (`relation(() => authors)`). `defineCMS` resolves the ref to the registered name string at startup; an unregistered target throws.
+   - `relation(target, opts?)` → typed FK. **Pass the `CollectionDef` directly** (`relation(authors)`) or a thunk for forward/circular refs (`relation(() => authors)`). `createCms` resolves the ref to the registered name string at startup; an unregistered target throws.
    - `unique(schema)` / `indexed(schema)` → wrap any zod schema to add the corresponding column flag.
 
 4. **Singletons** use a fixed id `default`. Use them for site settings, single-page content (about, contact), homepage config.

@@ -23,26 +23,28 @@ describe('init', () => {
 		await expect(init({ cwd: dir, skipInstall: true })).rejects.toThrow(/no package\.json/);
 	});
 
-	test('writes the scaffold into the server-only path', async () => {
+	test('writes the scaffold under src/lib/cms', async () => {
 		writePackageJson();
 		const res = await init({ cwd: dir, skipInstall: true });
 		expect(res.written).toEqual(
 			expect.arrayContaining([
-				expect.stringMatching(/src\/lib\/server\/cms\.ts$/),
+				expect.stringMatching(/src\/lib\/cms\/server\/cms\.ts$/),
+				expect.stringMatching(/src\/lib\/cms\/client\.ts$/),
+				expect.stringMatching(/src\/lib\/cms\/cms\.remote\.ts$/),
 				expect.stringMatching(/\.env\.example$/),
 				expect.stringMatching(/src\/hooks\.server\.ts$/),
 				expect.stringMatching(/drizzle\.config\.ts$/),
-				expect.stringMatching(/src\/routes\/cms\/\+page\.server\.ts$/),
 				expect.stringMatching(/src\/routes\/cms\/\+page\.svelte$/),
 			]),
 		);
-		expect(res.written.some((p) => /src\/lib\/cms\.config\.ts$/.test(p))).toBe(false);
+		// The admin UI reads /_meta over HTTP now — no server loader to scaffold.
+		expect(res.written.some((p) => /src\/routes\/cms\/\+page\.server\.ts$/.test(p))).toBe(false);
 	});
 
 	test('cms.ts is eager (server-only — process.env at module scope is fine)', async () => {
 		writePackageJson();
 		await init({ cwd: dir, skipInstall: true });
-		const cfg = readFileSync(join(dir, 'src/lib/server/cms.ts'), 'utf8');
+		const cfg = readFileSync(join(dir, 'src/lib/cms/server/cms.ts'), 'utf8');
 		expect(cfg).toMatch(/adapter:\s*libsqlAdapter\(/);
 		expect(cfg).not.toMatch(/adapter:\s*\(\{\s*env\s*\}\)/);
 		expect(cfg).toContain(`required('DATABASE_URL')`);
@@ -53,8 +55,8 @@ describe('init', () => {
 		writePackageJson();
 		await init({ cwd: dir, skipInstall: true });
 		const hooks = readFileSync(join(dir, 'src/hooks.server.ts'), 'utf8');
-		expect(hooks).toContain(`from '$lib/server/cms'`);
-		expect(hooks).toContain('cmsHandle(config)');
+		expect(hooks).toContain(`from '$lib/cms/server/cms'`);
+		expect(hooks).toContain('cmsHandle(cms)');
 		expect(hooks).not.toContain('{ env }');
 		expect(hooks).not.toContain('$env/dynamic/private');
 	});
@@ -62,20 +64,27 @@ describe('init', () => {
 	test('cms.ts exports both the config and a typed `cms` API', async () => {
 		writePackageJson();
 		await init({ cwd: dir, skipInstall: true });
-		const cfg = readFileSync(join(dir, 'src/lib/server/cms.ts'), 'utf8');
+		const cfg = readFileSync(join(dir, 'src/lib/cms/server/cms.ts'), 'utf8');
 		expect(cfg).toContain('export default cms;');
 		expect(cfg).toContain('export const cms = createCms({');
 	});
 
-	test('admin route uses clientCmsConfig from a +page.server.ts loader', async () => {
+	test('admin route mounts CmsAdmin with the HTTP client', async () => {
 		writePackageJson();
 		await init({ cwd: dir, skipInstall: true });
-		const loader = readFileSync(join(dir, 'src/routes/cms/+page.server.ts'), 'utf8');
-		expect(loader).toContain('clientCmsConfig');
-		expect(loader).toContain(`from '$lib/server/cms'`);
 		const page = readFileSync(join(dir, 'src/routes/cms/+page.svelte'), 'utf8');
 		expect(page).toContain('CmsAdmin');
-		expect(page).toContain('config={data.cms}');
+		expect(page).toContain('client={cmsClient}');
+		const client = readFileSync(join(dir, 'src/lib/cms/client.ts'), 'utf8');
+		expect(client).toContain('createCmsClient<Cms>');
+	});
+
+	test('remote template uses schemas.form for the write path', async () => {
+		writePackageJson();
+		await init({ cwd: dir, skipInstall: true });
+		const remote = readFileSync(join(dir, 'src/lib/cms/cms.remote.ts'), 'utf8');
+		expect(remote).toContain('form(cms.posts.schemas.form');
+		expect(remote).toContain('query(');
 	});
 
 	test('skips files that already exist (no force)', async () => {

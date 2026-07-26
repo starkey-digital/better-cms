@@ -82,7 +82,7 @@ const PostSchema = z.object({
 });
 ```
 
-`defineCMS({ collections })` resolves these to the registered key name at startup. Throws if the target isn't in the map.
+`createCms({ collections })` resolves these to the registered key name at startup. Throws if the target isn't in the map.
 
 ## After editing
 
@@ -92,13 +92,7 @@ Run:
 bunx -p @better-cms/cli bcms generate            # refresh src/lib/cms-schema.ts (drizzle)
 ```
 
-If the project uses the **opt-in client codegen** (zero-zod browser bundle), also run:
-
-```bash
-bunx -p @better-cms/cli bcms generate --target=client
-```
-
-Default flow uses `$lib/cms/client.ts` directly — no client codegen step needed; types flow via `z.infer`.
+That's the only generate step. The typed client and the admin UI pick up new collections automatically — types through a type-only import, editor metadata through `GET /_meta`.
 
 Then remind the user:
 

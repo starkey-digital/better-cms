@@ -52,10 +52,10 @@ export type PasswordAuthCtx = { user: { id: string } } | null;
 
 /**
  * Bundles a CMS plugin (login + logout endpoints) with an `AuthContextFn`
- * suitable for `defineCMS({ auth: { context } })`. Sample wiring:
+ * suitable for `createCms({ auth: { context } })`. Sample wiring:
  *
  *   const password = passwordAuth({ password, secret });
- *   defineCMS({
+ *   createCms({
  *     auth: { context: password.context },
  *     plugins: [password],
  *     ...

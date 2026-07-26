@@ -11,27 +11,19 @@ Regenerate output files from the user's zod schemas in `$lib/cms/schemas.ts`. Ta
 |---|---|---|
 | `drizzle` (default) | `src/lib/cms-schema.ts` | After any schema change. User then runs `drizzle-kit push`. |
 | `types` | `src/lib/cms-types.ts` | **Most users don't need this** — `z.infer<typeof Schema>` covers it. Only useful for tooling that can't read zod. |
-| `client` | `src/lib/cmsClient.ts` | **Opt-in.** Static manifest baked at build-time; lets you skip zod (~30 kB gz) in the browser bundle. Re-run after every schema change. The default flow uses `$lib/cms/client.ts` (codegen-free) and zod ships to the client. |
 
 ## Run
 
 ```bash
 bunx -p @better-cms/cli bcms generate                 # drizzle (default)
 bunx -p @better-cms/cli bcms generate --target=types
-bunx -p @better-cms/cli bcms generate --target=client
 ```
 
 Optional flags: `--config <path>` (override autodetection), `--out <path>` (override output).
 
-## What `--target=client` emits (opt-in)
+## There is no client codegen
 
-A standalone `src/lib/cmsClient.ts` that does NOT reference any server code or the zod runtime:
-
-- Per-collection / singleton TS interfaces (typed off the IR walked from your schemas).
-- `cmsConfig: ClientCmsConfig` — full schema slice, pass to `<CmsAdmin config={cmsConfig} />`.
-- `cmsClient: Cms` — runtime API (`cmsClient.posts.list()`, `cmsClient.posts.get(slug)`, etc.) with a minimal baked schema. Talks to the handler over HTTP.
-
-Use this only when the project's bundle-size budget rules out shipping zod to the browser. Otherwise stick with the codegen-free path: import `cmsClient` from `$lib/cms/client.ts`, types flow via `z.infer<typeof Schema>`.
+`createCmsClient<Cms>()` in `$lib/cms/client.ts` lifts collection and context types straight off the server config through a type-only import, and `<CmsAdmin>` reads its field metadata from `GET /_meta` at runtime. Nothing to regenerate when the schema changes.
 
 ## After generate
 

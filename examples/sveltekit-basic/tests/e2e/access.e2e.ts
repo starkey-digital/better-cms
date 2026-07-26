@@ -1,7 +1,8 @@
 import { expect, test } from '@playwright/test';
 import { BASE, createPost, login, logout } from './fixtures.js';
 
-const uniq = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+const uniq = (prefix: string) =>
+	`${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
 async function createSecret(
 	request: import('@playwright/test').APIRequestContext,
@@ -59,7 +60,11 @@ test.describe('access — global rules (read=allow, writes=admin)', () => {
 
 	test('anon update post via /ops → FORBIDDEN', async ({ request }) => {
 		await login(request);
-		const post = await createPost(request, { title: 'Will Stay', slug: uniq('stay'), published: true });
+		const post = await createPost(request, {
+			title: 'Will Stay',
+			slug: uniq('stay'),
+			published: true,
+		});
 		await logout(request);
 
 		const r = await request.post(`${BASE}/ops`, {

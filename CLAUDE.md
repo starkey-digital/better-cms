@@ -11,8 +11,9 @@ packages/
 ├── adapter-libsql/    # PUBLISHED as `@better-cms/adapter-libsql`
 ├── adapter-drizzle/   # PUBLISHED as `@better-cms/adapter-drizzle`
 ├── media-s3/          # PUBLISHED as `@better-cms/media-s3`
+├── auth/              # PUBLISHED as `@better-cms/auth` — password plugin, cookies, rate limit, turnstile (framework-agnostic)
 ├── sveltekit/         # PUBLISHED as `@better-cms/sveltekit`
-├── zod/               # PUBLISHED as `@better-cms/zod` — schema-first DSL (collection/singleton/defineCMS + walker + helpers)
+├── zod/               # PUBLISHED as `@better-cms/zod` — schema-first DSL (collection/singleton + walker + helpers)
 ├── admin/             # PUBLISHED as `@better-cms/admin`
 └── cli/               # PUBLISHED as `@better-cms/cli` — bin: bcms
 apps/
@@ -26,13 +27,14 @@ All packages publish (no internal-only). End users install **`better-cms`**; tra
 ## Subpath imports (end-user surface)
 
 ```ts
-import { defineCMS, collection, singleton, richText, image, slug, relation } from 'better-cms/zod';
+import { collection, singleton, richText, image, slug, relation } from 'better-cms/zod';
 import type { RowOf } from 'better-cms';
 import { libsqlAdapter }  from 'better-cms/adapters/libsql';
 import { drizzleAdapter } from 'better-cms/adapters/drizzle';
 import { s3Media }        from 'better-cms/media/s3';
-import { cmsHandle, cms, serverApi } from 'better-cms/sveltekit';
-import { listCollection, runOps }    from 'better-cms/sveltekit/remote';
+import { cmsHandle, createCms }      from 'better-cms/sveltekit/server';
+import { createCmsClient }           from 'better-cms/sveltekit';
+import { passwordAuth }              from 'better-cms/auth';
 import { CmsAdmin }       from 'better-cms/admin';
 import { z } from 'zod';
 ```
@@ -56,7 +58,7 @@ import { z } from 'zod';
 `packages/better-cms/tsdown.config.ts` uses `unbundle: true` + per-entry — emits one `.mjs` per subpath. Subpath isolation: importing `better-cms/sveltekit` does NOT pull svelte/react/drizzle code.
 
 - **`dts: true`** in tsdown config (NOT `dts: { build: true, incremental: true }` — project-reference mode fails on workspace re-export shells).
-- **All internal `@better-cms/*` packages publish built `dist/` (not raw `.ts`).** `core`, `sveltekit`, `adapter-libsql`, `adapter-drizzle`, `media-s3`, `cli` use `tsc -p tsconfig.build.json`. `admin` uses `svelte-package` (preserves `.svelte`, compiles `.ts`). Each `package.json` `exports` map carries a `dev-source` condition pointing at `./src/*.ts` for tooling that opts in, plus `types`/`default` pointing at `./dist/`.
+- **All internal `@better-cms/*` packages publish built `dist/` (not raw `.ts`).** `core`, `sveltekit`, `auth`, `adapter-libsql`, `adapter-drizzle`, `media-s3`, `cli` use `tsc -p tsconfig.build.json`. `admin` uses `svelte-package` (preserves `.svelte`, compiles `.ts`). Each `package.json` `exports` map carries a `dev-source` condition pointing at `./src/*.ts` for tooling that opts in, plus `types`/`default` pointing at `./dist/`.
 - **CI runs `bun run --filter './packages/*' build` before typecheck.** Cross-pkg type resolution + example typecheck both depend on `dist/` existing. Bun honours topological order via `--filter`.
 - **SvelteKit consumers do NOT need `ssr.noExternal` for `better-cms` / `@better-cms/*`** — published artifacts are `.js` and externalize cleanly.
 - **SvelteKit example pkgs need `"prepare": "svelte-kit sync || true"`** so `.svelte-kit/tsconfig.json` exists before svelte-check.
@@ -74,18 +76,24 @@ import { z } from 'zod';
 
 - `getCmsTables(config)` is the single source of truth — CLI, runtime, adapters all call it. Never reach into `config.collections` directly.
 - **Default API basePath is `/api/cms`** — leaves `/cms` free for the user's admin route. Override `config.basePath` only when integrating with a different mount point.
-- **The CMS config is server-only.** It lives at `src/lib/server/cms.ts` (the `src/lib/server/` directory triggers SvelteKit's import-from-client guard). The adapter is constructed eagerly inside that module — `adapter: libsqlAdapter({ url: process.env.X! })`. No factory wrappers, no env injection through the handler.
-- **The admin route loads a JSON-safe slice via `+page.server.ts`.** `clientCmsConfig(cms)` returns `{ collections, basePath }` — adapter, media, auth, plugins never cross to the browser. Pattern: `+page.server.ts` calls `clientCmsConfig(cms)` and returns it as `data.cms`; `+page.svelte` does `<CmsAdmin config={data.cms} />`. Don't import the server module from a Svelte component directly — Vite will (correctly) reject it.
+- **The CMS config is server-only.** It lives at `src/lib/cms/server/cms.ts` (any `server/` segment triggers SvelteKit's import-from-client guard). The adapter is constructed eagerly inside that module — `adapter: libsqlAdapter({ url: process.env.X! })`. No factory wrappers, no env injection through the handler.
+- **One implementation of read and write.** `createCmsApi()` in `core/api/create.ts` is the only place rows are read or written. It enforces `checkAccess` and `deserializeRow` on *every* path, including `list`/`find`/`get`/`count`. The HTTP handler is a thin adapter over it; `createCms()` in the sveltekit pkg binds it to a ctx resolver. Never call `store.findMany` (or any adapter method) directly from a transport — that is exactly how the two paths previously drifted, leaking undeserialized rows and skipping read policies. Reads denied by policy surface as 404 over HTTP (non-leaking) and as a thrown `FORBIDDEN` CmsError in-process.
+- **The admin UI takes a client, not a config.** `<CmsAdmin client={cmsClient} />`; it fetches field metadata from `GET /_meta`, which serves static editor descriptors only. No config slice crosses to the browser and there is no client codegen step. Don't import the server module from a Svelte component — Vite will (correctly) reject it.
+- **Media uploads have their own default-deny policy.** `config.mediaAccess.upload` gates `POST /media`, plus `maxBytes` (default 10 MiB) and `mimeTypes` (default images + PDF). Never infer upload rights from collection `create` policies — a publicly-writable comments collection would then make the bucket anonymously writable. The blob is written before the `cms_media` row, so a failed insert compensates with `media.delete`. Keys are content-addressed (`contentKey()` in `core/util/media-key.ts`) so a retry overwrites rather than stranding one object per attempt, and `bcms media:gc` sweeps whatever survives — the only thing that catches crash-orphans. A full outbox/pending-row design was considered and rejected: it costs two DB round trips per upload and still needs the sweeper, which alone covers the same failure class.
+- **Request-scoped auth context is cached per (request, config), in a module-private WeakMap.** Not per request, and not on `event.locals`: multiple mounted CMSes each have their own `auth.context`, so a single per-request entry would hand the second one the first one's identity and authorize the wrong tenant.
+- **`createCms` must stay lazy.** Booting opens a DB connection and may run DDL; the config module is imported by codegen and tooling that never query. `runtime` options are kept on the instance under a Symbol so `cmsHandle` boots with the same ones — whichever of the two reaches the config first wins, and an HTTP request usually beats the first `cms.*` call.
+- **`serializeRow` maps present-but-`undefined` to `null`.** Drivers reject `undefined` as a bind arg; an absent key is never visited, so partial updates still leave untouched columns alone. `serializeWhere` pushes where-clause values through the same field codecs so `where: { published: true }` matches a sqlite integer column.
 - Storage hint per field: scalars + single relations = column; complex (richText/array/object/image/file/relation many) = JSON column. Core's `serializeRow`/`deserializeRow` handle conversion — adapters receive already-serialized rows.
 - Singletons use fixed id `"default"`. Dedicated `GET/PUT /singletons/:name` routes. Discriminated via `CollectionDef<F, 'singleton'>`.
-- Field types are phantom-typed: `FieldDef<TOut>` carries value type; DSL builders propagate it; `defineCMS<C>` captures verbatim → `serverApi`, remote helpers, admin all gain inference.
+- Field types are phantom-typed: `FieldDef<TOut>` carries value type; DSL builders propagate it; `createCms<C>` captures verbatim → server API, remote functions, and the typed HTTP client all gain inference from the single `Cms` type.
 - Three modes (inline edit, admin save, LLM/MCP tool call) all reduce to `CmsOp` → `applyOps()` → live broadcast. One audit trail.
-- **Schema-first, zod-only DSL.** `collection({ schema })` from `@better-cms/zod` walks the zod schema → `FieldsRecord` IR (drives drizzle/admin/MCP) and bakes `def.schemas.{create,update,full}` from zod's native `omit`/`partial` (lossless — transforms, async refines preserved). User schemas drop straight into SvelteKit `query`/`command`/tRPC/anywhere Standard Schema works. Core never imports zod; `@better-cms/core` exposes `_collection` private primitive used by system tables in `ir/tables.ts` and by `@better-cms/zod`'s walker. Other validator-pkg adapters (valibot, arktype) can ship later behind the same `_collection` contract.
-- **Type-safe relations.** `relation(authors)` accepts `CollectionDef` (or `() => CollectionDef` thunk for forward/circular refs), not a string. `defineCMS()` resolves the ref to the registered key name at startup; an unregistered target throws (no silent orphan FKs). Helpers (`richText`, `image`, `file`, `slug`, `relation`, `unique`, `indexed`) tag schemas via a typed `z.registry<BcmsFieldMeta>()`; the walker reads it.
+- **Schema-first, zod-only DSL.** `collection({ schema })` from `@better-cms/zod` walks the zod schema → `FieldsRecord` IR (drives drizzle/admin/MCP) and bakes `def.schemas.{create,update,full,form}` from zod's native `omit`/`partial` (`form` adds FormData coercion + optional `id`, for SvelteKit `form()`) (lossless — transforms, async refines preserved). User schemas drop straight into SvelteKit `query`/`command`/tRPC/anywhere Standard Schema works. Core never imports zod; `@better-cms/core` exposes `_collection` private primitive used by system tables in `ir/tables.ts` and by `@better-cms/zod`'s walker. Other validator-pkg adapters (valibot, arktype) can ship later behind the same `_collection` contract.
+- **Type-safe relations.** `relation(authors)` accepts `CollectionDef` (or `() => CollectionDef` thunk for forward/circular refs), not a string. `createCms()` resolves the ref to the registered key name at startup; an unregistered target throws (no silent orphan FKs). Helpers (`richText`, `image`, `file`, `slug`, `relation`, `unique`, `indexed`) tag schemas via a typed `z.registry<BcmsFieldMeta>()`; the walker reads it.
 - **`RowOf<C>` infers from `__schema` phantom.** When `collection({ schema })` is used, `RowOf<typeof posts>` resolves to `z.infer<typeof PostSchema> & { id, createdAt, updatedAt }`. No-schema fallback walks `FieldsRecord`.
-- **Generated `cmsClient.ts` strips `validation` + `schemas`.** Both carry function refs (non-serializable). `cli/generate-client.ts` uses a `JSON.stringify` replacer; `ClientCollectionDef = Omit<CollectionDef, 'schemas' | 'validation'>` types the browser-safe slice.
-- **`node:async_hooks` is server-only.** Importing from a module reachable from the browser bundle makes Vite externalize it; any subsequent `als.run(...)` throws. The sveltekit pkg splits server (`/server` subpath) from browser-safe root for this. Generated `$lib/cmsClient.ts` imports from the root only.
-- **SSR `fetch` + relative URLs.** Node's global `fetch` rejects relative URLs. `cmsHandle` stores `event.fetch` in the AsyncLocalStorage scope; `createCmsClient` reads it via a registry callback the server entry registers as a side-effect. Never `import('$app/server')` from package source — it's a SvelteKit virtual module, unresolvable outside user-app context.
+- **No client codegen.** `createCmsClient<Cms>()` lifts collection + Ctx types off the server config through a type-only import (erased pre-bundle); `<CmsAdmin>` reads editor metadata from `GET /_meta`. `buildMeta` in `handler.ts` is what keeps function refs (`validation`, `schemas`, `access`, `hooks`) from reaching the browser.
+- **`node:async_hooks` is server-only.** Importing from a module reachable from the browser bundle makes Vite externalize it; any subsequent `als.run(...)` throws. The sveltekit pkg splits server (`/server` subpath) from browser-safe root for this.
+- **Do NOT import `$app/server` from package source.** Verified: Vite externalizes the published `dist/` for SSR, so Node resolves the bare `$app` specifier itself and throws `ERR_MODULE_NOT_FOUND`. It resolves fine from *app* code and from a `dev-source` src path, which makes this easy to "prove" working and then break on install. Reaching `getRequestEvent()` would mean depending on `@sveltejs/kit/internal/server` or forcing `ssr.noExternal` on consumers; instead `sveltekit/src/request.ts` owns an AsyncLocalStorage scope that `cmsHandle` opens, memoizing the resolved ctx on `event.locals`.
+- **`createCmsClient` is browser-only.** With the HTTP layer scoped to the admin and external clients, it no longer runs during SSR, so it needs no request-scoped `event.fetch` bridge. Server code calls `cms.*` directly instead.
 - **SvelteKit experimental flags** (consumer apps): `kit.experimental.remoteFunctions` for `*.remote.ts` files, `compilerOptions.experimental.async` for `$derived(await ...)` in templates. The example enables both.
 
 ## Testing
@@ -95,6 +103,9 @@ import { z } from 'zod';
 - `page.request` shares the page cookie jar; the standalone `request` fixture has its own. Use `page.request` when subsequent `page.goto` needs the session.
 - e2e tests share the libsql file in order. Unique slugs per test; queries that depend on recency need `orderBy: [{ field: 'createdAt', dir: 'desc' }]`.
 - **e2e tests that click on a page must SPA-nav to it via `<a>` link, not `page.goto('/x')`** — Svelte 5 `$derived(await ...)` + remote functions can leave the DOM rendered but onclick handlers unattached, so an early `locator.click()` silently no-ops. Pattern: `page.goto('/')` then `page.getByRole('link', { name: 'X' }).click()` then `expect(page).toHaveURL('/x')`. Read-only assertions with no clicks can keep `page.goto`.
+- **A remote `form()` submitted before hydration falls back to a native post.** The write still lands (that is progressive enhancement working), but the response is a full page load, so `fields.*.issues()` never renders and any assertion on client-side validation state fails. e2e tests that submit must wait for the form to settle first — see `settle()` in `tests/e2e/remote-write.e2e.ts`.
+- **Wire form inputs with `field.as(type, initial)`, not hand-written `name`/`value`.** Only `.as()` binds the input to the form's field state; a manual `name="title"` submits, but `issues()` and `value()` stay empty, which looks like a validation bug. There is no `textarea` in SvelteKit's input-type map — use `as('text', ...)` on an `<input>`.
+- **`login(request)` does not authenticate the page.** `page.request` shares the browser cookie jar; the standalone `request` fixture has its own. Any test that submits a form or clicks through an authenticated flow must log in via `page.request`.
 - Dev-server stdout/stderr is tee'd to `examples/sveltekit-basic/test-results/dev-server.log` per run — check it when an e2e fails with no obvious browser-side cause.
 - Don't `rm local.db*` before running e2e — the `webServer.command` resets it per launch.
 - Don't kill ports manually — Playwright's webServer manages the lifecycle. Don't `rm -rf test-results/` — Playwright clears + the trace/screenshot artifacts help debug. Don't `tee` dev logs — forces approval prompts.

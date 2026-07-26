@@ -30,11 +30,11 @@ bun add -D @better-cms/cli
 
 ```ts
 // src/lib/cms.config.ts
-import { defineCMS, collection, singleton, text, slug, richText, image, boolean } from 'better-cms';
+import { createCms, collection, singleton, text, slug, richText, image, boolean } from 'better-cms';
 import { libsqlAdapter } from 'better-cms/adapters/libsql';
 import { s3Media } from 'better-cms/media/s3';
 
-export default defineCMS({
+export default createCms({
   collections: {
     posts: collection({
       fields: {
@@ -89,12 +89,14 @@ bunx drizzle-kit push
 
 | Import | What |
 |---|---|
-| `better-cms` | Core DSL — `defineCMS`, `collection`, `singleton`, all field builders, types. |
+| `better-cms` | Core runtime + types (`createCMS`, `RowOf`, `CollectionDef`, ops). |
+| `better-cms/zod` | Schema-first DSL — `collection`, `singleton`, `richText`, `image`, `slug`, `relation`. |
 | `better-cms/adapters/libsql` | Direct libsql `ContentStore`. Owns DDL via `init(schema)`. |
 | `better-cms/adapters/drizzle` | Drizzle `ContentStore`. drizzle-kit owns DDL. |
 | `better-cms/media/s3` | S3-compatible `MediaStore` (R2/Wasabi/B2/MinIO/AWS). |
-| `better-cms/sveltekit` | `cmsHandle` hook + `cms()` lazy singleton + typed `serverApi`. |
-| `better-cms/sveltekit/remote` | Remote-function helpers (`listCollection`, `runOps`, `uploadMedia`, ...). |
+| `better-cms/sveltekit` | Browser-safe: `createCmsClient` (admin UI + external clients). |
+| `better-cms/sveltekit/server` | Server-only: `createCms`, `cmsHandle`, `uploadMedia`, the DSL re-exports. |
+| `better-cms/auth` | Password plugin, signed-cookie sessions, rate limiting, Turnstile. |
 | `better-cms/admin` | `<CmsAdmin>` and `<FieldEditor>` Svelte 5 components. |
 | `better-cms/types` | Re-export of every public type. |
 
