@@ -110,4 +110,4 @@ export const cms = createCms({
 });
 ```
 
-`Ctx` is pinned via the `createCms<AppCtx>()` factory; `Doc` is inferred per-collection from `RowOf<C[K]>`. See [Authentication](./auth.md), [Access control](./access-control.md), and [Hooks](./hooks.md) for the full surface.
+`Ctx` is pinned via the `createCms<AppCtx>()` factory; `Doc` is inferred per-collection from `RowOf<C[K]>`. See [Authentication](/concepts/auth), [Access control](/concepts/access-control), and [Hooks](/concepts/hooks) for the full surface.

@@ -2,7 +2,7 @@
 
 better-cms is bring-your-own-auth. The core knows nothing about users — wire any auth provider (the bundled `passwordAuth` plugin, your own session resolver, better-auth, JWT, NextAuth) by giving the CMS a `context(request)` function that returns whatever shape your app uses.
 
-Authorization (who can read/write each collection) is a separate layer — see [Access control](./access-control.md). Hooks for lifecycle side-effects are in [Hooks](./hooks.md).
+Authorization (who can read/write each collection) is a separate layer — see [Access control](/concepts/access-control). Hooks for lifecycle side-effects are in [Hooks](/concepts/hooks).
 
 ## File layout
 

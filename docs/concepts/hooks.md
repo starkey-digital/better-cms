@@ -1,6 +1,6 @@
 # Hooks
 
-Lifecycle hooks fire around create / update / delete ops. Use them for side-effects (audit logs, cache invalidation, search-index sync, denormalization, webhooks). For *deciding* whether an op is allowed, use [Access control](./access-control.md) — hooks aren't the right layer for authorization.
+Lifecycle hooks fire around create / update / delete ops. Use them for side-effects (audit logs, cache invalidation, search-index sync, denormalization, webhooks). For *deciding* whether an op is allowed, use [Access control](/concepts/access-control) — hooks aren't the right layer for authorization.
 
 Hooks live on the **server config** alongside access policies, not on the collection definition. Schema in `schemas.ts` stays browser-safe; lifecycle logic lives in `server/cms.ts`.
 
