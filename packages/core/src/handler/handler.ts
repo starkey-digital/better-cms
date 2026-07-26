@@ -4,7 +4,7 @@ import type { CmsConfig, CmsContext } from '../config.js';
 import { getCmsTables } from '../ir/tables.js';
 import type { CollectionDef, FieldDef, SchemaIR } from '../ir/types.js';
 import { applyOps } from '../ops/apply.js';
-import type { CmsOp } from '../ops/types.js';
+import type { CmsOp, OpResult } from '../ops/types.js';
 import { opToEventType } from '../ops/types.js';
 import type { PluginEndpoint } from '../plugin/types.js';
 import { generateId } from '../util/id.js';
@@ -128,8 +128,23 @@ export async function createCMS<C extends Record<string, any> = any, Ctx = unkno
 	 */
 	async function handleOps(request: Request, ctx: unknown): Promise<Response> {
 		const body = (await request.json()) as { ops: CmsOp[] };
-		const ops = (body.ops ?? []).filter((op) => !isSystemCollection(op.collection));
-		const results = await applyOps(ops, { store: context.store, schema, config, ctx });
+		const submitted = body.ops ?? [];
+		const allowed = submitted.filter((op) => !isSystemCollection(op.collection));
+		const applied = await applyOps(allowed, { store: context.store, schema, config, ctx });
+
+		// Results stay index-aligned with the submitted ops. Silently dropping
+		// the rejected ones would shift every later result onto the wrong op,
+		// and a fully-rejected batch would return `[]`, which reads as success.
+		const byOp = new Map(applied.map((r) => [r.op, r]));
+		const results: OpResult[] = submitted.map(
+			(op) =>
+				byOp.get(op) ?? {
+					op,
+					ok: false,
+					error: { code: 'FORBIDDEN', message: `collection "${op.collection}" is not writable` },
+				},
+		);
+
 		for (const r of results) {
 			if (!r.ok) continue;
 			await live.publish({
@@ -143,17 +158,30 @@ export async function createCMS<C extends Record<string, any> = any, Ctx = unkno
 	}
 
 	/**
-	 * Media upload. Gated on the global `create` policy so an anonymous
-	 * visitor cannot fill the bucket, then recorded in `cms_media` for the
-	 * asset picker.
+	 * Media upload. Uploading is not tied to one collection, so it is allowed
+	 * when the caller may create *anything*: the global `create` policy, or
+	 * failing that any collection's own. A project that declares write access
+	 * only per-collection would otherwise be unable to upload at all.
+	 *
+	 * The access check runs before the store check so an anonymous caller
+	 * cannot probe whether media is configured.
 	 */
+	async function canUploadMedia(ctx: unknown): Promise<boolean> {
+		const policies = [
+			config.access?.create,
+			...Object.values(config.collections).map((def) => (def as CollectionDef).access?.create),
+		].filter(Boolean) as ((ctx: unknown, doc?: unknown) => boolean | Promise<boolean>)[];
+		if (policies.length === 0) return false;
+		for (const allow of policies) {
+			if (await allow(ctx)) return true;
+		}
+		return false;
+	}
+
 	async function handleMediaPost(request: Request, ctx: unknown): Promise<Response> {
+		if (!(await canUploadMedia(ctx))) throw errors.forbidden('media upload denied');
 		const media = context.media;
 		if (!media) throw errors.badRequest('media store not configured');
-		const canCreate = config.access?.create as
-			| ((ctx: unknown) => boolean | Promise<boolean>)
-			| undefined;
-		if (!canCreate || !(await canCreate(ctx))) throw errors.forbidden('media upload denied');
 
 		const form = await request.formData();
 		const file = form.get('file');
@@ -194,11 +222,11 @@ export async function createCMS<C extends Record<string, any> = any, Ctx = unkno
 
 		if (request.method === 'GET') {
 			const list = LIST_RE.exec(sub);
-			if (list) return handleList(url, list[1]!, ctx);
+			if (list) return maskDenied(() => handleList(url, list[1]!, ctx));
 			const one = ONE_RE.exec(sub);
-			if (one) return handleOne(one[1]!, one[2]!, ctx);
+			if (one) return maskDenied(() => handleOne(one[1]!, one[2]!, ctx));
 			const single = SINGLETON_RE.exec(sub);
-			if (single) return handleSingletonGet(single[1]!, ctx);
+			if (single) return maskDenied(() => handleSingletonGet(single[1]!, ctx));
 		}
 
 		if (request.method === 'PUT') {
@@ -223,7 +251,7 @@ export async function createCMS<C extends Record<string, any> = any, Ctx = unkno
 			const ctx = config.auth ? await config.auth.context(request) : undefined;
 			return await routeRequest(request, url, sub, ctx);
 		} catch (e) {
-			return errorResponse(e, request.method);
+			return errorResponse(e);
 		}
 	}
 
@@ -240,16 +268,25 @@ export async function createCMS<C extends Record<string, any> = any, Ctx = unkno
 }
 
 /**
- * A read denied by policy is reported as 404, not 403, so the API never
- * confirms the existence of records the caller may not see. Writes report 403
- * honestly — the caller already knows what it tried to write.
+ * Rewrite a policy-denied read as "not found", so the API never confirms the
+ * existence of records the caller may not see.
+ *
+ * Applied per-route rather than to every error: a plugin endpoint that throws
+ * `forbidden('not logged in')` means exactly that, and masking it would leave
+ * its callers unable to tell "authenticate" from "gone". Writes report 403
+ * honestly too — the caller already knows what it tried to write.
  */
-function errorResponse(e: unknown, method: string): Response {
+async function maskDenied(run: () => Promise<Response>): Promise<Response> {
+	try {
+		return await run();
+	} catch (e) {
+		if (e instanceof CmsError && e.code === 'FORBIDDEN') throw errors.notFound('resource');
+		throw e;
+	}
+}
+
+function errorResponse(e: unknown): Response {
 	if (e instanceof CmsError) {
-		const hideExistence = e.code === 'FORBIDDEN' && (method === 'GET' || method === 'HEAD');
-		if (hideExistence) {
-			return Response.json({ error: { code: 'NOT_FOUND', message: 'not found' } }, { status: 404 });
-		}
 		return Response.json(
 			{ error: { code: e.code, message: e.message, details: e.details } },
 			{ status: e.status },

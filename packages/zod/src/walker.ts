@@ -264,6 +264,33 @@ export function zodToField(schema: z.ZodType): FieldDef {
 	}
 }
 
+/**
+ * The underlying zod type name, with `optional` / `default` / `nullable` /
+ * `catch` / `readonly` wrappers peeled off. Lets callers ask what a field
+ * *is* rather than inferring it from the storage hint — `richText()` is a
+ * plain string that happens to be stored as json, and the two answers differ.
+ */
+export function baseZodType(schema: z.ZodType): string {
+	let inner = schema as unknown as ZodLike;
+	while (true) {
+		const def = inner._zod.def;
+		if (
+			(def.type === 'optional' ||
+				def.type === 'nullable' ||
+				def.type === 'default' ||
+				def.type === 'prefault' ||
+				def.type === 'nonoptional' ||
+				def.type === 'catch' ||
+				def.type === 'readonly') &&
+			def.innerType
+		) {
+			inner = def.innerType;
+			continue;
+		}
+		return def.type;
+	}
+}
+
 function readMeta(s: ZodLike): BcmsFieldMeta | undefined {
 	return bcmsRegistry.get(s as unknown as Parameters<typeof bcmsRegistry.get>[0]) as
 		| BcmsFieldMeta

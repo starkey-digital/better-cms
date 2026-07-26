@@ -61,7 +61,23 @@ async function assertRead(
 	ctxValue: unknown,
 	doc?: unknown,
 ): Promise<void> {
-	if (await checkAccess(config, name, 'read', ctxValue, doc)) return;
+	let allowed: boolean;
+	try {
+		allowed = await checkAccess(config, name, 'read', ctxValue, doc);
+	} catch (e) {
+		// A policy written as `(ctx, doc) => doc.ownerId === ...` throws here on
+		// `list`/`count`, which evaluate without a document. That reads as an
+		// opaque 500, so name the cause.
+		if (doc === undefined) {
+			throw errors.badRequest(
+				`${name}.read policy threw while evaluating a list/count, which passes no document: ${
+					(e as Error).message
+				}. Document-dependent read policies only apply to find/get; express list filtering as a where clause.`,
+			);
+		}
+		throw e;
+	}
+	if (allowed) return;
 	throw errors.forbidden(`${name}.read denied`);
 }
 

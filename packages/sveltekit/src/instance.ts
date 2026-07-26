@@ -16,6 +16,10 @@ const instances = new WeakMap<object, Promise<CmsInstance>>();
  * Boot the CMS for `config`, or return the in-flight/booted instance. The
  * promise is cached rather than the resolved value so concurrent first calls
  * share one boot instead of racing to create tables.
+ *
+ * A failed boot is evicted rather than cached: booting opens a database
+ * connection and may run DDL, so a transient failure must not poison the
+ * config for the lifetime of the process. The next call retries.
  */
 export function cmsInstance<C extends CollectionsRecord, Ctx = unknown>(
 	config: CmsConfig<C, Ctx>,
@@ -23,7 +27,10 @@ export function cmsInstance<C extends CollectionsRecord, Ctx = unknown>(
 ): Promise<CmsInstance> {
 	const existing = instances.get(config);
 	if (existing) return existing;
-	const booting = createCMS(config as CmsConfig<C>, opts);
+	const booting = createCMS(config as CmsConfig<C>, opts).catch((e) => {
+		instances.delete(config);
+		throw e;
+	});
 	instances.set(config, booting);
 	return booting;
 }

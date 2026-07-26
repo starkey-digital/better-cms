@@ -74,13 +74,15 @@ export function serializeRow(
 	return out;
 }
 
-const WHERE_OPS = ['eq', 'ne', 'in', 'gt', 'gte', 'lt', 'lte', 'like'] as const;
-type WhereOpKey = (typeof WHERE_OPS)[number];
-
-function isOperatorCondition(v: unknown): v is Record<WhereOpKey, unknown> {
-	if (v == null || typeof v !== 'object' || Array.isArray(v) || v instanceof Date) return false;
-	const keys = Object.keys(v);
-	return keys.length === 1 && WHERE_OPS.includes(keys[0] as WhereOpKey);
+/**
+ * A condition is an operator bag when it is a plain object — the same test
+ * adapters use when compiling SQL. Adapters iterate *every* key of such an
+ * object (`{ gte, lte }` is a legal range), so this must not require a single
+ * key: treating a two-op condition as a plain value would re-encode it as an
+ * equality against the object itself and silently match the wrong rows.
+ */
+function isOperatorCondition(v: unknown): v is Record<string, unknown> {
+	return v != null && typeof v === 'object' && !Array.isArray(v) && !(v instanceof Date);
 }
 
 /**
@@ -105,16 +107,16 @@ export function serializeWhere(
 		}
 		const codec = getFieldCodec(field);
 		if (isOperatorCondition(condition)) {
-			const op = Object.keys(condition)[0] as WhereOpKey;
-			const value = (condition as Record<string, unknown>)[op];
-			out[name] = {
-				[op]:
+			const ops: Record<string, unknown> = {};
+			for (const [op, value] of Object.entries(condition)) {
+				ops[op] =
 					op === 'like'
 						? value
-						: op === 'in'
-							? (value as unknown[]).map((v) => codec.serialize(v))
-							: codec.serialize(value),
-			};
+						: op === 'in' && Array.isArray(value)
+							? value.map((v) => codec.serialize(v))
+							: codec.serialize(value);
+			}
+			out[name] = ops;
 			continue;
 		}
 		out[name] = codec.serialize(condition);

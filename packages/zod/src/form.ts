@@ -1,6 +1,6 @@
 import type { FieldDef } from '@better-cms/core';
 import { z } from 'zod';
-import { zodToField } from './walker.js';
+import { baseZodType, zodToField } from './walker.js';
 
 /**
  * Build the FormData-facing variant of a collection's create schema.
@@ -18,7 +18,11 @@ export function toFormSchema(shape: Record<string, z.ZodType>): z.ZodObject {
 	const out: Record<string, z.ZodType> = {};
 	for (const [name, field] of Object.entries(shape)) {
 		const ir = zodToField(field);
-		out[name] = z.preprocess((value) => coerceFormValue(ir, value), field) as unknown as z.ZodType;
+		const isString = baseZodType(field) === 'string';
+		out[name] = z.preprocess(
+			(value) => coerceFormValue(ir, isString, value),
+			field,
+		) as unknown as z.ZodType;
 	}
 	out.id = z.string().optional();
 	return z.object(out);
@@ -33,12 +37,14 @@ export function toFormSchema(shape: Record<string, z.ZodType>): z.ZodObject {
  * untouched input. Required fields keep the empty string so the schema
  * reports its own "required" message instead of a type mismatch.
  */
-function coerceFormValue(ir: FieldDef, value: unknown): unknown {
+function coerceFormValue(ir: FieldDef, isString: boolean, value: unknown): unknown {
 	if (typeof value !== 'string') return value;
 	if (value === '') return ir.required ? value : undefined;
 
-	if (ir.storage === 'json') {
-		// richText and other text-shaped json fields arrive as raw markup, not JSON.
+	// Never re-parse a field the schema declares as a string. `richText()` is a
+	// string stored as json, so parsing here would turn a body of `2024` into a
+	// number and reject it as "expected string".
+	if (ir.storage === 'json' && !isString) {
 		try {
 			return JSON.parse(value);
 		} catch {

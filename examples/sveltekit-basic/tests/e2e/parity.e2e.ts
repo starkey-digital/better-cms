@@ -56,20 +56,27 @@ test.describe('server API / HTTP parity', () => {
 });
 
 test.describe('media upload', () => {
-	test('POST /media requires write access', async ({ request }) => {
-		const form = new FormData();
-		form.append('file', new Blob(['hello'], { type: 'text/plain' }), 'hello.txt');
-		const res = await request.post(`${BASE}/media`, {
-			multipart: {
-				file: {
-					name: 'hello.txt',
-					mimeType: 'text/plain',
-					buffer: Buffer.from('hello'),
-				},
-			},
-		});
-		// No media store is configured in the example, so this must be a clean
-		// 4xx from the route — not the 404 "no such route" it used to return.
-		expect([400, 403]).toContain(res.status());
+	const upload = {
+		multipart: {
+			file: { name: 'hello.txt', mimeType: 'text/plain', buffer: Buffer.from('hello') },
+		},
+	};
+
+	test('anonymous upload is denied before the store is consulted', async ({ request }) => {
+		// The route exists at all now (it used to be unrouted and 404). The access
+		// check must run first, so an anonymous caller cannot tell from the status
+		// whether a media store is configured.
+		const res = await request.post(`${BASE}/media`, upload);
+		expect(res.status()).toBe(403);
+	});
+
+	test('an authenticated upload gets past the gate', async ({ page }) => {
+		await login(page.request);
+		const res = await page.request.post(`${BASE}/media`, upload);
+		// This example configures no media store, so the gate passes and the
+		// route reports that — proving the check ran and allowed the request,
+		// rather than short-circuiting on configuration.
+		expect(res.status()).toBe(400);
+		expect(await res.text()).toContain('media store not configured');
 	});
 });

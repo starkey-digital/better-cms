@@ -78,6 +78,29 @@ describe('serializeWhere', () => {
 		});
 	});
 
+	test('encodes every operator in a multi-op condition', () => {
+		// Adapters AND together every key of an operator bag, so a range is a
+		// legal condition. Encoding only the first would leave the rest as raw
+		// Dates against an integer column and match the wrong rows.
+		const from = new Date('2024-01-01T00:00:00.000Z');
+		const to = new Date('2024-02-01T00:00:00.000Z');
+		expect(serializeWhere(def, { createdAt: { gte: from, lte: to } })).toEqual({
+			createdAt: { gte: from.getTime(), lte: to.getTime() },
+		});
+	});
+
+	test('keeps a multi-op condition intact rather than collapsing it to a value', () => {
+		expect(serializeWhere(def, { published: { ne: false, eq: true } })).toEqual({
+			published: { ne: 0, eq: 1 },
+		});
+	});
+
+	test('mixes `like` with other operators without encoding the pattern', () => {
+		expect(serializeWhere(def, { title: { like: '%draft%', ne: 'skip' } })).toEqual({
+			title: { like: '%draft%', ne: 'skip' },
+		});
+	});
+
 	test('leaves `like` patterns alone — they are patterns, not field values', () => {
 		expect(serializeWhere(def, { title: { like: '%draft%' } })).toEqual({
 			title: { like: '%draft%' },

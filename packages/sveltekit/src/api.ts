@@ -10,7 +10,7 @@ import type {
 import { createCmsApi } from '@better-cms/core';
 import { type CmsBuilder, _builder, _resolveRelations } from '@better-cms/zod';
 import { cmsInstance } from './instance.js';
-import { resolveRequestCtx } from './request.js';
+import { currentEvent, resolveRequestCtx } from './request.js';
 
 /**
  * Server-side auth API. Reads the active SvelteKit request via
@@ -64,14 +64,25 @@ export function createCms<C extends CollectionsRecord, Ctx = unknown>(
 	const config = { ...rest, collections } as CmsConfig<C, Ctx>;
 	_resolveRelations(config.collections as unknown as Record<string, CollectionDef>);
 
-	const api = cmsInstance(config, runtime).then((inst) =>
-		createCmsApi<C>(inst.context, () => resolveRequestCtx(config)),
-	);
+	// Deferred, not eager: booting opens a database connection and may run DDL,
+	// and this module is imported for its types by codegen, tests, and tooling
+	// that never issue a query. Building the promise here would also leave it
+	// unhandled until the first call, turning a boot failure into an
+	// unhandledRejection instead of an error at the call site.
+	let api: ApiPromise<C> | undefined;
+	const resolveApi = (): ApiPromise<C> => {
+		api ??= cmsInstance(config, runtime).then((inst) =>
+			createCmsApi<C>(inst.context, () => resolveRequestCtx(config)),
+		);
+		return api;
+	};
 
 	const cms: Record<string, unknown> = { auth: serverAuth(config) };
 	for (const [name, def] of Object.entries(config.collections) as [string, CollectionDef][]) {
 		cms[name] =
-			def.kind === 'singleton' ? deferSingleton(api, name, def) : deferCollection(api, name, def);
+			def.kind === 'singleton'
+				? deferSingleton(resolveApi, name, def)
+				: deferCollection(resolveApi, name, def);
 	}
 	Object.defineProperty(cms, CONFIG, { value: config, enumerable: false });
 	return cms as Cms<C, Ctx>;
@@ -105,6 +116,15 @@ function serverAuth<Ctx>(config: CmsConfig<any, Ctx>): ServerAuthApi<Ctx> {
 	const api: ServerAuthApi<Ctx> = {
 		async context() {
 			if (!config.auth) return null;
+			// Distinguish "anonymous" from "there is no request to read". The
+			// latter means cmsHandle is missing, or this was called from a cron
+			// job / CLI — reporting it as an anonymous context would silently
+			// deny every write instead of naming the cause.
+			if (!currentEvent()) {
+				throw new Error(
+					'[better-cms] cms.auth.context() called outside a request scope. Install cmsHandle in src/hooks.server.ts — it opens the scope for every request.',
+				);
+			}
 			return (await resolveRequestCtx(config)) ?? null;
 		},
 		async requireContext() {
@@ -123,14 +143,15 @@ function serverAuth<Ctx>(config: CmsConfig<any, Ctx>): ServerAuthApi<Ctx> {
  * write behaviour is reimplemented here.
  */
 type ApiPromise<C extends CollectionsRecord> = Promise<CmsApi<C>>;
+type ApiResolver<C extends CollectionsRecord> = () => ApiPromise<C>;
 
 function deferCollection<C extends CollectionsRecord>(
-	api: ApiPromise<C>,
+	api: ApiResolver<C>,
 	name: string,
 	def: CollectionDef,
 ): CollectionApi<Record<string, unknown>> {
 	const target = async () =>
-		(await api)[name as keyof CmsApi<C>] as unknown as CollectionApi<Record<string, unknown>>;
+		(await api())[name as keyof CmsApi<C>] as unknown as CollectionApi<Record<string, unknown>>;
 	return {
 		schemas: def.schemas,
 		list: async (query) => (await target()).list(query),
@@ -144,12 +165,12 @@ function deferCollection<C extends CollectionsRecord>(
 }
 
 function deferSingleton<C extends CollectionsRecord>(
-	api: ApiPromise<C>,
+	api: ApiResolver<C>,
 	name: string,
 	def: CollectionDef,
 ): SingletonApi<Record<string, unknown>> {
 	const target = async () =>
-		(await api)[name as keyof CmsApi<C>] as unknown as SingletonApi<Record<string, unknown>>;
+		(await api())[name as keyof CmsApi<C>] as unknown as SingletonApi<Record<string, unknown>>;
 	return {
 		schemas: def.schemas,
 		get: async () => (await target()).get(),

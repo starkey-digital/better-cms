@@ -25,7 +25,18 @@ export function cmsHandle<C extends CollectionsRecord, Ctx = unknown>(
 	cmsOrConfig: Cms<C, Ctx> | CmsConfig<C, Ctx>,
 	opts?: CreateCmsOpts,
 ): Handle {
-	const config = isCmsInstance(cmsOrConfig) ? _cmsConfigOf(cmsOrConfig) : cmsOrConfig;
+	const fromCreateCms = isCmsInstance(cmsOrConfig);
+	const config = fromCreateCms ? _cmsConfigOf(cmsOrConfig) : cmsOrConfig;
+
+	// Whichever caller boots the config first supplies its runtime options, so
+	// passing them in both places is a coin flip. `createCms({ runtime })` owns
+	// the setting for an instance; say so rather than dropping these silently.
+	if (fromCreateCms && opts) {
+		console.warn(
+			'[better-cms] cmsHandle(cms, opts) ignores opts for an instance built by createCms — pass them as createCms({ runtime }) instead.',
+		);
+	}
+	const runtime = fromCreateCms ? undefined : opts;
 	const basePath = normalizeBasePath(config.basePath);
 	return ({ event, resolve }) =>
 		withRequestEvent(event, async () => {
@@ -33,7 +44,7 @@ export function cmsHandle<C extends CollectionsRecord, Ctx = unknown>(
 			if (pathname !== basePath && !pathname.startsWith(`${basePath}/`)) {
 				return resolve(event);
 			}
-			const instance = await cmsInstance(config, opts);
+			const instance = await cmsInstance(config, runtime);
 			return instance.handler(event.request);
 		}) as Promise<Response>;
 }
