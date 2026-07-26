@@ -176,8 +176,12 @@ function detectPackageManager(cwd: string): PackageManager | null {
 	return null;
 }
 
-const RUNTIME_DEPS = ['better-cms', 'zod', 'dotenv'];
-const DEV_DEPS = ['drizzle-kit', '@libsql/client'];
+// `@libsql/client` is an optional peer of the libsql adapter, not a transitive
+// dependency — the server imports it at runtime, so it belongs here rather than
+// in dev deps. Scaffolds default to the libsql adapter; a project that swaps in
+// drizzle or S3 installs those drivers itself.
+const RUNTIME_DEPS = ['better-cms', 'zod', 'dotenv', '@libsql/client'];
+const DEV_DEPS = ['drizzle-kit'];
 
 function readInstalled(cwd: string): Set<string> {
 	const pkgJsonPath = resolve(cwd, 'package.json');

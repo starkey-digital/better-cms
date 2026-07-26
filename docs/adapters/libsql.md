@@ -2,6 +2,12 @@
 
 Direct adapter for libSQL / Turso / local SQLite via `@libsql/client`.
 
+`@libsql/client` is an optional peer dependency — install it alongside `better-cms` when you use this adapter:
+
+```bash
+bun add @libsql/client
+```
+
 ```ts
 import { libsqlAdapter } from 'better-cms/adapters/libsql';
 

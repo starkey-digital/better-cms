@@ -11,10 +11,18 @@ Most headless CMSes force you into their schema model, hosted dashboard, and run
 ## Install
 
 ```bash
-bun add better-cms zod
+bun add better-cms zod @libsql/client
 ```
 
-End users install `better-cms` (transitive deps pull adapters and integrations) plus `zod` directly. The schema-first DSL lives at `better-cms/zod`.
+You install one better-cms package — `better-cms` — and it pulls every adapter and integration transitively. The schema-first DSL lives at `better-cms/zod`.
+
+Database drivers and storage SDKs are the exception: they are **optional peer dependencies**, so you install only the one your config actually uses. Nothing is pulled in for a backend you never touch.
+
+| If your config uses | also install |
+| --- | --- |
+| `libsqlAdapter` | `@libsql/client` |
+| `drizzleAdapter` | `drizzle-orm` (plus your driver) |
+| `s3Media` | `@aws-sdk/client-s3` `@aws-sdk/s3-request-presigner` |
 
 ## Quick links
 

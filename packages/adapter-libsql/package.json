@@ -25,10 +25,18 @@
 		"build": "tsc -p tsconfig.build.json"
 	},
 	"dependencies": {
-		"@better-cms/core": "workspace:*",
-		"@libsql/client": "^0.14.0"
+		"@better-cms/core": "workspace:*"
+	},
+	"peerDependencies": {
+		"@libsql/client": "^0.14.0 || ^0.15.0 || ^0.16.0 || ^0.17.0"
+	},
+	"peerDependenciesMeta": {
+		"@libsql/client": {
+			"optional": true
+		}
 	},
 	"devDependencies": {
+		"@libsql/client": "^0.14.0",
 		"typescript": "^6.0.3",
 		"bun-types": "^1.3.7"
 	},
