@@ -17,6 +17,13 @@ jobs:
   publish:
     if: github.repository == 'starkey-digital/better-cms'
     runs-on: ubuntu-latest
+    # Husky hooks are a local developer guard and must not run here. `bun install`
+    # runs `prepare` → `husky`, which sets core.hooksPath, so the push in "Commit
+    # bump back to main" fired .husky/pre-push → `typecheck` — before "Build all
+    # packages" had produced the dist/ that the example resolves its types from.
+    # The push failed and the release aborted. ci.yml already typechecks on PRs.
+    env:
+      HUSKY: 0
     steps:
       - uses: actions/checkout@v7
         with:
