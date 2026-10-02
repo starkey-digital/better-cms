@@ -24,6 +24,9 @@ jobs:
     # The push failed and the release aborted. ci.yml already typechecks on PRs.
     env:
       HUSKY: 0
+      # Step `if:` can't read `secrets`. Expose only whether the token exists, so
+      # dependency install scripts never see the token itself.
+      HAS_NPM_TOKEN: ${{ secrets.NPM_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -85,7 +88,7 @@ jobs:
       # secret is the whole of the switch to trusted publishing — provided each
       # package has a trusted publisher configured on npmjs.com first.
       - name: Configure npm auth (skipped when NPM_TOKEN is unset — OIDC takes over)
-        if: ${{ secrets.NPM_TOKEN != '' }}
+        if: ${{ env.HAS_NPM_TOKEN == 'true' }}
         run: |
           echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
           echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > .npmrc
