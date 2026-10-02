@@ -155,6 +155,8 @@ export const togglePublished = command(ToggleInput, async ({ id, published }) =>
 
 No `+page.server.ts` needed. `<CmsAdmin>` fetches its field metadata from `GET /api/cms/_meta`, which serves static editor descriptors only — validators, access policies and hooks never reach the browser.
 
+Pass `title` to brand the sidebar (`<CmsAdmin client={cmsClient} auth title="PELLT" />`). Edits save when the editor leaves a field; there are no Save buttons.
+
 ### Routing
 
 The admin uses hash routing inside the component, so a single mount handles every collection and record. The default route is the first collection. Direct links work:

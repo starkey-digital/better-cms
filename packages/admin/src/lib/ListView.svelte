@@ -1,330 +1,121 @@
-<script lang="ts" module>
-const SKELETON_ROWS = Array.from({ length: 4 }, (_, i) => i);
-</script>
-
 <script lang="ts">
-import type { CmsMetaCollection } from '@better-cms/sveltekit';
 import { onMount } from 'svelte';
+import { getAdmin } from './context.js';
+import { collectionLabel, depluralise, itemName } from './logic/text.js';
+import { addLabel, displayValue, recordTitle } from './logic/titles.js';
+import { type CmsMetaCollection, type RecordApi, type Row, SYSTEM_FIELDS } from './logic/types.js';
 
-type Props = {
-	client: { [k: string]: unknown };
-	name: string;
-	def: CmsMetaCollection;
-	onnew: () => void;
-	onpick: (id: string) => void;
-};
+type Props = { name: string; def: CmsMetaCollection };
 
-const { client, name, def, onnew, onpick }: Props = $props();
+const PAGE = 25;
 
-type ApiMethods = {
-	list(opts?: { limit?: number }): Promise<Record<string, unknown>[]>;
-};
+const { name, def }: Props = $props();
+const { client } = getAdmin();
 
-let rows = $state<Record<string, unknown>[]>([]);
+let rows = $state.raw<Row[]>([]);
+let total = $state(0);
 let loading = $state(true);
-let error = $state<string | null>(null);
+let loadingMore = $state(false);
+let failed = $state(false);
 
-async function load() {
-	loading = true;
-	error = null;
-	try {
-		const api = client[name] as unknown as ApiMethods;
-		rows = await api.list({ limit: 50 });
-	} catch (e) {
-		error = (e as Error).message;
-	} finally {
-		loading = false;
-	}
+const label = $derived(collectionLabel(name, def));
+const noun = $derived(itemName(name, def));
+const plural = $derived(label.toLowerCase());
+
+// Secondary line: a couple of readable fields that the title doesn't already show.
+const detailKeys = $derived(
+	Object.entries(def.fields)
+		.filter(
+			([k, f]) =>
+				!SYSTEM_FIELDS.has(k) &&
+				!f.hidden &&
+				['text', 'select', 'date', 'number', 'integer'].includes(f.kind) &&
+				!/url$/i.test(k) &&
+				!(def.admin?.title ?? '').includes(k) &&
+				def.admin?.title !== k &&
+				k !== 'title' &&
+				k !== 'name',
+		)
+		.slice(0, 2)
+		.map(([k]) => k),
+);
+
+const detail = (r: Row) =>
+	detailKeys
+		.map((k) => displayValue(def.fields[k], r[k]))
+		.filter(Boolean)
+		.join(' · ');
+
+async function fetchPage(offset: number) {
+	const api = client[name] as RecordApi;
+	return api.listPage({ limit: PAGE, offset });
 }
 
 onMount(() => {
-	void load();
+	void (async () => {
+		try {
+			const page = await fetchPage(0);
+			rows = page.rows;
+			total = page.total;
+		} catch {
+			failed = true;
+		} finally {
+			loading = false;
+		}
+	})();
 });
 
-function rowLabel(r: Record<string, unknown>): string {
-	const candidates = ['title', 'name', 'slug', 'label'];
-	for (const k of candidates) {
-		const v = r[k];
-		if (typeof v === 'string' && v) return v;
+async function more() {
+	loadingMore = true;
+	try {
+		const page = await fetchPage(rows.length);
+		rows = [...rows, ...page.rows];
+		total = page.total;
+	} catch {
+		failed = true;
+	} finally {
+		loadingMore = false;
 	}
-	return String(r.id ?? '(untitled)');
-}
-
-function rowMeta(r: Record<string, unknown>): string {
-	const id = typeof r.id === 'string' ? r.id : '';
-	const slug = typeof r.slug === 'string' ? r.slug : '';
-	if (slug && slug !== rowLabel(r)) return slug;
-	return id;
-}
-
-const fieldKeys = $derived(
-	Object.keys(def.fields).filter((k) => k !== 'id' && k !== 'createdAt' && k !== 'updatedAt'),
-);
-
-function badgeForBoolean(v: unknown): { label: string; tone: 'on' | 'off' } | null {
-	if (v === true) return { label: 'yes', tone: 'on' };
-	if (v === false) return { label: 'no', tone: 'off' };
-	return null;
 }
 </script>
 
-<header class="bcms-page-header">
-	<div>
-		<h2>{name}</h2>
-		<p>{rows.length} {rows.length === 1 ? 'record' : 'records'}</p>
+<header class="bcms-page-head">
+	<div class="bcms-page-title">
+		<h1>{label}</h1>
+		<a class="bcms-btn bcms-btn-primary" href="#/{name}/new">+ {addLabel(name, def)}</a>
 	</div>
-	<button type="button" class="bcms-btn bcms-btn-primary" onclick={onnew}>
-		<span aria-hidden="true">+</span> New
-	</button>
+	{#if def.description}<p class="bcms-lede">{def.description}</p>{/if}
 </header>
 
-{#if error}<div class="bcms-error">{error}</div>{/if}
-
-{#if loading}
-	<div class="bcms-list-skel">
-		{#each SKELETON_ROWS as i (i)}
-			<div class="bcms-skel-row"></div>
-		{/each}
-	</div>
-{:else if rows.length === 0}
-	<div class="bcms-empty bcms-empty-card">
-		<h3>No records yet</h3>
-		<p>Create your first {name} entry to get going.</p>
-		<button type="button" class="bcms-btn bcms-btn-primary" onclick={onnew}>+ New</button>
-	</div>
-{:else}
-	<div class="bcms-list">
-		{#each rows as row (row.id)}
-			{@const r = row as Record<string, unknown> & { id?: string }}
-			<button
-				type="button"
-				class="bcms-row"
-				onclick={() => r.id && onpick(String(r.id))}
-			>
-				<div class="bcms-row-main">
-					<strong>{rowLabel(r)}</strong>
-					<small>{rowMeta(r)}</small>
-				</div>
-				<div class="bcms-row-meta">
-					{#each fieldKeys.slice(0, 3) as key (key)}
-						{@const f = def.fields[key]}
-						{@const v = r[key]}
-						{#if f && f.kind === 'boolean'}
-							{@const b = badgeForBoolean(v)}
-							{#if b}
-								<span class="bcms-badge bcms-badge-{b.tone}">{key}: {b.label}</span>
-							{/if}
-						{/if}
-					{/each}
-					<span class="bcms-row-arrow" aria-hidden="true">›</span>
-				</div>
-			</button>
-		{/each}
-	</div>
+{#if failed}
+	<p class="bcms-note bcms-note-bad">We couldn't load the list. Check your connection and refresh the page.</p>
 {/if}
 
-<style>
-	:global(.bcms-page-header) {
-		display: flex;
-		justify-content: space-between;
-		align-items: flex-end;
-		gap: 16px;
-		margin-bottom: 20px;
-	}
-	:global(.bcms-page-header h2) {
-		margin: 0;
-		font-size: var(--bcms-text-2xl);
-		font-weight: 600;
-		letter-spacing: -0.02em;
-		text-transform: capitalize;
-	}
-	:global(.bcms-page-header p) {
-		margin: 4px 0 0;
-		font-size: var(--bcms-text-sm);
-		color: var(--bcms-muted);
-	}
-
-	:global(.bcms-btn) {
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-		padding: 8px 14px;
-		border: 1px solid transparent;
-		border-radius: var(--bcms-radius-sm);
-		font: inherit;
-		font-size: var(--bcms-text-sm);
-		font-weight: 500;
-		cursor: pointer;
-		background-color: var(--bcms-surface);
-		color: var(--bcms-fg);
-		transition:
-			background 120ms ease,
-			border-color 120ms ease,
-			transform 80ms ease;
-	}
-	:global(.bcms-btn:hover) {
-		background-color: var(--bcms-subtle);
-	}
-	:global(.bcms-btn:active) {
-		transform: translateY(1px);
-	}
-	:global(.bcms-btn:focus-visible) {
-		outline: 2px solid var(--bcms-ring);
-		outline-offset: 2px;
-	}
-	:global(.bcms-btn-primary) {
-		background-color: var(--bcms-primary);
-		color: var(--bcms-primary-fg);
-		border-color: var(--bcms-primary);
-	}
-	:global(.bcms-btn-primary:hover) {
-		background-color: var(--bcms-primary-hover);
-		border-color: var(--bcms-primary-hover);
-	}
-	:global(.bcms-btn-ghost) {
-		background: transparent;
-		border-color: var(--bcms-border);
-	}
-	:global(.bcms-btn-ghost:hover) {
-		background-color: var(--bcms-subtle);
-	}
-	:global(.bcms-btn-danger) {
-		background-color: var(--bcms-danger);
-		color: #fff;
-		border-color: var(--bcms-danger);
-	}
-	:global(.bcms-btn-danger:hover) {
-		background-color: color-mix(in oklab, var(--bcms-danger) 88%, black);
-	}
-	:global(.bcms-btn[disabled]) {
-		opacity: 0.6;
-		cursor: not-allowed;
-	}
-
-	:global(.bcms-list) {
-		display: flex;
-		flex-direction: column;
-		gap: 6px;
-		background-color: var(--bcms-surface);
-		border: 1px solid var(--bcms-border);
-		border-radius: var(--bcms-radius);
-		padding: 6px;
-		box-shadow: var(--bcms-shadow-sm);
-	}
-	:global(.bcms-row) {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		gap: 12px;
-		padding: 12px 14px;
-		background: transparent;
-		border: 0;
-		border-radius: var(--bcms-radius-sm);
-		text-align: left;
-		cursor: pointer;
-		font: inherit;
-		color: var(--bcms-fg);
-		transition: background-color 120ms ease;
-	}
-	:global(.bcms-row:hover) {
-		background-color: var(--bcms-subtle);
-	}
-	:global(.bcms-row:focus-visible) {
-		outline: 2px solid var(--bcms-ring);
-		outline-offset: -2px;
-	}
-	:global(.bcms-row-main) {
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-		min-width: 0;
-	}
-	:global(.bcms-row-main strong) {
-		font-weight: 500;
-		font-size: var(--bcms-text-md);
-		color: var(--bcms-fg);
-	}
-	:global(.bcms-row-main small) {
-		font-size: var(--bcms-text-xs);
-		color: var(--bcms-muted);
-		font-family: var(--bcms-font-mono);
-	}
-	:global(.bcms-row-meta) {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		flex-shrink: 0;
-	}
-	:global(.bcms-row-arrow) {
-		color: var(--bcms-muted);
-		font-size: 1.2rem;
-		line-height: 1;
-	}
-
-	:global(.bcms-badge) {
-		display: inline-flex;
-		align-items: center;
-		padding: 2px 8px;
-		font-size: var(--bcms-text-xs);
-		font-weight: 500;
-		border-radius: 999px;
-		border: 1px solid var(--bcms-border);
-		background-color: var(--bcms-subtle);
-		color: var(--bcms-fg-soft);
-	}
-	:global(.bcms-badge-on) {
-		background-color: var(--bcms-success-soft);
-		color: var(--bcms-success-fg);
-		border-color: color-mix(in oklab, var(--bcms-success) 30%, transparent);
-	}
-	:global(.bcms-badge-off) {
-		background-color: var(--bcms-subtle);
-		color: var(--bcms-muted);
-	}
-
-	:global(.bcms-empty-card) {
-		background-color: var(--bcms-surface);
-		border: 1px dashed var(--bcms-border-strong);
-		border-radius: var(--bcms-radius-lg);
-		padding: 56px 24px;
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-		align-items: center;
-	}
-	:global(.bcms-empty-card h3) {
-		margin: 0;
-		font-size: var(--bcms-text-lg);
-		font-weight: 600;
-		color: var(--bcms-fg);
-	}
-	:global(.bcms-empty-card p) {
-		margin: 0 0 12px;
-	}
-
-	:global(.bcms-list-skel) {
-		display: flex;
-		flex-direction: column;
-		gap: 6px;
-	}
-	:global(.bcms-skel-row) {
-		height: 52px;
-		border-radius: var(--bcms-radius);
-		background: linear-gradient(
-			90deg,
-			var(--bcms-subtle) 0%,
-			color-mix(in oklab, var(--bcms-subtle) 60%, white) 50%,
-			var(--bcms-subtle) 100%
-		);
-		background-size: 200% 100%;
-		animation: bcms-shimmer 1.4s ease-in-out infinite;
-	}
-	@keyframes bcms-shimmer {
-		from {
-			background-position: 200% 0;
-		}
-		to {
-			background-position: -200% 0;
-		}
-	}
-</style>
+{#if loading}
+	<div class="bcms-skel" aria-hidden="true"></div>
+{:else if rows.length === 0 && !failed}
+	<div class="bcms-empty-card">
+		<h2>No {plural} yet. Add the first one.</h2>
+		<a class="bcms-btn bcms-btn-primary" href="#/{name}/new">+ {addLabel(name, def)}</a>
+	</div>
+{:else}
+	<p class="bcms-count">{total} {total === 1 ? depluralise(plural) : plural}</p>
+	<ul class="bcms-list">
+		{#each rows as row (row.id)}
+			<li>
+				<a class="bcms-row" href="#/{name}/{encodeURIComponent(String(row.id))}">
+					<span class="bcms-row-main">
+						<strong>{recordTitle(name, def, row)}</strong>
+						{#if detail(row)}<small>{detail(row)}</small>{/if}
+					</span>
+					<span class="bcms-row-go" aria-hidden="true">Edit ›</span>
+				</a>
+			</li>
+		{/each}
+	</ul>
+	{#if rows.length < total}
+		<button type="button" class="bcms-btn bcms-more" disabled={loadingMore} onclick={more}>
+			{loadingMore ? 'Loading…' : 'Show more'}
+		</button>
+	{/if}
+{/if}
