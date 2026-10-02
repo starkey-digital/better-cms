@@ -12,6 +12,7 @@ export default defineConfig({
 		'./src/sveltekit/index.ts',
 		'./src/sveltekit/server.ts',
 		'./src/auth.ts',
+		'./src/auth/better-auth.ts',
 		'./src/zod/index.ts',
 		'./src/admin/index.ts',
 	],

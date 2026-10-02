@@ -4,6 +4,7 @@ import { onMount } from 'svelte';
 import EditView from './EditView.svelte';
 import ListView from './ListView.svelte';
 import LoginScreen from './LoginScreen.svelte';
+import MagicLinkScreen, { type MagicLinkOptions } from './MagicLinkScreen.svelte';
 
 type AnyClient = {
 	auth: {
@@ -20,9 +21,33 @@ type Props = {
 	client: AnyClient;
 	auth?: boolean;
 	turnstileSiteKey?: string;
+	/**
+	 * Sign in with an emailed link via an external auth provider (better-auth's
+	 * magic-link plugin by default) instead of the password form. `true` uses the
+	 * defaults.
+	 */
+	magicLink?: boolean | MagicLinkOptions;
+	/** Send signed-out visitors to this external sign-in page instead of the password form. */
+	signInUrl?: string;
+	/**
+	 * POSTed on sign out, then the admin returns to its sign-in screen. Defaults to
+	 * better-auth's `/api/auth/sign-out` when `magicLink` is set; otherwise the
+	 * CMS's own `/logout` is used.
+	 */
+	signOutUrl?: string;
 };
 
-const { client, auth = false, turnstileSiteKey }: Props = $props();
+const {
+	client,
+	auth = false,
+	turnstileSiteKey,
+	magicLink = false,
+	signInUrl,
+	signOutUrl,
+}: Props = $props();
+
+const magicOptions = $derived(typeof magicLink === 'object' ? magicLink : {});
+const effectiveSignOutUrl = $derived(signOutUrl ?? (magicLink ? '/api/auth/sign-out' : undefined));
 
 type Route =
 	| { kind: 'home' }
@@ -36,6 +61,8 @@ let authChecked = $state(false);
 let meta = $state<CmsMeta | null>(null);
 let hash = $state(typeof location === 'undefined' ? '' : location.hash);
 let error = $state<string | null>(null);
+let linkExpired = $state(false);
+let notAllowed = $state(false);
 const gateOpen = $derived(!auth || (authChecked && ctx !== null));
 
 const route: Route = $derived.by(() => {
@@ -67,12 +94,22 @@ function navigate(path: string, replace = false) {
 }
 
 async function checkAuth() {
+	const params = new URLSearchParams(location.search);
+	linkExpired = params.has('error');
+	const returnedFromLink = params.has('signed_in');
 	try {
 		ctx = await client.auth.context();
 	} catch {
 		ctx = null;
 	} finally {
 		authChecked = true;
+	}
+	notAllowed = returnedFromLink && ctx === null && !linkExpired;
+	if (linkExpired || returnedFromLink) {
+		params.delete('error');
+		params.delete('signed_in');
+		const query = params.size ? `?${params}` : '';
+		history.replaceState(null, '', `${location.pathname}${query}${location.hash}`);
 	}
 }
 
@@ -85,7 +122,16 @@ async function loadMeta() {
 }
 
 async function logout() {
-	await client.auth.logout();
+	if (effectiveSignOutUrl) {
+		await fetch(effectiveSignOutUrl, {
+			method: 'POST',
+			credentials: 'same-origin',
+			headers: { 'content-type': 'application/json' },
+			body: '{}',
+		});
+	} else {
+		await client.auth.logout();
+	}
 	ctx = null;
 }
 
@@ -110,6 +156,16 @@ onMount(() => {
 	<div class="bcms-loading">
 		<div class="bcms-spinner" aria-hidden="true"></div>
 	</div>
+{:else if auth && !gateOpen && signInUrl}
+	<div class="bcms bcms-login">
+		<div class="bcms-login-card">
+			<h1 class="bcms-login-title">Sign in</h1>
+			<p class="bcms-login-sub">Sign in to manage this site.</p>
+			<a class="bcms-btn bcms-btn-primary bcms-login-submit" href={signInUrl}>Sign in</a>
+		</div>
+	</div>
+{:else if auth && !gateOpen && magicLink}
+	<MagicLinkScreen options={magicOptions} expired={linkExpired} {notAllowed} />
 {:else if auth && !gateOpen}
 	<LoginScreen
 		{client}
