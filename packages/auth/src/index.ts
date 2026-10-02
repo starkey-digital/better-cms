@@ -12,9 +12,12 @@ export {
 	memoryStore,
 	durableObjectStore,
 	upstashStore,
+	libsqlStore,
 	RateLimiter,
 	type RateLimitStore,
 	type RateLimitHit,
 	type MemoryStoreOpts,
 	type UpstashOpts,
+	type LibsqlLike,
+	type LibsqlStoreOpts,
 } from './rate-limit/index.js';

@@ -7,7 +7,7 @@ import {
 	signSession,
 	verifySession,
 } from './cookie.js';
-import { hashPassword, verifyPassword } from './crypto.js';
+import { enc, timingSafeEqual, verifyPassword } from './crypto.js';
 import { memoryStore } from './rate-limit/memory.js';
 import type { RateLimitStore } from './rate-limit/types.js';
 import { type TurnstileOpts, verifyTurnstile } from './turnstile.js';
@@ -29,7 +29,7 @@ export interface PasswordAuthRateLimit {
 }
 
 export interface PasswordAuthOpts {
-	/** Plain-text admin password. Hashed once at boot. Mutually exclusive with `passwordHash`. */
+	/** Plain-text admin password. Compared by SHA-256 digest (no PBKDF2). Mutually exclusive with `passwordHash`. */
 	password?: string;
 	/** Pre-hashed admin password (`bcms hash-password <pw>`) for users who don't want the plain credential to appear in env dumps. Mutually exclusive with `password`. */
 	passwordHash?: string;
@@ -78,9 +78,17 @@ export function passwordAuth(opts: PasswordAuthOpts): PasswordAuthResult {
 	if (!opts.secret || opts.secret.length < 16)
 		throw new Error('passwordAuth: secret required (>=16 chars)');
 
-	const hashPromise: Promise<string> = opts.passwordHash
-		? Promise.resolve(opts.passwordHash)
-		: hashPassword(opts.password!);
+	// A plaintext password is compared by SHA-256 digest: hashing it with PBKDF2
+	// would protect nothing (the plaintext is in memory already) and would burn
+	// ~100k iterations of CPU per cold start on top of every login — and Workers
+	// forbid the random salt it needs at module scope. Use `passwordHash` when the
+	// credential should not sit in env dumps.
+	const verify: (candidate: string) => Promise<boolean> = opts.passwordHash
+		? (candidate) => verifyPassword(candidate, opts.passwordHash!)
+		: async (candidate) => {
+				const [a, b] = await Promise.all([sha256(candidate), sha256(opts.password!)]);
+				return timingSafeEqual(a, b);
+			};
 
 	const cookieName = opts.cookieName ?? DEFAULT_COOKIE;
 	const ttlSec = parseTtl(opts.cookieTtl ?? DEFAULT_TTL);
@@ -156,8 +164,7 @@ export function passwordAuth(opts: PasswordAuthOpts): PasswordAuthResult {
 						await sleep(backoffMs);
 					}
 
-					const expectedHash = await hashPromise;
-					if (!body.password || !(await verifyPassword(body.password, expectedHash))) {
+					if (!body.password || !(await verify(body.password))) {
 						fail(ipHit.count, 'bad-password');
 						return Response.json(
 							{
@@ -228,6 +235,10 @@ function badRequest(message: string): Response {
 		{ error: { code: PASSWORD_AUTH_ERROR_CODES.BAD_REQUEST, message } },
 		{ status: 400 },
 	);
+}
+
+async function sha256(s: string): Promise<Uint8Array> {
+	return new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(s)));
 }
 
 function sleep(ms: number): Promise<void> {

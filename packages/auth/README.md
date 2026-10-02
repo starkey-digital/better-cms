@@ -64,7 +64,28 @@ Mounted under `config.basePath` (default `/api/cms`):
 passwordAuth({ passwordHash, secret });
 ```
 
-Fine for dev, single-instance Node/Bun, single Docker container. Throws hard error if Cloudflare Workers detected.
+Fine for dev, single-instance Node/Bun, single Docker container. On Cloudflare Workers it still runs but each isolate keeps its own counters, so the limit is best-effort — use `libsqlStore` there.
+
+### Your own libsql database (recommended on Workers)
+
+No extra service: one small table (`bcms_rate_limit`, created on first use) in the database the CMS already uses. Each increment is a single atomic upsert, so the count is correct across isolates.
+
+```ts
+import { createClient } from '@libsql/client';
+import { libsqlAdapter } from 'better-cms/adapters/libsql';
+import { passwordAuth, libsqlStore } from 'better-cms/auth';
+
+const client = createClient({ url: process.env.DATABASE_URL!, authToken: process.env.DATABASE_AUTH_TOKEN });
+
+passwordAuth({
+  passwordHash,
+  secret,
+  rateLimit: { store: libsqlStore(client) },
+});
+// adapter: libsqlAdapter({ client })
+```
+
+Costs one extra DB round trip per login attempt. Options: `table`, `sweepProbability` (chance an increment also prunes expired rows, default `0.02`).
 
 ### Cloudflare Durable Object
 

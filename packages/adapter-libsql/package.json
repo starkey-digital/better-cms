@@ -12,9 +12,7 @@
 	"description": "better-cms libsql ContentStore adapter.",
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
-	"files": [
-		"dist"
-	],
+	"files": ["dist"],
 	"exports": {
 		".": {
 			"dev-source": "./src/index.ts",
@@ -30,7 +28,7 @@
 		"@better-cms/core": "workspace:*"
 	},
 	"peerDependencies": {
-		"@libsql/client": "^0.14.0 || ^0.15.0 || ^0.16.0 || ^0.17.0"
+		"@libsql/client": "^0.14.0 || ^0.15.0 || ^0.16.0 || ^0.17.0 || ^0.18.0"
 	},
 	"peerDependenciesMeta": {
 		"@libsql/client": {

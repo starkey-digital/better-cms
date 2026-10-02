@@ -28,7 +28,7 @@ Commands:
   generate --target=types    Emit TypeScript interfaces for collections
   media:gc                   Report bucket objects no cms_media row references
   mcp                        Run MCP server (stdio) — for Claude Code / Desktop
-  hash-password [pw]         PBKDF2 hash for CMS_PASSWORD_HASH (prompts if omitted)
+  hash-password [pw]         PBKDF2 hash for CMS_PASSWORD_HASH (prompts if omitted; --iterations=N, default 100000)
   gen-secret [bytes]         Random hex secret for CMS_AUTH_SECRET (default 32 bytes)
 
 Flags:
@@ -84,7 +84,8 @@ async function main() {
 				break;
 			}
 			case 'hash-password': {
-				const hash = await hashPasswordCli(args[1]);
+				const pw = args[1]?.startsWith('--') ? undefined : args[1];
+				const hash = await hashPasswordCli(pw, Number(flag('iterations') ?? 100_000));
 				console.log(hash);
 				break;
 			}

@@ -16,9 +16,6 @@ bun add @libsql/client
 # pick one ORM (optional — libsql adapter works without)
 bun add drizzle-orm
 
-# pick one media backend
-bun add @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
-
 # framework
 bun add @sveltejs/kit svelte
 
