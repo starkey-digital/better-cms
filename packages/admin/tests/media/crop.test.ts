@@ -7,7 +7,7 @@ import {
 	largestBox,
 	scaleBox,
 	shapesFor,
-} from './crop.js';
+} from '../../src/lib/media/crop.js';
 
 const img = { width: 4000, height: 3000 };
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { optionLabels } from './label.js';
+import { optionLabels } from '../../src/lib/media/label.js';
 
 describe('optionLabels', () => {
 	test('unique descriptions are left alone', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { MediaError, createMediaApi, plainError } from './api.js';
+import { MediaError, createMediaApi, plainError } from '../../src/lib/media/api.js';
 
 describe('plainError', () => {
 	test('too big, wrong type, not allowed, generic', () => {
