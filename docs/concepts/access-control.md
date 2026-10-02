@@ -132,13 +132,15 @@ A read denied by policy is reported over HTTP as `404`, not `403`, so the API ne
 
 ## Media uploads
 
-`POST /media` has its own policy, separate from the four collection verbs:
+`POST /media`, `GET /media` and `DELETE /media/:id` have their own policies, separate from the four collection verbs:
 
 ```ts
 createCms({
   media: s3Media({ /* ... */ }),
   mediaAccess: {
     upload: (ctx) => ctx?.user.role === 'admin',   // defaults to deny
+    list: (ctx) => ctx?.user.role === 'admin',     // defaults to the upload policy
+    delete: (ctx) => ctx?.user.role === 'admin',   // defaults to deny
     maxBytes: 10 * 1024 * 1024,                    // default
     mimeTypes: ['image/*', 'application/pdf'],     // default
   },

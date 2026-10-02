@@ -66,6 +66,11 @@ interface ZodAdminMeta {
 	dateOnly?: boolean;
 	hidden?: boolean;
 	itemLabel?: string;
+	/** Image crop shape(s): a width/height ratio, a list of them, or `'free'`. */
+	aspect?: number | number[] | 'free';
+	aspectLabel?: string | string[];
+	/** Longest edge, in pixels, an uploaded image is downscaled to in the browser. */
+	maxSize?: number;
 }
 
 const STRING_KEYS = ['label', 'description', 'placeholder', 'itemLabel'] as const;
@@ -90,6 +95,20 @@ function collectMeta(layer: ZodLike, into: ZodAdminMeta): void {
 		const v = meta[key];
 		if (typeof v === 'boolean' && into[key] === undefined) into[key] = v;
 	}
+	if (into.aspect === undefined) {
+		const a = meta.aspect;
+		if (a === 'free' || (typeof a === 'number' && a > 0)) into.aspect = a;
+		else if (Array.isArray(a) && a.every((n) => typeof n === 'number' && n > 0)) into.aspect = a;
+	}
+	const label = meta.aspectLabel;
+	if (into.aspectLabel === undefined) {
+		if (typeof label === 'string') into.aspectLabel = label;
+		else if (Array.isArray(label) && label.every((l) => typeof l === 'string'))
+			into.aspectLabel = label;
+	}
+	if (into.maxSize === undefined && typeof meta.maxSize === 'number' && meta.maxSize > 0) {
+		into.maxSize = meta.maxSize;
+	}
 }
 
 function applyAdminMeta(field: FieldDef, meta: ZodAdminMeta): FieldDef {
@@ -102,6 +121,11 @@ function applyAdminMeta(field: FieldDef, meta: ZodAdminMeta): FieldDef {
 	if (meta.multiline && field.kind === 'text') props.multiline = true;
 	if (meta.dateOnly && field.kind === 'date') props.dateOnly = true;
 	if (meta.itemLabel !== undefined && field.kind === 'array') props.itemLabel = meta.itemLabel;
+	if (field.kind === 'image') {
+		if (meta.aspect !== undefined) props.aspect = meta.aspect;
+		if (meta.aspectLabel !== undefined) props.aspectLabel = meta.aspectLabel;
+		if (meta.maxSize !== undefined) props.maxSize = meta.maxSize;
+	}
 	if (field.editor && Object.keys(props).length) field.editor = { ...field.editor, props };
 	return field;
 }

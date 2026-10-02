@@ -1,22 +1,21 @@
 import { SINGLETON_ID, createCmsApi, isSystemCollection } from '../api/create.js';
 import type { CmsApi, CollectionApi, SingletonApi } from '../api/types.js';
-import type { CmsConfig, CmsContext, MediaAccessConfig } from '../config.js';
-import { DEFAULT_MAX_UPLOAD_BYTES, DEFAULT_UPLOAD_MIME_TYPES } from '../config.js';
+import type { CmsConfig, CmsContext } from '../config.js';
 import { getCmsTables } from '../ir/tables.js';
 import type { CollectionAdminIR, CollectionDef, FieldDef, SchemaIR } from '../ir/types.js';
 import { applyOps } from '../ops/apply.js';
 import type { CmsOp, OpResult } from '../ops/types.js';
 import { opToEventType } from '../ops/types.js';
 import type { PluginEndpoint } from '../plugin/types.js';
-import { generateId } from '../util/id.js';
-import { contentKey } from '../util/media-key.js';
 import { CmsError, errors } from '../util/result.js';
 import { detectSlugField } from '../util/slug.js';
 import { coerceScalar } from '../util/validate.js';
 import { type LiveTransport, inMemoryTransport, sseResponse } from './live.js';
+import { createMediaRoutes } from './media-routes.js';
 
 const LIST_RE = /^\/collections\/([^/]+)$/;
 const ONE_RE = /^\/collections\/([^/]+)\/([^/]+)$/;
+const MEDIA_ONE_RE = /^\/media\/([^/]+)$/;
 const SINGLETON_RE = /^\/singletons\/([^/]+)$/;
 type RouteKey = `${string} ${string}`;
 
@@ -160,78 +159,7 @@ export async function createCMS<C extends Record<string, any> = any, Ctx = unkno
 		return Response.json({ results });
 	}
 
-	/**
-	 * Media upload.
-	 *
-	 * Authorization comes from the dedicated `mediaAccess.upload` policy and
-	 * defaults to deny. It is deliberately not inferred from collection
-	 * `create` policies: permission to submit a comment says nothing about
-	 * permission to write arbitrary bytes into the asset bucket, and equating
-	 * them would turn any publicly-writable collection into open file hosting.
-	 *
-	 * The access check runs before the store check so an anonymous caller
-	 * cannot probe whether media is configured.
-	 */
-	async function handleMediaPost(request: Request, ctx: unknown): Promise<Response> {
-		const upload = config.mediaAccess?.upload as
-			| ((ctx: unknown) => boolean | Promise<boolean>)
-			| undefined;
-		if (!upload || !(await upload(ctx))) throw errors.forbidden('media upload denied');
-
-		const media = context.media;
-		if (!media) throw errors.badRequest('media store not configured');
-
-		const form = await request.formData();
-		const file = form.get('file');
-		if (!(file instanceof Blob)) throw errors.badRequest('expected a "file" field');
-		assertUploadAllowed(config.mediaAccess as MediaAccessConfig | undefined, file);
-
-		const folder = form.get('folder');
-		const mime = file.type || 'application/octet-stream';
-		// Read once and address the object by its content hash. Uploads become
-		// idempotent: a client retrying after a failure overwrites the same key
-		// instead of stranding another copy, and the same asset uploaded twice
-		// occupies one object. Safe to buffer — `assertUploadAllowed` has
-		// already capped the size.
-		const bytes = new Uint8Array(await file.arrayBuffer());
-		const object = await media.put(bytes, {
-			key: await contentKey(bytes, mime, typeof folder === 'string' ? folder : undefined),
-			mime,
-		});
-
-		// The blob is durable at this point but the row that makes it
-		// discoverable is not. If the insert fails, delete the object rather
-		// than leaving one nothing references. Content addressing bounds the
-		// damage when even that fails — repeated retries strand one object, not
-		// one per attempt — and `bcms media:gc` reclaims whatever is left.
-		try {
-			await context.store.create('cms_media', {
-				id: generateId(),
-				key: object.key,
-				url: object.url,
-				mime: object.mime,
-				size: object.size,
-				width: object.width ?? null,
-				height: object.height ?? null,
-				alt: null,
-				createdAt: Date.now(),
-			});
-		} catch (e) {
-			try {
-				await media.delete(object.key);
-			} catch (cleanupError) {
-				// Surface the key: the object outlived the request and only a
-				// human (or a sweeper) can reclaim it now.
-				console.error(
-					`[better-cms] uploaded object "${object.key}" was orphaned — its metadata insert failed and the cleanup delete also failed:`,
-					cleanupError,
-				);
-			}
-			throw e;
-		}
-
-		return Response.json(object);
-	}
+	const mediaRoutes = createMediaRoutes(config, context);
 
 	async function routeRequest(
 		request: Request,
@@ -244,7 +172,14 @@ export async function createCMS<C extends Record<string, any> = any, Ctx = unkno
 			return Response.json({ ctx: ctx ?? null });
 		if (sub === '/_meta' && request.method === 'GET') return Response.json(metaPayload);
 		if (sub === '/ops' && request.method === 'POST') return handleOps(request, ctx);
-		if (sub === '/media' && request.method === 'POST') return handleMediaPost(request, ctx);
+		if (sub === '/media') {
+			if (request.method === 'POST') return mediaRoutes.post(request, ctx);
+			if (request.method === 'GET') return mediaRoutes.list(url, ctx);
+		}
+		const mediaOne = MEDIA_ONE_RE.exec(sub);
+		if (mediaOne && request.method === 'DELETE') {
+			return mediaRoutes.remove(decodeURIComponent(mediaOne[1]!), ctx);
+		}
 
 		if (request.method === 'GET') {
 			const list = LIST_RE.exec(sub);
@@ -322,27 +257,6 @@ function errorResponse(e: unknown): Response {
 		{ error: { code: 'INTERNAL', message: (e as Error).message ?? 'unknown' } },
 		{ status: 500 },
 	);
-}
-
-/**
- * Enforce the configured size and MIME limits. Both default to something
- * restrictive: an upload endpoint with no ceiling is a storage-cost and
- * arbitrary-file-hosting problem, and defaults only help if they apply when
- * the operator has not thought about it.
- */
-function assertUploadAllowed(media: MediaAccessConfig | undefined, file: Blob): void {
-	const maxBytes = media?.maxBytes ?? DEFAULT_MAX_UPLOAD_BYTES;
-	if (maxBytes > 0 && file.size > maxBytes) {
-		throw errors.badRequest(`file is ${file.size} bytes; the limit is ${maxBytes}`);
-	}
-
-	const allowed = media?.mimeTypes ?? DEFAULT_UPLOAD_MIME_TYPES;
-	if (allowed.length === 0) return;
-	const mime = file.type || 'application/octet-stream';
-	const ok = allowed.some((pattern) =>
-		pattern.endsWith('/*') ? mime.startsWith(pattern.slice(0, -1)) : pattern === mime,
-	);
-	if (!ok) throw errors.badRequest(`mime type "${mime}" is not accepted`);
 }
 
 function parseWhere(url: URL, def: CollectionDef): Record<string, unknown> | undefined {

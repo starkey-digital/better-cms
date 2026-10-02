@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { z } from 'zod';
 import { collection, singleton } from './collection.js';
-import { slug } from './helpers.js';
+import { image, slug } from './helpers.js';
 import { zodToFields } from './walker.js';
 
 describe('field meta', () => {
@@ -202,5 +202,26 @@ describe('date coercion in create/update schemas', () => {
 			day: '2026-05-01T10:00:00Z',
 		})) as { value?: Record<string, Date> };
 		expect(r.value?.day?.toISOString()).toBe('2026-05-01T00:00:00.000Z');
+	});
+});
+
+describe('image field meta', () => {
+	test('aspect, aspectLabel and maxSize reach editor props', () => {
+		const f = zodToFields(
+			z.object({
+				cover: image().meta({
+					aspect: [1, 16 / 9],
+					aspectLabel: ['Square', 'Banner'],
+					maxSize: 1600,
+				}),
+				plain: image(),
+			}),
+		);
+		expect(f.cover?.editor?.props).toEqual({
+			aspect: [1, 16 / 9],
+			aspectLabel: ['Square', 'Banner'],
+			maxSize: 1600,
+		});
+		expect(f.plain?.editor?.props).toBeUndefined();
 	});
 });
