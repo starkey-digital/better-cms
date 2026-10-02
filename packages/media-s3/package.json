@@ -39,7 +39,7 @@
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit",
-		"build": "tsc -p tsconfig.build.json"
+		"build": "rm -rf dist && tsc -p tsconfig.build.json"
 	},
 	"type": "module",
 	"types": "./dist/index.d.ts"

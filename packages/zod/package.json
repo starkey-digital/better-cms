@@ -12,9 +12,7 @@
 	"description": "better-cms schema-first DSL: zod-powered collection/singleton builders, walker, and helpers (richText, image, relation, …).",
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
-	"files": [
-		"dist"
-	],
+	"files": ["dist"],
 	"exports": {
 		".": {
 			"dev-source": "./src/index.ts",
@@ -24,7 +22,7 @@
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit",
-		"build": "tsc -p tsconfig.build.json"
+		"build": "rm -rf dist && tsc -p tsconfig.build.json"
 	},
 	"dependencies": {
 		"@better-cms/core": "workspace:*"

@@ -98,6 +98,22 @@ describe('Cloudflare Workers', () => {
 		expect(() => passwordAuth({ ...options, rateLimit: { store } })).not.toThrow();
 	});
 
+	test('a shared store without lock/lockedUntil still boots', () => {
+		g.WebSocketPair = function WebSocketPair() {};
+		const shared = memoryStore({ silent: true, force: true });
+		const store: RateLimitStore = {
+			incr: shared.incr.bind(shared),
+			reset: shared.reset.bind(shared),
+		};
+		const warn = console.warn;
+		console.warn = () => {};
+		try {
+			expect(() => passwordAuth({ ...options, rateLimit: { store } })).not.toThrow();
+		} finally {
+			console.warn = warn;
+		}
+	});
+
 	test('off Workers the default store is fine', () => {
 		const warn = console.warn;
 		console.warn = () => {};

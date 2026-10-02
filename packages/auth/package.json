@@ -27,7 +27,7 @@
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit",
-		"build": "tsc -p tsconfig.build.json"
+		"build": "rm -rf dist && tsc -p tsconfig.build.json"
 	},
 	"dependencies": {
 		"@better-cms/core": "workspace:*"
