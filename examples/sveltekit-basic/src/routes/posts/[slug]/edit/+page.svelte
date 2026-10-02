@@ -1,5 +1,5 @@
 <script lang="ts">
-import { savePost } from '$lib/cms/cms.remote';
+import { savePost } from '#lib/cms/cms.remote.ts';
 
 const { data } = $props();
 const post = $derived(data.post);
@@ -20,7 +20,7 @@ const post = $derived(data.post);
 			Title
 			<input {...savePost.fields.title.as('text', post.title)} />
 		</label>
-		{#each savePost.fields.title.issues() ?? [] as issue}
+		{#each savePost.fields.title.issues() ?? [] as issue (issue.message)}
 			<p class="error">{issue.message}</p>
 		{/each}
 
@@ -28,7 +28,7 @@ const post = $derived(data.post);
 			Slug
 			<input {...savePost.fields.slug.as('text', post.slug)} />
 		</label>
-		{#each savePost.fields.slug.issues() ?? [] as issue}
+		{#each savePost.fields.slug.issues() ?? [] as issue (issue.message)}
 			<p class="error">{issue.message}</p>
 		{/each}
 
@@ -36,7 +36,7 @@ const post = $derived(data.post);
 			Excerpt
 			<input {...savePost.fields.excerpt.as('text', post.excerpt ?? '')} />
 		</label>
-		{#each savePost.fields.excerpt.issues() ?? [] as issue}
+		{#each savePost.fields.excerpt.issues() ?? [] as issue (issue.message)}
 			<p class="error">{issue.message}</p>
 		{/each}
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { authorName, postBySlug } from '$lib/cms/cms.remote';
+import { authorName, postBySlug } from '#lib/cms/cms.remote.ts';
 
 const { params } = $props();
 const post = $derived(await postBySlug(params.slug));

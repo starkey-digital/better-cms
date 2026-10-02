@@ -1,10 +1,10 @@
 <script lang="ts">
 import '../app.css';
-import { base } from '$app/paths';
-import { buildNav } from '$lib/content';
-import { type Theme, getTheme, toggleTheme } from '$lib/theme';
+import { asset, resolve } from '$app/paths';
 import { onMount } from 'svelte';
 import type { Snippet } from 'svelte';
+import { buildNav } from '#lib/content.ts';
+import { type Theme, getTheme, toggleTheme } from '#lib/theme.ts';
 
 const { children }: { children: Snippet } = $props();
 
@@ -27,10 +27,10 @@ function onToggle() {
 		<div class="mb-6 flex items-center justify-between">
 			<a
 				class="inline-flex items-center gap-2.5 text-lg font-bold text-zinc-900 no-underline dark:text-zinc-100"
-				href="{base}/"
+				href={resolve('')}
 				aria-label="better-cms documentation"
 			>
-				<img src="{base}/logo-mark.svg" alt="" width="32" height="32" class="block h-8 w-8 rounded-md" />
+				<img src={asset('logo-mark.svg')} alt="" width="32" height="32" class="block h-8 w-8 rounded-md" />
 				<span>better-cms</span>
 			</a>
 			<button
@@ -63,7 +63,7 @@ function onToggle() {
 							<li class="my-0.5">
 								<a
 									class="block rounded px-2 py-1 text-sm text-zinc-600 no-underline hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-									href="{base}/{item.slug}"
+									href={resolve(item.slug)}
 								>
 									{item.title}
 								</a>

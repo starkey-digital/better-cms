@@ -1,4 +1,4 @@
-import { cms } from '$lib/cms/server/cms';
+import { cms } from '#lib/cms/server/cms.ts';
 
 export async function load() {
 	const [posts, settings] = await Promise.all([

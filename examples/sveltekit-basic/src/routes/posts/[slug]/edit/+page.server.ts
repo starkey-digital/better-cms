@@ -1,5 +1,5 @@
-import { cms } from '$lib/cms/server/cms';
 import { error } from '@sveltejs/kit';
+import { cms } from '#lib/cms/server/cms.ts';
 
 /**
  * Loaded server-side rather than through an awaited remote query: the form's
