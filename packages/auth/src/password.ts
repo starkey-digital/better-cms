@@ -9,7 +9,11 @@ import {
 } from './cookie.js';
 import { enc, timingSafeEqual, verifyPassword } from './crypto.js';
 import { lockoutFor } from './rate-limit/lockout.js';
-import { memoryStore } from './rate-limit/memory.js';
+import {
+	WORKERS_MEMORY_STORE_ERROR,
+	isCloudflareWorkers,
+	memoryStore,
+} from './rate-limit/memory.js';
 import type { RateLimitStore } from './rate-limit/types.js';
 import { type TurnstileOpts, verifyTurnstile } from './turnstile.js';
 
@@ -96,6 +100,7 @@ export function passwordAuth(opts: PasswordAuthOpts): PasswordAuthResult {
 	const userId = opts.userId ?? 'admin';
 	const cookieSecure = opts.cookieSecure ?? true;
 
+	if (!opts.rateLimit?.store && isCloudflareWorkers()) throw new Error(WORKERS_MEMORY_STORE_ERROR);
 	const store = opts.rateLimit?.store ?? memoryStore();
 	const perIp = opts.rateLimit?.perIp ?? { window: '1m', max: 5 };
 	const globalLimit = opts.rateLimit?.global ?? { window: '1m', max: 100 };

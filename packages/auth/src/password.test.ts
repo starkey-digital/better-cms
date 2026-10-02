@@ -77,3 +77,34 @@ describe.each(stores)('login lockout (%s)', (_n, makeStore) => {
 		expect((await login(auth, 'correct-horse')).status).toBe(200);
 	});
 });
+
+describe('Cloudflare Workers', () => {
+	const g = globalThis as { WebSocketPair?: unknown };
+	const options = { password: 'correct-horse', secret: 'x'.repeat(32) };
+
+	afterEach(() => {
+		Reflect.deleteProperty(g, 'WebSocketPair');
+	});
+
+	test('passwordAuth without a shared store throws and names libsqlStore', () => {
+		g.WebSocketPair = function WebSocketPair() {};
+		expect(() => passwordAuth(options)).toThrow('libsqlStore(client)');
+		expect(() => memoryStore({ silent: true })).toThrow('libsqlStore(client)');
+	});
+
+	test('an explicit store, or memoryStore({ force: true }), still boots', () => {
+		g.WebSocketPair = function WebSocketPair() {};
+		const store = memoryStore({ silent: true, force: true });
+		expect(() => passwordAuth({ ...options, rateLimit: { store } })).not.toThrow();
+	});
+
+	test('off Workers the default store is fine', () => {
+		const warn = console.warn;
+		console.warn = () => {};
+		try {
+			expect(() => passwordAuth(options)).not.toThrow();
+		} finally {
+			console.warn = warn;
+		}
+	});
+});
