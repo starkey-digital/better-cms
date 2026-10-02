@@ -53,6 +53,29 @@ describe('contentKey', () => {
 		expect(a).toBe(b);
 	});
 
+	test('rejects folders that could escape the prefix', async () => {
+		for (const folder of [
+			'../other',
+			'a/../b',
+			'./a',
+			'a\\b',
+			'a\u0000b',
+			'a b',
+			'a/%2e%2e',
+			'a//b',
+		]) {
+			await expect(contentKey(bytes('x'), 'image/png', folder)).rejects.toMatchObject({
+				status: 400,
+			});
+		}
+	});
+
+	test('allows nested folders of safe segments', async () => {
+		expect(await contentKey(bytes('x'), 'image/png', 'hero_img/2026-a')).toMatch(
+			/^hero_img\/2026-a\/[0-9a-f]{32}\.png$/,
+		);
+	});
+
 	test('the same bytes under different folders are distinct objects', async () => {
 		expect(await contentKey(bytes('x'), 'image/png', 'a')).not.toBe(
 			await contentKey(bytes('x'), 'image/png', 'b'),

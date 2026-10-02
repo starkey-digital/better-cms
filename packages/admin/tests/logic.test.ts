@@ -3,6 +3,7 @@ import {
 	begin,
 	fail,
 	idleState,
+	mergeSaved,
 	sameValue,
 	stripText,
 	succeed,
@@ -15,12 +16,24 @@ import {
 	errorsWithin,
 	parseServerError,
 } from '../src/lib/logic/errors.ts';
-import { addRow, moveRow, removeRow, setRow, toRows, toValues } from '../src/lib/logic/repeater.ts';
+import {
+	addRow,
+	markSaved,
+	missingCells,
+	moveRow,
+	removeRow,
+	savedRowIds,
+	serverErrorFor,
+	setRow,
+	toRows,
+	toValues,
+} from '../src/lib/logic/repeater.ts';
 import { depluralise, humanise, itemName } from '../src/lib/logic/text.ts';
 import { addLabel, previewHref, recordTitle } from '../src/lib/logic/titles.ts';
 import type { CmsMetaCollection, CmsMetaField } from '../src/lib/logic/types.ts';
 import {
 	checkValue,
+	isSafeLink,
 	isWebAddress,
 	missingRequired,
 	textFormat,
@@ -199,5 +212,92 @@ describe('repeater', () => {
 				]),
 			),
 		).toEqual([{ label: 'x' }]);
+	});
+});
+
+describe('repeater: rows that are not ready to save', () => {
+	const cols = { title: text({ required: true }), url: text({ required: true }), note: text() };
+	const saved = toRows([{ title: 'A', url: 'https://a.test' }]);
+
+	test('a new row with required cells empty is held back', () => {
+		const rows = addRow(saved, { title: 'B', url: null, note: null });
+		expect(toValues(rows, cols)).toEqual([{ title: 'A', url: 'https://a.test' }]);
+		expect(missingCells(rows[1]!, cols)).toEqual(['url']);
+	});
+
+	test('it joins the saved array once complete, and then keeps autosaving', () => {
+		let rows = addRow(saved, { title: 'B', url: 'https://b.test', note: null });
+		expect(toValues(rows, cols)).toHaveLength(2);
+		rows = markSaved(rows, cols);
+		rows = setRow(rows, rows[1]!.id, { title: 'B', url: '', note: null });
+		expect(toValues(rows, cols)).toHaveLength(2);
+	});
+
+	test('markSaved leaves held-back rows unsaved', () => {
+		const rows = markSaved(addRow(saved, { title: 'B', url: null }), cols);
+		expect(rows.map((r) => !!r.saved)).toEqual([true, false]);
+	});
+});
+
+describe('repeater: server errors follow the saved index', () => {
+	test('a blank row above does not shift the lookup', () => {
+		let rows = toRows([{ label: 'x' }, { label: 'y' }]);
+		rows = addRow(rows.slice(0, 1), { label: '' });
+		rows = addRow(rows, { label: 'z' });
+		const ids = savedRowIds(rows);
+		expect(ids).toEqual([rows[0]!.id, rows[2]!.id]);
+		const errors = { '1.label': 'bad' };
+		expect(serverErrorFor(errors, ids, rows[2]!.id, 'label')).toBe('bad');
+		expect(serverErrorFor(errors, ids, rows[1]!.id, 'label')).toBeUndefined();
+		expect(serverErrorFor({ '0': 'bad' }, ids, rows[0]!.id, null)).toBe('bad');
+	});
+});
+
+describe('mergeSaved', () => {
+	const values = { id: '1', title: 'new', note: 'n', updatedAt: 1 };
+	const server = { id: '1', title: 'old', note: 'zzz', updatedAt: 2 };
+	test('takes only the saved fields from the response', () => {
+		const merged = mergeSaved(values, { title: 'old' }, server, () => true, new Set(['updatedAt']));
+		expect(merged).toEqual({ id: '1', title: 'old', note: 'n', updatedAt: 2 });
+	});
+	test('a stale response cannot overwrite a newer save of the same field', () => {
+		const merged = mergeSaved(values, { title: 'old' }, server, () => false);
+		expect(merged.title).toBe('new');
+	});
+	test('falls back to the patch when the response omits the field', () => {
+		expect(mergeSaved(values, { note: 'q' }, {}, () => true).note).toBe('q');
+	});
+});
+
+describe('parseServerError over HTTP', () => {
+	const wrapped = (message: string) =>
+		`[better-cms] 400 Bad Request: ${JSON.stringify({ error: { code: 'BAD_REQUEST', message } })}`;
+	test('maps a singleton field error out of the JSON body', () => {
+		expect(parseServerError(wrapped('settings.ticketUrl: Invalid URL'), 'settings')).toEqual({
+			fields: { ticketUrl: NOT_A_WEB_ADDRESS },
+			general: null,
+		});
+	});
+	test('handles several fields', () => {
+		const p = parseServerError(
+			wrapped('settings.ticketUrl: Invalid URL; settings.email: Invalid email'),
+			'settings',
+		);
+		expect(Object.keys(p.fields)).toEqual(['ticketUrl', 'email']);
+	});
+	test('a non-field HTTP failure keeps its status for the plain reason', () => {
+		const raw = '[better-cms] 403 Forbidden: {"error":{"code":"FORBIDDEN","message":"nope"}}';
+		expect(parseServerError(raw, 'settings').general).toContain('permission');
+	});
+});
+
+describe('isSafeLink', () => {
+	test('allows http, https and relative urls only', () => {
+		expect(isSafeLink('https://cdn.test/a.pdf')).toBe(true);
+		expect(isSafeLink('http://cdn.test/a.pdf')).toBe(true);
+		expect(isSafeLink('/uploads/a.pdf')).toBe(true);
+		expect(isSafeLink('javascript:alert(1)')).toBe(false);
+		expect(isSafeLink('JaVaScRiPt:alert(1)')).toBe(false);
+		expect(isSafeLink('data:text/html,<b>x</b>')).toBe(false);
 	});
 });

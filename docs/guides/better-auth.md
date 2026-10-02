@@ -29,7 +29,7 @@ export const cms = createCms({
 
 | Option | Type | Notes |
 |---|---|---|
-| `allow` | `(session) => boolean`, or `{ roles?, emails? }` | Sessions that do not pass get a `null` ctx, as if signed out. `roles` matches the user's `role` (comma-separated values such as `"admin,editor"` work). `emails` is an allowlist, compared case-insensitively. Matching either is enough. |
+| `allow` | `(session) => boolean`, or `{ roles?, emails?, allowUnverifiedEmails? }` | Sessions that do not pass get a `null` ctx, as if signed out. `roles` matches the user's `role` (comma-separated values such as `"admin,editor"` work). `emails` is an allowlist, compared case-insensitively, and only matches users whose `emailVerified` is `true`, so nobody can sign up with an allowlisted address they do not own. Set `allowUnverifiedEmails: true` only if you verify ownership some other way (default `false`). Matching either `roles` or `emails` is enough. |
 | `map` | `(session) => Ctx \| null` | Shape the ctx your access policies and hooks receive. Return `null` to deny. Runs after `allow`. |
 
 Without `map` the ctx is `{ user: { id, email, name, role } }` (`role` is `null` when the user has none).

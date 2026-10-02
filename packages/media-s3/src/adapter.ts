@@ -78,7 +78,15 @@ export function s3Media(opts: S3MediaOpts): MediaStore {
 	const defaultFolderBase = opts.defaultFolder?.replace(/\/$/, '');
 	const pathStyle = opts.forcePathStyle ?? Boolean(opts.endpoint);
 
-	const encodeKey = (key: string) => key.split('/').map(encodeURIComponent).join('/');
+	// A `.`/`..` segment is collapsed by URL parsing, which would sign a request for a different path (another bucket, with path-style endpoints).
+	const encodeKey = (key: string) =>
+		key
+			.split('/')
+			.map((seg) => {
+				if (seg === '.' || seg === '..') throw new Error(`invalid object key "${key}"`);
+				return encodeURIComponent(seg);
+			})
+			.join('/');
 
 	function publicUrl(key: string): string {
 		if (baseUrl) return `${baseUrl}/${key}`;

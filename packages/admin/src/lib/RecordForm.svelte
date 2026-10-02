@@ -4,7 +4,7 @@ import ConfirmDelete from './ConfirmDelete.svelte';
 import FieldEditor from './FieldEditor.svelte';
 import StatusStrip from './StatusStrip.svelte';
 import { getAdmin } from './context.js';
-import { sameValue } from './logic/autosave.js';
+import { mergeSaved, sameValue } from './logic/autosave.js';
 import { errorFor, errorsWithin, failureReason, parseServerError } from './logic/errors.js';
 import { slugify } from './logic/slug.js';
 import { collectionLabel, fieldLabel, itemName, sentenceList } from './logic/text.js';
@@ -127,12 +127,18 @@ function failure(key: string, e: unknown) {
 	notify("That didn't save", 'bad');
 }
 
+// Latest save issued per field, so a slow older response cannot undo a newer edit.
+const saveSeq: Record<string, number> = {};
+let saveCount = 0;
+
 async function persist(key: string, patch: Row) {
 	status.start();
+	const mine = ++saveCount;
+	for (const k of Object.keys(patch)) saveSeq[k] = mine;
 	try {
 		const row =
 			mode === 'singleton' ? await apiOf().set(patch) : await apiOf().update(recordId!, patch);
-		values = { ...values, ...patch, ...row };
+		values = mergeSaved(values, patch, row, (k) => saveSeq[k] === mine, SYSTEM_FIELDS);
 		status.done(key);
 		notify('Saved');
 	} catch (e) {

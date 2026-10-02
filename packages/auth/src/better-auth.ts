@@ -21,18 +21,32 @@ export type BetterAuthCtx = {
 	user: { id: string; email: string; name: string; role: string | null };
 };
 
-type SessionUser = { id: string; email: string; name?: string | null; role?: string | null };
+type SessionUser = {
+	id: string;
+	email: string;
+	emailVerified?: boolean | null;
+	name?: string | null;
+	role?: string | null;
+};
 
 /**
  * Who counts as an editor. A predicate, or declarative rules where matching
  * either `roles` or `emails` is enough.
  * - `roles` matches better-auth's `role` field, including comma-separated
  *   values from the admin plugin (`"admin,editor"`).
- * - `emails` is an allowlist, compared case-insensitively.
+ * - `emails` is an allowlist, compared case-insensitively. Only verified
+ *   addresses match (`user.emailVerified === true`) unless
+ *   `allowUnverifiedEmails` is set: a sign-up form that does not verify
+ *   ownership would otherwise let anyone register an allowlisted address.
  */
 export type AllowRule<S> =
 	| ((session: S) => boolean | Promise<boolean>)
-	| { roles?: readonly string[]; emails?: readonly string[] };
+	| {
+			roles?: readonly string[];
+			emails?: readonly string[];
+			/** Match `emails` even when better-auth has not verified the address. Default false. */
+			allowUnverifiedEmails?: boolean;
+	  };
 
 export type BetterAuthContextOpts<S, Ctx> = {
 	/** Shape the ctx handed to access policies. Return `null` to deny. */
@@ -50,7 +64,8 @@ function matches(rule: AllowRule<never>, session: unknown): boolean | Promise<bo
 		return (rule as (s: unknown) => boolean | Promise<boolean>)(session);
 	const user = userOf(session);
 	const emails = rule.emails?.map(norm) ?? [];
-	if (emails.includes(norm(user.email ?? ''))) return true;
+	const verified = rule.allowUnverifiedEmails || user.emailVerified === true;
+	if (verified && emails.includes(norm(user.email ?? ''))) return true;
 	const roles = rule.roles?.map(norm) ?? [];
 	const has = (user.role ?? '').split(',').map(norm);
 	return roles.some((r) => has.includes(r));

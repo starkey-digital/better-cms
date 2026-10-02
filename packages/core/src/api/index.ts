@@ -15,3 +15,4 @@ export {
 	type ListQuery,
 	type ListResult,
 } from './list-query.js';
+export { createMediaApi, type MediaApi, type MediaItem, type MediaListResult } from './media.js';

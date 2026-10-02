@@ -55,3 +55,24 @@ export function sameValue(a: unknown, b: unknown): boolean {
 		sameValue((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]),
 	);
 }
+
+/**
+ * Fold a save response into the form's values. Only the fields that save
+ * wrote are taken, and only while it is still the newest save of that field
+ * (`isLatest`): an older response arriving late must not undo a newer edit.
+ * `passthrough` names server-owned fields (`updatedAt`) that always follow the response.
+ */
+export function mergeSaved(
+	values: Record<string, unknown>,
+	patch: Record<string, unknown>,
+	row: Record<string, unknown>,
+	isLatest: (key: string) => boolean,
+	passthrough: ReadonlySet<string> = new Set(),
+): Record<string, unknown> {
+	const next = { ...values };
+	for (const key of passthrough) if (key in row) next[key] = row[key];
+	for (const key of Object.keys(patch)) {
+		if (isLatest(key)) next[key] = key in row ? row[key] : patch[key];
+	}
+	return next;
+}

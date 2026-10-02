@@ -62,7 +62,7 @@ Backed by the `cms_media` table (created with the other internal tables). Dimens
 
 | Route | Policy | |
 |---|---|---|
-| `POST /media` (multipart: `file`, optional `alt`, `folder`) | `mediaAccess.upload` | Returns the item. The same bytes uploaded twice reuse one item. |
+| `POST /media` (multipart: `file`, optional `alt`, `folder`) | `mediaAccess.upload` | Returns the item. The same bytes uploaded twice reuse one item (an empty `alt` on it is filled from the new upload; a different `alt` is returned for that upload without changing the shared item). `folder` may only contain letters, numbers, `-`, `_` and `/` between segments; anything else is a 400. |
 | `GET /media?limit=48&cursor=` | `mediaAccess.list` (falls back to `upload`) | `{ items, cursor? }`, newest first. Pass `cursor` back for the next page. |
 | `DELETE /media/:id` | `mediaAccess.delete` (default deny) | Removes the row and the blob. It does not check whether a record still points at it. |
 

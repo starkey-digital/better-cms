@@ -1,4 +1,5 @@
 <script lang="ts">
+import { untrack } from 'svelte';
 import Cropper from './Cropper.svelte';
 import { type MediaApi, MediaError, type MediaItem } from './api.js';
 import type { Shape } from './crop.js';
@@ -62,7 +63,8 @@ async function loadMore() {
 function mount(dialog: HTMLDialogElement) {
 	(dialog.closest('.bcms') ?? document.body).appendChild(dialog);
 	dialog.showModal();
-	void loadMore();
+	// loadMore reads `cursor` before its first await; untracked, or the attachment re-runs (closing the dialog) when the cursor changes.
+	untrack(() => void loadMore());
 	return () => {
 		abort?.abort();
 		// close() hands focus back to whatever opened the dialog.

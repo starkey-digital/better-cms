@@ -2,7 +2,13 @@ import { describe, expect, test } from 'bun:test';
 import { betterAuthContext } from './better-auth.js';
 
 type Session = {
-	user: { id: string; email: string; name: string; role?: string | null };
+	user: {
+		id: string;
+		email: string;
+		name: string;
+		role?: string | null;
+		emailVerified?: boolean;
+	};
 	session: { id: string };
 };
 
@@ -21,7 +27,14 @@ function fakeAuth(session: Session | null) {
 
 const req = new Request('http://x/', { headers: { cookie: 'better-auth.session_token=abc' } });
 const session = (over: Partial<Session['user']> = {}): Session => ({
-	user: { id: 'u1', email: 'Kay@Example.com', name: 'Kay', role: 'admin', ...over },
+	user: {
+		id: 'u1',
+		email: 'Kay@Example.com',
+		name: 'Kay',
+		role: 'admin',
+		emailVerified: true,
+		...over,
+	},
 	session: { id: 's1' },
 });
 
@@ -67,6 +80,25 @@ describe('betterAuthContext', () => {
 		expect(
 			await betterAuthContext(fakeAuth(session({ email: 'other@example.com' })), { allow })(req),
 		).toBeNull();
+	});
+
+	test('allow emails ignores unverified addresses unless allowUnverifiedEmails is set', async () => {
+		const unverified = session({ role: 'user', emailVerified: false });
+		const missing = session({ role: 'user' });
+		missing.user.emailVerified = undefined;
+		const strict = { emails: ['kay@example.com'] };
+		expect(await betterAuthContext(fakeAuth(unverified), { allow: strict })(req)).toBeNull();
+		expect(await betterAuthContext(fakeAuth(missing), { allow: strict })(req)).toBeNull();
+		const loose = { ...strict, allowUnverifiedEmails: true };
+		expect(await betterAuthContext(fakeAuth(unverified), { allow: loose })(req)).not.toBeNull();
+	});
+
+	test('a role still admits an unverified user', async () => {
+		const allow = { roles: ['admin'], emails: ['kay@example.com'] };
+		const ctx = await betterAuthContext(fakeAuth(session({ emailVerified: false })), { allow })(
+			req,
+		);
+		expect(ctx).not.toBeNull();
 	});
 
 	test('allow predicate (sync and async)', async () => {

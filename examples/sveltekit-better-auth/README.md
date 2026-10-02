@@ -9,11 +9,11 @@ bun run --filter './packages/*' build
 cd examples/sveltekit-better-auth && bun run dev
 ```
 
-Open <http://localhost:5173/cms>, enter an email, and copy the link printed in the server console. With no `ADMIN_EMAILS` the first person to sign in becomes the admin; with it set, listed addresses are promoted on sign-in.
+Open <http://localhost:5173/cms>, enter an email, and copy the link printed in the server console. With no `ADMIN_EMAILS` the first person to sign in becomes the admin, which is only allowed in development; with it set, listed addresses are promoted on sign-in. In production (`NODE_ENV=production`, or when `RESEND_API_KEY` is set) `ADMIN_EMAILS` is required and the app refuses to start without it, so a stranger cannot claim the site.
 
 Without a mail provider the link is only logged. Set `RESEND_API_KEY` and `MAIL_FROM` to send real email.
 
-No mail at all? `bun run login-link you@example.com` prints a link.
+No mail at all? `bun run login-link you@example.com` prints a link. In production set `ADMIN_EMAILS` for that command too: `ADMIN_EMAILS=you@example.com bun run login-link you@example.com`.
 
 See [docs/guides/better-auth.md](../../docs/guides/better-auth.md).
 

@@ -1,3 +1,5 @@
+import { errors } from './result.js';
+
 /**
  * Derive the extension from a MIME type. Splits on `+` (structured suffix,
  * `image/svg+xml` -> `svg`) and `;` (parameters, `text/plain;charset=utf-8`
@@ -11,6 +13,9 @@ export function extensionForMime(mime: string): string {
 			?.replace(/[^a-z0-9-]/gi, '') || 'bin'
 	);
 }
+
+/** Slash-separated segments of letters, digits, `_` and `-`. Anything else (`.`/`..`, backslashes, control characters) could escape the intended prefix once a URL parser normalises the key. */
+const SAFE_FOLDER = /^[A-Za-z0-9_-]+(\/[A-Za-z0-9_-]+)*$/;
 
 /** 128 bits of SHA-256 — collision-resistant enough to key a bucket, short enough to read in a URL. */
 const KEY_HEX_CHARS = 32;
@@ -40,5 +45,11 @@ export async function contentKey(
 		.slice(0, KEY_HEX_CHARS);
 	const name = `${hash}.${extensionForMime(mime)}`;
 	const prefix = folder?.replace(/^\/+|\/+$/g, '');
-	return prefix ? `${prefix}/${name}` : name;
+	if (!prefix) return name;
+	if (!SAFE_FOLDER.test(prefix)) {
+		throw errors.badRequest(
+			'folder may only contain letters, numbers, dashes, underscores and "/"',
+		);
+	}
+	return `${prefix}/${name}`;
 }

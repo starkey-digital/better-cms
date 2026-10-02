@@ -91,7 +91,7 @@ Every request pays HTTP round trips to the database. Put the Worker near it (see
 
 ## Rate limiting
 
-`passwordAuth` throttles logins. Its default `memoryStore()` keeps counters per isolate, and Workers run many isolates, so the default is only best-effort there. It no longer throws on Workers, but it logs a warning. Use `libsqlStore`:
+`passwordAuth` throttles logins. Its default `memoryStore()` keeps counters per isolate, and Workers run many isolates, so lockouts would be trivially bypassed. `passwordAuth` therefore throws at boot on Workers when no `rateLimit.store` is given, and `memoryStore()` refuses to run there unless you pass `{ force: true }` (testing only). Use `libsqlStore`:
 
 ```ts
 rateLimit: { store: libsqlStore(client) }
