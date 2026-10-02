@@ -31,7 +31,6 @@ setAdmin({
 	notify,
 });
 
-// biome-ignore lint/style/useConst: reassigned through a binding
 let navOpen = $state(false);
 let toast = $state<{ id: number; text: string; tone: ToastTone } | null>(null);
 let toastTimer: ReturnType<typeof setTimeout> | undefined;

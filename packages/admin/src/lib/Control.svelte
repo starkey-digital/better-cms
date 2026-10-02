@@ -30,9 +30,7 @@ const toDraft = (v: unknown): string => {
 };
 
 const base = $derived(toDraft(value));
-// biome-ignore lint/style/useConst: reassigned through a binding
 let draft = $derived(base);
-// biome-ignore lint/style/useConst: reassigned through a binding
 let checked = $derived(value === true);
 
 // A value that was sent and refused leaves `base` unchanged; remembering what

@@ -1,5 +1,4 @@
 <script lang="ts">
-// biome-ignore lint/style/useImportType: used as a component in the template
 import Cropper from './Cropper.svelte';
 import { type MediaApi, MediaError, type MediaItem } from './api.js';
 import type { Shape } from './crop.js';
@@ -35,11 +34,8 @@ let alt = $state('');
 let altInvalid = $state(false);
 let busy = $state(false);
 let uploadError = $state<{ message: string; retryable: boolean } | null>(null);
-// biome-ignore lint/style/useConst: assigned by bind:this in the template
 let cropper = $state<ReturnType<typeof Cropper>>();
-// biome-ignore lint/style/useConst: assigned by bind:this in the template
 let fileInput = $state<HTMLInputElement>();
-// biome-ignore lint/style/useConst: assigned by bind:this in the template
 let altInput = $state<HTMLInputElement>();
 
 const shown = $derived(isImage ? items.filter((i) => i.mime.startsWith('image/')) : items);

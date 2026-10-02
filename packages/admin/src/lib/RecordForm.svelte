@@ -58,7 +58,6 @@ let recordId = $state<string | null>(untrack(() => id ?? null));
 let exists = $state(untrack(() => mode === 'edit'));
 let loading = $state(true);
 let loadError = $state(false);
-// biome-ignore lint/style/useConst: reassigned through a binding
 let askDelete = $state(false);
 let creating = false;
 
