@@ -8,6 +8,7 @@ import type { FindManyQuery, WhereClause } from '../store/content.js';
 import { CmsError, errors } from '../util/result.js';
 import { detectSlugField } from '../util/slug.js';
 import { deserializeRow, serializeWhere } from '../util/validate.js';
+import { DEFAULT_PAGE_SIZE, type ListQuery, resolveListQuery } from './list-query.js';
 import type { CmsApi, CollectionApi, CtxResolver, SingletonApi } from './types.js';
 
 export const SINGLETON_ID = 'default';
@@ -95,16 +96,30 @@ export function createCollectionApi(
 		return row ? deserializeRow(def, row) : null;
 	}
 
+	async function readPage(query: FindManyQuery): Promise<Record<string, unknown>[]> {
+		const rows = await store.findMany(name, {
+			...query,
+			...(query.where ? { where: serializeWhere(def, query.where)! } : {}),
+		});
+		return rows.map((r) => deserializeRow(def, r));
+	}
+
 	return {
 		schemas: def.schemas,
 
-		async list(query: FindManyQuery = {}) {
+		async list(query: ListQuery = {}) {
 			await assertRead(config, name, await resolveCtx());
-			const rows = await store.findMany(name, {
-				...query,
-				...(query.where ? { where: serializeWhere(def, query.where)! } : {}),
-			});
-			return rows.map((r) => deserializeRow(def, r));
+			return readPage(resolveListQuery(def, query));
+		},
+
+		async listPage(query: ListQuery = {}) {
+			await assertRead(config, name, await resolveCtx());
+			const resolved = resolveListQuery(def, query, DEFAULT_PAGE_SIZE);
+			const [rows, total] = await Promise.all([
+				readPage(resolved),
+				store.count(name, resolved.where ? serializeWhere(def, resolved.where) : undefined),
+			]);
+			return { rows, total, limit: resolved.limit!, offset: resolved.offset ?? 0 };
 		},
 
 		async find(id) {

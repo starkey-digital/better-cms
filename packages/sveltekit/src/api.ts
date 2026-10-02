@@ -168,6 +168,7 @@ function deferCollection<C extends CollectionsRecord>(
 	return {
 		schemas: def.schemas,
 		list: async (query) => (await target()).list(query),
+		listPage: async (query) => (await target()).listPage(query),
 		find: async (id) => (await target()).find(id),
 		get: async (idOrSlug) => (await target()).get(idOrSlug),
 		count: async (where) => (await target()).count(where),

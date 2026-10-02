@@ -6,7 +6,8 @@ import type {
 	InferRows,
 	SchemaIR,
 } from '../ir/types.js';
-import type { FindManyQuery, WhereClause } from '../store/content.js';
+import type { WhereClause } from '../store/content.js';
+import type { ListQuery, ListResult } from './list-query.js';
 
 /**
  * The read/write surface for one collection. There is exactly one
@@ -16,7 +17,13 @@ import type { FindManyQuery, WhereClause } from '../store/content.js';
  * caller can accidentally skip them.
  */
 export interface CollectionApi<T> {
-	list(query?: FindManyQuery): Promise<T[]>;
+	/**
+	 * Rows only. Ordered by `sort`/`orderBy`, else the collection's
+	 * `admin.sort`, else `createdAt` desc. Unbounded unless `limit` is given.
+	 */
+	list(query?: ListQuery): Promise<T[]>;
+	/** Paged read: like `list` but defaults to 50 rows (max 500) and also returns the total match count. */
+	listPage(query?: ListQuery): Promise<ListResult<T>>;
 	find(id: string): Promise<T | null>;
 	/** Look up by id first; falls back to the collection's slug-tagged field when one exists. */
 	get(idOrSlug: string): Promise<T | null>;

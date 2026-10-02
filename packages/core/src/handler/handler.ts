@@ -3,7 +3,7 @@ import type { CmsApi, CollectionApi, SingletonApi } from '../api/types.js';
 import type { CmsConfig, CmsContext, MediaAccessConfig } from '../config.js';
 import { DEFAULT_MAX_UPLOAD_BYTES, DEFAULT_UPLOAD_MIME_TYPES } from '../config.js';
 import { getCmsTables } from '../ir/tables.js';
-import type { CollectionDef, FieldDef, SchemaIR } from '../ir/types.js';
+import type { CollectionAdminIR, CollectionDef, FieldDef, SchemaIR } from '../ir/types.js';
 import { applyOps } from '../ops/apply.js';
 import type { CmsOp, OpResult } from '../ops/types.js';
 import { opToEventType } from '../ops/types.js';
@@ -95,13 +95,14 @@ export async function createCMS<C extends Record<string, any> = any, Ctx = unkno
 		if (url.searchParams.get('count') === '1') {
 			return Response.json({ count: await col.count(where) });
 		}
-		const rows = await col.list({
-			limit: Number(url.searchParams.get('limit') ?? '50'),
-			offset: Number(url.searchParams.get('offset') ?? '0'),
+		const page = await col.listPage({
+			...parseNumber(url, 'limit'),
+			...parseNumber(url, 'offset'),
 			...(where ? { where } : {}),
 			...parseOrderBy(url),
+			...parseSort(url),
 		});
-		return Response.json({ rows });
+		return Response.json(page);
 	}
 
 	async function handleOne(name: string, idOrSlug: string, ctx: unknown): Promise<Response> {
@@ -354,6 +355,20 @@ function parseWhere(url: URL, def: CollectionDef): Record<string, unknown> | und
 	return Object.keys(where).length ? where : undefined;
 }
 
+/** Absent → omitted (the API applies its default); present but non-numeric → NaN, which the API rejects as a 400. */
+function parseNumber(url: URL, key: 'limit' | 'offset'): { limit?: number; offset?: number } {
+	const raw = url.searchParams.get(key);
+	return raw === null ? {} : { [key]: Number(raw) };
+}
+
+/** `?sort=date&direction=desc`. `direction` defaults to ascending. */
+function parseSort(url: URL): { sort?: { field: string; direction: 'asc' | 'desc' } } {
+	const field = url.searchParams.get('sort');
+	if (!field) return {};
+	const direction = url.searchParams.get('direction') === 'desc' ? 'desc' : 'asc';
+	return { sort: { field, direction } };
+}
+
 /** `?orderBy=-createdAt,title` → newest first, then title ascending. */
 function parseOrderBy(url: URL): { orderBy?: { field: string; dir?: 'asc' | 'desc' }[] } {
 	const raw = url.searchParams.get('orderBy');
@@ -382,11 +397,15 @@ function buildMeta(
 	const out: Record<string, CmsMetaCollection> = {};
 	for (const [name, def] of Object.entries(schema.collections) as [string, CollectionDef][]) {
 		if (isSystemCollection(name)) continue;
-		out[name] = {
+		const meta: CmsMetaCollection = {
 			kind: def.kind,
 			fields: stripFields(def.fields),
 			slugField: detectSlugField(def.fields) ?? null,
 		};
+		if (def.label) meta.label = def.label;
+		if (def.description) meta.description = def.description;
+		if (def.admin) meta.admin = { ...def.admin };
+		out[name] = meta;
 	}
 	return { collections: out, basePath };
 }
@@ -395,11 +414,18 @@ export interface CmsMetaCollection {
 	kind: 'collection' | 'singleton';
 	fields: Record<string, CmsMetaField>;
 	slugField: string | null;
+	label?: string;
+	description?: string;
+	admin?: CollectionAdminIR;
 }
 
 export interface CmsMetaField {
 	kind: string;
 	storage: string;
+	label?: string;
+	description?: string;
+	placeholder?: string;
+	hidden?: boolean;
 	scalarType?: string;
 	required?: boolean;
 	options?: ReadonlyArray<string>;
@@ -427,6 +453,10 @@ function stripField(f: FieldDef): CmsMetaField {
 		kind: f.kind,
 		storage: f.storage,
 	};
+	if (f.label) m.label = f.label;
+	if (f.description) m.description = f.description;
+	if (f.placeholder) m.placeholder = f.placeholder;
+	if (f.hidden) m.hidden = true;
 	if (f.scalarType) m.scalarType = f.scalarType;
 	if (f.required !== undefined) m.required = f.required;
 	if (f.options) m.options = f.options;
