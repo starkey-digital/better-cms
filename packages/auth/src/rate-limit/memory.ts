@@ -27,6 +27,7 @@ export function memoryStore(opts: MemoryStoreOpts = {}): RateLimitStore {
 		);
 	}
 	const map = new Map<string, RateLimitHit>();
+	const locks = new Map<string, number>();
 
 	function sweep(now: number): void {
 		for (const [k, v] of map) if (v.resetAt <= now) map.delete(k);
@@ -47,6 +48,20 @@ export function memoryStore(opts: MemoryStoreOpts = {}): RateLimitStore {
 		},
 		async reset(key) {
 			map.delete(key);
+		},
+		async lock(key, ttlSec) {
+			const until = Date.now() + ttlSec * 1000;
+			locks.set(key, until);
+			return until;
+		},
+		async lockedUntil(key) {
+			const until = locks.get(key);
+			if (until === undefined) return null;
+			if (until <= Date.now()) {
+				locks.delete(key);
+				return null;
+			}
+			return until;
 		},
 	};
 }
