@@ -19,6 +19,17 @@ const adminEmails = (process.env.ADMIN_EMAILS ?? '')
 	.map((e) => e.trim().toLowerCase())
 	.filter(Boolean);
 
+// Without ADMIN_EMAILS the first sign-in claims admin. That is fine on a laptop
+// and an open door on a live site, so refuse to start there.
+const isProduction = process.env.NODE_ENV === 'production' || Boolean(process.env.RESEND_API_KEY);
+
+function assertAdminClaimIsSafe() {
+	if (!isProduction || adminEmails.length) return;
+	throw new Error(
+		'ADMIN_EMAILS is required in production: without it the first person to sign in becomes the admin. Set ADMIN_EMAILS=you@example.com (comma-separated for several). To get a first sign-in link without email, run ADMIN_EMAILS=you@example.com bun run login-link you@example.com.',
+	);
+}
+
 type Deliver = (message: { email: string; url: string }) => Promise<void>;
 
 async function sendByResend({ email, url }: { email: string; url: string }) {
@@ -44,6 +55,7 @@ const deliverByDefault: Deliver = async (message) => {
 };
 
 export function createAuth(deliver: Deliver = deliverByDefault) {
+	assertAdminClaimIsSafe();
 	const dialect = new LibsqlDialect({ url, authToken });
 
 	// One conditional UPDATE per grant, so two sign-ins racing on an empty
@@ -63,7 +75,7 @@ export function createAuth(deliver: Deliver = deliverByDefault) {
 		databaseHooks: {
 			user: {
 				create: {
-					// With no ADMIN_EMAILS the first account becomes the admin. With a list,
+					// With no ADMIN_EMAILS (development only) the first account becomes the admin. With a list,
 					// only listed addresses can be admin, so a stranger can't claim the site.
 					after: async (user) => {
 						if (adminEmails.length) return;
