@@ -1,5 +1,6 @@
 import type { FieldDef } from '@better-cms/core';
 import { z } from 'zod';
+import { coerceDate, isDateOnly } from './dates.js';
 import { baseZodType, zodToField } from './walker.js';
 
 /**
@@ -61,10 +62,8 @@ function coerceFormValue(ir: FieldDef, isString: boolean, value: unknown): unkno
 			const n = Number(value);
 			return Number.isNaN(n) ? value : n;
 		}
-		case 'date': {
-			const d = new Date(value);
-			return Number.isNaN(d.getTime()) ? value : d;
-		}
+		case 'date':
+			return coerceDate(value, isDateOnly(ir));
 		default:
 			return value;
 	}

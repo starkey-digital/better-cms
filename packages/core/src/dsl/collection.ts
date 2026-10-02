@@ -1,5 +1,6 @@
 import type { Access } from '../auth/types.js';
 import type {
+	CollectionAdminIR,
 	CollectionDef,
 	CollectionIndexIR,
 	CollectionSchemas,
@@ -12,6 +13,9 @@ import type { StandardSchemaV1 } from '../util/standard-schema.js';
 interface CollectionOpts<F extends FieldsRecord, K extends 'collection' | 'singleton'> {
 	kind: K;
 	tableName?: string;
+	label?: string;
+	description?: string;
+	admin?: CollectionAdminIR;
 	fields: F;
 	indexes?: CollectionIndexIR[];
 	hooks?: HooksIR<any, any>;

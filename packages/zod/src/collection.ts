@@ -1,5 +1,6 @@
 import {
 	type Access,
+	type CollectionAdminIR,
 	type CollectionDef,
 	type CollectionIndexIR,
 	type FieldDef,
@@ -7,6 +8,8 @@ import {
 	_collection,
 } from '@better-cms/core';
 import { z } from 'zod';
+import { validateAdminOptions } from './admin-options.js';
+import { withDateCoercion } from './dates.js';
 import { toFormSchema } from './form.js';
 import type { CollectionRef } from './registry.js';
 import { SYSTEM_FIELDS, type SystemField, type ZodLike, zodToFields } from './walker.js';
@@ -21,6 +24,9 @@ export interface CmsBuilder<Ctx> {
 	collection<S extends z.ZodObject>(opts: {
 		schema: S;
 		tableName?: string;
+		label?: string;
+		description?: string;
+		admin?: CollectionAdminIR;
 		indexes?: CollectionIndexIR[];
 		hooks?: HooksIR<Ctx, RowOfSchema<S>>;
 		access?: Access<Ctx, RowOfSchema<S>>;
@@ -29,6 +35,9 @@ export interface CmsBuilder<Ctx> {
 	singleton<S extends z.ZodObject>(opts: {
 		schema: S;
 		tableName?: string;
+		label?: string;
+		description?: string;
+		admin?: CollectionAdminIR;
 		hooks?: HooksIR<Ctx, RowOfSchema<S>>;
 		access?: Access<Ctx, RowOfSchema<S>>;
 		timestamps?: boolean;
@@ -51,6 +60,11 @@ type RowOfSchema<S extends z.ZodObject> = z.infer<S> & {
 interface CollectionOpts<S extends z.ZodObject> {
 	schema: S;
 	tableName?: string;
+	/** Display name in the admin sidebar and headings. */
+	label?: string;
+	description?: string;
+	/** Admin presentation: record title, default sort, preview link, sidebar group. Field names are checked at config time. */
+	admin?: CollectionAdminIR;
 	indexes?: CollectionIndexIR[];
 	/** Lifecycle hooks. Annotate `(hc) => { hc.ctx satisfies AppCtx; ... }` or use the global `hooks` slot on `createCms` for typed Ctx. */
 	hooks?: HooksIR<any, RowOfSchema<S>>;
@@ -83,6 +97,10 @@ function withoutDefault(schema: z.ZodType): z.ZodType {
 	return schema;
 }
 
+function mapValues<T>(o: Record<string, T>, fn: (v: T) => T): Record<string, T> {
+	return Object.fromEntries(Object.entries(o).map(([k, v]) => [k, fn(v)]));
+}
+
 function buildSchemas(schema: z.ZodObject) {
 	const shape = (schema as unknown as ZodLike)._zod.def.shape as Record<string, z.ZodType>;
 	const createShape: Record<string, z.ZodType> = {};
@@ -92,8 +110,11 @@ function buildSchemas(schema: z.ZodObject) {
 	const updateShape: Record<string, z.ZodType> = {};
 	for (const [k, v] of Object.entries(createShape)) updateShape[k] = withoutDefault(v);
 
-	const create = z.object(createShape);
-	const update = z.object(updateShape).partial().extend({ id: z.string() });
+	const create = z.object(mapValues(createShape, withDateCoercion));
+	const update = z
+		.object(mapValues(updateShape, withDateCoercion))
+		.partial()
+		.extend({ id: z.string() });
 	const full = schema.partial();
 	return { create, update, full, form: toFormSchema(createShape) };
 }
@@ -103,10 +124,15 @@ function _buildDef<K extends 'collection' | 'singleton'>(
 	opts: CollectionOpts<z.ZodObject> & { indexes?: CollectionIndexIR[] },
 ): CollectionDef<Record<string, FieldDef>, K> & { __schema?: z.ZodObject } {
 	const { create, update, full, form } = buildSchemas(opts.schema);
+	const fields = zodToFields(opts.schema);
+	validateAdminOptions(fields, opts.admin);
 	const def = _collection({
 		kind,
 		tableName: opts.tableName,
-		fields: zodToFields(opts.schema),
+		label: opts.label,
+		description: opts.description,
+		admin: opts.admin,
+		fields,
 		// indexes only applies to collections; singletons pass undefined
 		indexes: opts.indexes,
 		hooks: opts.hooks,
