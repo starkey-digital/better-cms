@@ -5,6 +5,7 @@ import EditView from './EditView.svelte';
 import ListView from './ListView.svelte';
 import LoginScreen from './LoginScreen.svelte';
 import MagicLinkScreen, { type MagicLinkOptions } from './MagicLinkScreen.svelte';
+import { setMediaContext } from './media/context.js';
 
 type AnyClient = {
 	auth: {
@@ -45,6 +46,12 @@ const {
 	signInUrl,
 	signOutUrl,
 }: Props = $props();
+
+setMediaContext({
+	get basePath() {
+		return typeof client.basePath === 'string' ? client.basePath : '/api/cms';
+	},
+});
 
 const magicOptions = $derived(typeof magicLink === 'object' ? magicLink : {});
 const effectiveSignOutUrl = $derived(signOutUrl ?? (magicLink ? '/api/auth/sign-out' : undefined));

@@ -12,9 +12,7 @@
 	"description": "better-cms drop-in admin UI (Svelte 5).",
 	"svelte": "./dist/index.js",
 	"types": "./dist/index.d.ts",
-	"files": [
-		"dist"
-	],
+	"files": ["dist"],
 	"exports": {
 		".": {
 			"dev-source": "./src/lib/index.ts",
@@ -38,7 +36,7 @@
 		"@better-cms/sveltekit": "workspace:*"
 	},
 	"peerDependencies": {
-		"svelte": "^5.0.0"
+		"svelte": "^5.29.0"
 	},
 	"devDependencies": {
 		"@sveltejs/kit": "^2.59.1",
