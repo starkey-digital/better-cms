@@ -3,17 +3,22 @@ import { tick, untrack } from 'svelte';
 import ConfirmDelete from './ConfirmDelete.svelte';
 import Control from './Control.svelte';
 import FieldEditor from './FieldEditor.svelte';
+import { sameValue } from './logic/autosave.js';
 import {
 	type RepeaterRow,
 	addRow,
 	isBlankRow,
+	markSaved,
+	missingCells,
 	moveRow,
 	removeRow,
+	savedRowIds,
+	serverErrorFor,
 	setRow,
 	toRows,
 	toValues,
 } from './logic/repeater.js';
-import { fieldLabel, rowName, withArticle } from './logic/text.js';
+import { fieldLabel, rowName, sentenceList, withArticle } from './logic/text.js';
 import type { CmsMetaField } from './logic/types.js';
 import { blankValue, checkValue } from './logic/values.js';
 
@@ -42,13 +47,23 @@ const nounCap = $derived(noun.charAt(0).toUpperCase() + noun.slice(1));
 // Seeded once on purpose: row ids are client-only and must outlive saves so
 // that editing a cell never makes the row jump or lose focus.
 let rows = $state.raw<RepeaterRow[]>(untrack(() => toRows(Array.isArray(value) ? value : [])));
+// Row ids in the order of the last array handed to `onchange`: server errors are keyed by that index.
+let sentIds = $state.raw<string[]>(untrack(() => savedRowIds(rows)));
+let lastSent: unknown[] = untrack(() => toValues(rows));
 let cellErrors = $state.raw<Record<string, string>>({});
 let askDelete = $state(false);
 let doomed = $state<string | null>(null);
 
+const columnFields = $derived(Object.fromEntries(columns));
+
 function save(next: RepeaterRow[]) {
-	rows = next;
-	onchange(toValues(next));
+	rows = markSaved(next, columnFields);
+	const out = toValues(rows, columnFields);
+	// Editing a row that is still held back changes nothing worth saving.
+	if (sameValue(out, lastSent)) return;
+	lastSent = out;
+	sentIds = savedRowIds(rows, columnFields);
+	onchange(out);
 }
 
 function cellKey(rowId: string, col: string) {
@@ -68,10 +83,16 @@ function editCell(row: RepeaterRow, col: string | null, sub: CmsMetaField, next:
 	save(setRow(rows, row.id, updated));
 }
 
-function errorAt(index: number, row: RepeaterRow, col: string | null): string | undefined {
-	return (
-		cellErrors[cellKey(row.id, col ?? '')] ?? errors[col === null ? `${index}` : `${index}.${col}`]
-	);
+function errorAt(row: RepeaterRow, col: string | null): string | undefined {
+	return cellErrors[cellKey(row.id, col ?? '')] ?? serverErrorFor(errors, sentIds, row.id, col);
+}
+
+function holdBack(row: RepeaterRow): string | null {
+	if (!isObjects || row.saved) return null;
+	const missing = missingCells(row, columnFields);
+	// A row with nothing in it yet needs no explanation.
+	if (!missing.length || isBlankRow(row.value)) return null;
+	return `Fill in ${sentenceList(missing.map((k) => fieldLabel(k, columnFields[k]!)))} to save this ${noun}.`;
 }
 
 async function add() {
@@ -107,13 +128,14 @@ function ask(row: RepeaterRow) {
 
 	<ol class="bcms-rep-rows">
 		{#each rows as row, i (row.id)}
-			{@const rowError = isObjects ? undefined : errorAt(i, row, null)}
+			{@const rowError = isObjects ? undefined : errorAt(row, null)}
+			{@const held = holdBack(row)}
 			<li class="bcms-rep-row">
 				<div class="bcms-rep-cells" style:--cols={isObjects ? columns.length : 1}>
 					{#if isObjects}
 						{#each columns as [col, sub] (col)}
 							{@const cellId = `${uid}-${row.id}-${col}`}
-							{@const err = errorAt(i, row, col)}
+							{@const err = errorAt(row, col)}
 							{@const complex = sub.kind === 'array' || sub.kind === 'object' || sub.kind === 'image' || sub.kind === 'file'}
 							<div class="bcms-rep-cell" class:bcms-field-bad={err}>
 								{#if complex}
@@ -155,6 +177,7 @@ function ask(row: RepeaterRow) {
 							{#if rowError}<p class="bcms-field-error" id="{cellId}-error">{rowError}</p>{/if}
 						</div>
 					{/if}
+					{#if held}<p class="bcms-help" style:grid-column="1 / -1">{held}</p>{/if}
 				</div>
 				<div class="bcms-rep-actions">
 					<button

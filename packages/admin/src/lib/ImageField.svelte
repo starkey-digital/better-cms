@@ -1,5 +1,6 @@
 <script lang="ts">
 import type { CmsMetaField } from '@better-cms/sveltekit';
+import { isSafeLink } from './logic/values.js';
 import MediaPicker from './media/MediaPicker.svelte';
 import { type MediaItem, createMediaApi } from './media/api.js';
 import { getMediaContext } from './media/context.js';
@@ -83,10 +84,12 @@ function saveAlt() {
 		<div class="bcms-media-current">
 			{#if kind === 'image'}
 				<img class="bcms-media-thumb" src={current.url} alt={current.alt ?? ''} />
-			{:else}
+			{:else if isSafeLink(current.url)}
 				<a class="bcms-media-filelink" href={current.url} target="_blank" rel="noreferrer">
 					{current.name || current.key}
 				</a>
+			{:else}
+				<span class="bcms-media-filelink">{current.name || current.key}</span>
 			{/if}
 
 			{#if kind === 'image'}

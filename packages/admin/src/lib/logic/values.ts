@@ -23,6 +23,16 @@ export function isWebAddress(s: string): boolean {
 	}
 }
 
+/** Safe to put in an `href`: http(s), or relative to the current site. Rules out `javascript:` and `data:`. */
+export function isSafeLink(s: string): boolean {
+	try {
+		const { protocol } = new URL(s, 'https://relative.invalid');
+		return protocol === 'http:' || protocol === 'https:';
+	} catch {
+		return false;
+	}
+}
+
 export const isEmpty = (v: unknown): boolean =>
 	v == null ||
 	(typeof v === 'string' && v.trim() === '') ||

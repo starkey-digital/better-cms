@@ -49,15 +49,36 @@ export function plainFailure(raw: string): string {
 	return 'something went wrong on our side. Try again in a moment';
 }
 
+const HTTP_ERROR = /^\[better-cms\] \d{3}[^:]*: (\{.*\})$/s;
+
+/** The client wraps a failed HTTP call as `[better-cms] 400 Bad Request: {"error":{"message":...}}`; unwrap to the server's message. */
+function serverMessage(raw: string): string {
+	const body = HTTP_ERROR.exec(raw)?.[1];
+	if (!body) return raw;
+	try {
+		const message = (JSON.parse(body) as { error?: { message?: unknown } }).error?.message;
+		return typeof message === 'string' ? message : raw;
+	} catch {
+		return raw;
+	}
+}
+
 export function parseServerError(raw: string, collection: string): ParsedError {
 	const fields: Record<string, string> = {};
 	const unmatched: string[] = [];
-	for (const part of raw.split('; ')) {
+	for (const part of serverMessage(raw).split('; ')) {
 		const m = FIELD_ERROR.exec(part.trim());
 		if (m && m[1] === collection) fields[m[2]!] = plainMessage(m[3]!);
 		else unmatched.push(part);
 	}
-	const general = unmatched.length ? plainFailure(unmatched.join('; ')) : null;
+	// With no field matched, judge the whole raw text so an HTTP status (401, 403) still counts.
+	const general = Object.keys(fields).length
+		? unmatched.length
+			? plainFailure(unmatched.join('; '))
+			: null
+		: unmatched.length
+			? plainFailure(raw)
+			: null;
 	return { fields, general };
 }
 
