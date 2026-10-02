@@ -1,4 +1,5 @@
 import { SINGLETON_ID, createCmsApi, isSystemCollection } from '../api/create.js';
+import { type MediaApi, createMediaApi } from '../api/media.js';
 import type { CmsApi, CollectionApi, SingletonApi } from '../api/types.js';
 import type { CmsConfig, CmsContext } from '../config.js';
 import { getCmsTables } from '../ir/tables.js';
@@ -29,6 +30,8 @@ export interface CmsInstance<C extends Record<string, any> = any> {
 	 * see `undefined`, the same as an unauthenticated caller).
 	 */
 	api(ctx?: unknown): CmsApi<C>;
+	/** The media library, bound to a resolved auth context. Same policies as the HTTP routes. */
+	media(ctx?: unknown): MediaApi;
 	handler: (request: Request) => Promise<Response>;
 	live: LiveTransport;
 	close(): Promise<void>;
@@ -159,7 +162,7 @@ export async function createCMS<C extends Record<string, any> = any, Ctx = unkno
 		return Response.json({ results });
 	}
 
-	const mediaRoutes = createMediaRoutes(config, context);
+	const mediaRoutes = (ctx: unknown) => createMediaRoutes(createMediaApi(context, () => ctx));
 
 	async function routeRequest(
 		request: Request,
@@ -173,12 +176,12 @@ export async function createCMS<C extends Record<string, any> = any, Ctx = unkno
 		if (sub === '/_meta' && request.method === 'GET') return Response.json(metaPayload);
 		if (sub === '/ops' && request.method === 'POST') return handleOps(request, ctx);
 		if (sub === '/media') {
-			if (request.method === 'POST') return mediaRoutes.post(request, ctx);
-			if (request.method === 'GET') return mediaRoutes.list(url, ctx);
+			if (request.method === 'POST') return mediaRoutes(ctx).post(request);
+			if (request.method === 'GET') return mediaRoutes(ctx).list(url);
 		}
 		const mediaOne = MEDIA_ONE_RE.exec(sub);
 		if (mediaOne && request.method === 'DELETE') {
-			return mediaRoutes.remove(decodeURIComponent(mediaOne[1]!), ctx);
+			return mediaRoutes(ctx).remove(decodeURIComponent(mediaOne[1]!));
 		}
 
 		if (request.method === 'GET') {
@@ -219,6 +222,7 @@ export async function createCMS<C extends Record<string, any> = any, Ctx = unkno
 	return {
 		context,
 		api,
+		media: (ctx?: unknown) => createMediaApi(context, () => ctx),
 		handler,
 		live,
 		async close() {

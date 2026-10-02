@@ -17,8 +17,10 @@ function store(failCreate = false): ContentStore & { rows: Row[] } {
 			rows.push(data);
 			return data;
 		},
-		async update(_c, _w, d) {
-			return d;
+		async update(_c, w, d) {
+			const row = rows.find((r) => matches(r, w));
+			if (row) Object.assign(row, d);
+			return row ?? d;
 		},
 		async delete(_c, where) {
 			const before = rows.length;
@@ -105,6 +107,37 @@ describe('POST /media records the library row', () => {
 		expect(b.state.deleted).toEqual([]);
 	});
 
+	test('a re-upload fills in an empty description on the existing row', async () => {
+		const { cms, s } = await build();
+		await cms.handler(upload(png()));
+		const again = await (await cms.handler(upload(png(), 'A dancer'))).json();
+		expect(again.alt).toBe('A dancer');
+		expect(s.rows).toHaveLength(1);
+		expect(s.rows[0]!.alt).toBe('A dancer');
+	});
+
+	test('a re-upload with a different description returns it without rewriting the shared row', async () => {
+		const { cms, s } = await build();
+		await cms.handler(upload(png(), 'First'));
+		const again = await (await cms.handler(upload(png(), 'Second'))).json();
+		expect(again.alt).toBe('Second');
+		expect(s.rows[0]!.alt).toBe('First');
+		const none = await (await cms.handler(upload(png()))).json();
+		expect(none.alt).toBe('First');
+	});
+
+	test('rejects a folder that tries to leave its prefix', async () => {
+		const { cms, b } = await build();
+		const f = new FormData();
+		f.append('file', png(), 'a.png');
+		f.append('folder', '../other-bucket');
+		const res = await cms.handler(
+			new Request('http://x/api/cms/media', { method: 'POST', body: f }),
+		);
+		expect(res.status).toBe(400);
+		expect(b.state.put).toHaveLength(0);
+	});
+
 	test('deletes the blob when the row insert fails', async () => {
 		const { cms, b } = await build({}, store(true));
 		const res = await cms.handler(upload(png()));
@@ -167,5 +200,18 @@ describe('DELETE /media/:id', () => {
 			new Request(`http://x/api/cms/media/${id}`, { method: 'DELETE' }),
 		);
 		expect(res.status).toBe(403);
+	});
+});
+
+describe('in-process media API', () => {
+	test('shares the policies and row mapping with the HTTP routes', async () => {
+		const { cms, s } = await build({ mediaAccess: { upload: (ctx) => ctx === 'editor' } });
+		await expect(cms.media().upload(png())).rejects.toMatchObject({ status: 403 });
+		const item = await cms.media('editor').upload(png(), { alt: 'x', folder: 'covers' });
+		expect(item).toMatchObject({ alt: 'x', width: 640 });
+		expect(item.key).toStartWith('covers/');
+		expect(s.rows).toHaveLength(1);
+		const page = await cms.media('editor').list();
+		expect(page.items.map((i) => i.id)).toEqual([item.id]);
 	});
 });

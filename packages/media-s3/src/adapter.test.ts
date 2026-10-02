@@ -90,6 +90,18 @@ describe('s3Media', () => {
 		expect([...new Uint8Array(await new Response(got!.body).arrayBuffer())]).toEqual([1, 2, 3]);
 	});
 
+	test('rejects keys with dot segments instead of letting the URL collapse them', async () => {
+		const m = s3Media({ bucket: 'bkt', endpoint, ...creds });
+		const before = seen.length;
+		for (const key of ['../other/a.png', 'a/../../b.png', './a.png']) {
+			await expect(m.put(new Uint8Array(1), { key, mime: 'image/png' })).rejects.toThrow(
+				'invalid object key',
+			);
+		}
+		await expect(m.delete('../x')).rejects.toThrow('invalid object key');
+		expect(seen.length).toBe(before);
+	});
+
 	test('region is signed into the credential scope', async () => {
 		await s3Media({ bucket: 'bkt', endpoint, region: 'eu-west-1', ...creds }).put(
 			new Blob(['hi'], { type: 'text/plain' }),

@@ -185,18 +185,18 @@ function collectionOrSingleton(basePath: string, name: string, fetcher: typeof f
 
 	async function listPage(opts?: ListQuery) {
 		const res = await fetcher(`${basePath}/collections/${name}${listQuery(opts)}`);
-		return await jsonOrThrow<ListResult<unknown>>(res);
+		return (await jsonOrThrow<ListResult<unknown>>(res)) as never;
 	}
 	async function list(opts?: ListQuery) {
 		const res = await fetcher(`${basePath}/collections/${name}${listQuery(opts)}`);
 		const body = await jsonOrThrow<{ rows: unknown[] }>(res);
-		return body.rows;
+		return body.rows as never;
 	}
 	async function find(id: string) {
 		const res = await fetcher(`${basePath}/collections/${name}/${encodeURIComponent(id)}`);
 		if (res.status === 404) return null;
 		const body = await jsonOrThrow<{ row: unknown }>(res);
-		return body.row;
+		return body.row as never;
 	}
 	async function count(where?: WhereClause) {
 		const params = new URLSearchParams({ count: '1' });
@@ -209,13 +209,13 @@ function collectionOrSingleton(basePath: string, name: string, fetcher: typeof f
 		const body = await opsRequest(basePath, fetcher, [
 			{ op: 'create', collection: name, data: data as Record<string, unknown> },
 		]);
-		return body.results[0]?.row ?? data;
+		return (body.results[0]?.row ?? data) as never;
 	}
 	async function update(id: string, data: unknown) {
 		const body = await opsRequest(basePath, fetcher, [
 			{ op: 'set', collection: name, id, data: data as Record<string, unknown> },
 		]);
-		return body.results[0]?.row ?? data;
+		return (body.results[0]?.row ?? data) as never;
 	}
 	async function deleteOne(id: string) {
 		await opsRequest(basePath, fetcher, [{ op: 'remove', collection: name, id }]);
@@ -224,7 +224,7 @@ function collectionOrSingleton(basePath: string, name: string, fetcher: typeof f
 		const res = await fetcher(`${basePath}/singletons/${name}`);
 		if (res.status === 404) return null;
 		const body = await jsonOrThrow<{ row: unknown }>(res);
-		return body.row;
+		return body.row as never;
 	}
 	async function setSingleton(data: unknown) {
 		const res = await fetcher(`${basePath}/singletons/${name}`, {
@@ -233,7 +233,7 @@ function collectionOrSingleton(basePath: string, name: string, fetcher: typeof f
 			body: JSON.stringify(data),
 		});
 		const body = await jsonOrThrow<{ row: unknown }>(res);
-		return body.row;
+		return body.row as never;
 	}
 
 	// `get(idOrSlug)` (collection) and `get()` (singleton) share a name. Disambiguate by argument count.
