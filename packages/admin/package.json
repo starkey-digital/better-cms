@@ -36,7 +36,7 @@
 		"@better-cms/sveltekit": "workspace:*"
 	},
 	"peerDependencies": {
-		"svelte": "^5.0.0"
+		"svelte": "^5.29.0"
 	},
 	"devDependencies": {
 		"@sveltejs/kit": "^3.0.0",

@@ -38,7 +38,13 @@ export const PostSchema = z.object({
 	slug: slug(),
 	excerpt: z.string().max(500).optional(),
 	body: richText().optional(),
-	cover: image().optional(),
+	cover: image()
+		.meta({
+			aspect: [16 / 9, 1],
+			aspectLabel: ['Wide — top of the post', 'Square — social preview'],
+			maxSize: 2400,
+		})
+		.optional(),
 	published: z.boolean().default(false),
 	authorId: relation(authors).optional(),
 });

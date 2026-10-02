@@ -28,6 +28,10 @@ export interface MediaAccessConfig<Ctx = unknown> {
 	 * file hosting until you say otherwise.
 	 */
 	upload?: AccessFn<Ctx>;
+	/** Who may browse the library (`GET /media`). Defaults to whoever may `upload`. */
+	list?: AccessFn<Ctx>;
+	/** Who may delete a library item and its blob (`DELETE /media/:id`). **Defaults to deny.** */
+	delete?: AccessFn<Ctx>;
 	/** Reject bodies larger than this. Defaults to {@link DEFAULT_MAX_UPLOAD_BYTES}; `0` disables the check. */
 	maxBytes?: number;
 	/**

@@ -1,5 +1,6 @@
 <script lang="ts">
 import type { CmsMetaField } from '@better-cms/sveltekit';
+import ImageField from './ImageField.svelte';
 
 type Props = {
 	field: CmsMetaField & { label?: string; description?: string };
@@ -11,19 +12,7 @@ type Props = {
 	onchange: (next: unknown) => void;
 };
 
-const { field, name, value, client, onchange }: Props = $props();
-
-let busy = $state(false);
-
-async function uploadImage(file: File) {
-	busy = true;
-	try {
-		const res = await client.uploadMedia(file, name);
-		onchange({ key: res.key, url: res.url });
-	} finally {
-		busy = false;
-	}
-}
+const { field, name, value, onchange }: Props = $props();
 
 function humanLabel(s: string): string {
 	return s
@@ -33,7 +22,7 @@ function humanLabel(s: string): string {
 }
 </script>
 
-<label class="bcms-field">
+<svelte:element this={field.kind === 'image' || field.kind === 'file' ? 'div' : 'label'} class="bcms-field">
 	<span class="bcms-label">
 		{field.label ?? humanLabel(name)}{#if field.required}<em class="bcms-req">*</em>{/if}
 	</span>
@@ -97,28 +86,8 @@ function humanLabel(s: string): string {
 				<option value={opt}>{opt}</option>
 			{/each}
 		</select>
-	{:else if field.kind === 'image'}
-		<div class="bcms-image">
-			{#if value && typeof value === 'object' && 'url' in value}
-				<img src={(value as { url: string }).url} alt={(value as { alt?: string }).alt ?? ''} />
-			{:else}
-				<div class="bcms-image-placeholder">No image</div>
-			{/if}
-			<label class="bcms-file">
-				<input
-					type="file"
-					accept="image/*"
-					disabled={busy}
-					onchange={(e) => {
-						const file = (e.target as HTMLInputElement).files?.[0];
-						if (file) void uploadImage(file);
-					}}
-				/>
-				<span class="bcms-btn bcms-btn-ghost" class:disabled={busy}>
-					{busy ? 'Uploading…' : value ? 'Replace image' : 'Upload image'}
-				</span>
-			</label>
-		</div>
+	{:else if field.kind === 'image' || field.kind === 'file'}
+		<ImageField {field} {value} {onchange} />
 	{:else if field.kind === 'richText' || field.kind === 'json' || field.kind === 'array' || field.kind === 'object'}
 		<textarea
 			class="bcms-input bcms-mono"
@@ -144,7 +113,7 @@ function humanLabel(s: string): string {
 	{#if field.description}
 		<small class="bcms-help">{field.description}</small>
 	{/if}
-</label>
+</svelte:element>
 
 <style>
 	:global(.bcms-field) {
@@ -242,49 +211,5 @@ function humanLabel(s: string): string {
 	:global(.bcms-toggle-label) {
 		font-size: var(--bcms-text-sm);
 		color: var(--bcms-fg-soft);
-	}
-
-	:global(.bcms-image) {
-		display: flex;
-		flex-direction: column;
-		gap: 10px;
-		align-items: flex-start;
-	}
-	:global(.bcms-image img) {
-		max-width: 280px;
-		max-height: 180px;
-		object-fit: cover;
-		display: block;
-		border-radius: var(--bcms-radius);
-		border: 1px solid var(--bcms-border);
-		box-shadow: var(--bcms-shadow-sm);
-	}
-	:global(.bcms-image-placeholder) {
-		width: 200px;
-		height: 120px;
-		display: grid;
-		place-items: center;
-		color: var(--bcms-muted);
-		font-size: var(--bcms-text-sm);
-		background-color: var(--bcms-subtle);
-		border: 1px dashed var(--bcms-border-strong);
-		border-radius: var(--bcms-radius);
-	}
-	:global(.bcms-file) {
-		display: inline-block;
-		position: relative;
-	}
-	:global(.bcms-file input[type='file']) {
-		position: absolute;
-		inset: 0;
-		opacity: 0;
-		cursor: pointer;
-	}
-	:global(.bcms-file input[type='file']:disabled) {
-		cursor: not-allowed;
-	}
-	:global(.bcms-file .bcms-btn.disabled) {
-		opacity: 0.6;
-		pointer-events: none;
 	}
 </style>
