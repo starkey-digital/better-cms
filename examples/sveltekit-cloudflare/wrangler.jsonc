@@ -1,0 +1,18 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "better-cms-cloudflare-example",
+	"main": ".svelte-kit/cloudflare/_worker.js",
+	// process.env is populated from vars/secrets from 2025-04-01 under nodejs_compat.
+	"compatibility_date": "2026-07-01",
+	"compatibility_flags": ["nodejs_compat"],
+	"assets": {
+		"binding": "ASSETS",
+		"directory": ".svelte-kit/cloudflare"
+	},
+	// Non-secret config. Secrets (CMS_PASSWORD, CMS_AUTH_SECRET, DATABASE_AUTH_TOKEN)
+	// go in with `wrangler secret put`; locally they live in .dev.vars.
+	"vars": {
+		"DATABASE_URL": "https://your-db.example.com"
+	},
+	"observability": { "enabled": true }
+}

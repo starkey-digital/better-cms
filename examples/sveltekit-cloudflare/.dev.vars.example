@@ -1,0 +1,11 @@
+# Read by `wrangler dev` and by `vite dev` (see vite.config.ts). Copy to .dev.vars.
+DATABASE_URL=http://127.0.0.1:8081
+DATABASE_AUTH_TOKEN=
+
+CMS_PASSWORD=admin123
+# Or, instead of CMS_PASSWORD: bunx -p @better-cms/cli bcms hash-password <pw> --iterations=N
+# CMS_PASSWORD_HASH=
+# bunx -p @better-cms/cli bcms gen-secret 32
+CMS_AUTH_SECRET=3849cbb6266ecbb1edef336b4e21f5c75cb58979850f008dcaf38eb0199ee620
+# Browsers drop Secure cookies on plain http; only for local dev.
+CMS_COOKIE_SECURE=false
