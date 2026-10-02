@@ -1,7 +1,7 @@
 <script lang="ts">
 import { fromDateInput, fromLocalInput, toDateInput, toLocalInput } from './logic/dates.js';
 import type { CmsMetaField } from './logic/types.js';
-import { isUrlField } from './logic/values.js';
+import { textFormat } from './logic/values.js';
 
 type Props = {
 	name: string;
@@ -20,7 +20,7 @@ const { name, field, value, id, label, describedby, invalid = false, oncommit }:
 const kind = $derived(field.kind);
 const dateOnly = $derived(field.editor?.props?.dateOnly === true);
 const multiline = $derived(field.editor?.props?.multiline === true);
-const isUrl = $derived(isUrlField(name, field));
+const format = $derived(textFormat(name, field));
 const isNumber = $derived(kind === 'number' || kind === 'integer');
 
 const toDraft = (v: unknown): string => {
@@ -30,9 +30,7 @@ const toDraft = (v: unknown): string => {
 };
 
 const base = $derived(toDraft(value));
-// biome-ignore lint/style/useConst: reassigned through a binding
 let draft = $derived(base);
-// biome-ignore lint/style/useConst: reassigned through a binding
 let checked = $derived(value === true);
 
 // A value that was sent and refused leaves `base` unchanged; remembering what
@@ -123,11 +121,11 @@ const common = $derived({
 {:else}
 	<input
 		class="bcms-input"
-		type={isUrl ? 'url' : 'text'}
-		inputmode={isUrl ? 'url' : undefined}
-		autocapitalize={isUrl || kind === 'slug' ? 'off' : undefined}
-		spellcheck={isUrl || kind === 'slug' ? false : undefined}
-		placeholder={field.placeholder ?? (isUrl ? 'https://' : undefined)}
+		type={format ?? 'text'}
+		inputmode={format}
+		autocapitalize={format || kind === 'slug' ? 'off' : undefined}
+		spellcheck={format || kind === 'slug' ? false : undefined}
+		placeholder={field.placeholder ?? (format === 'url' ? 'https://' : undefined)}
 		{...common}
 		bind:value={draft}
 		onblur={() => commit()}

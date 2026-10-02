@@ -18,9 +18,11 @@ type Props = {
 	expired?: boolean;
 	/** They signed in, but their address is not allowed to edit. */
 	notAllowed?: boolean;
+	/** Name shown above the form. */
+	title?: string;
 };
 
-const { options = {}, expired = false, notAllowed = false }: Props = $props();
+const { options = {}, expired = false, notAllowed = false, title = 'better-cms' }: Props = $props();
 
 const minutes = $derived(options.expiresInMinutes ?? 30);
 
@@ -76,7 +78,10 @@ function changeEmail() {
 <div class="bcms bcms-login">
 	{#if sentTo}
 		<div class="bcms-login-card" role="status">
-			<h1 class="bcms-login-title" tabindex="-1" {@attach (el) => el.focus()}>Check your email</h1>
+			<p class="bcms-login-brand">
+				<span class="bcms-login-title">{title}</span>
+			</p>
+			<h1 class="bcms-login-heading" tabindex="-1" {@attach (el) => el.focus()}>Check your email</h1>
 			<p class="bcms-login-text">
 				We've sent a link to <strong class="bcms-login-email">{sentTo}</strong>. It works for {minutes}
 				minutes. Open it on this device to sign in.
@@ -92,7 +97,10 @@ function changeEmail() {
 		</div>
 	{:else}
 		<form class="bcms-login-card" onsubmit={send}>
-			<h1 class="bcms-login-title">Sign in</h1>
+			<p class="bcms-login-brand">
+				<span class="bcms-login-title">{title}</span>
+			</p>
+			<h1 class="bcms-login-heading">Sign in</h1>
 			<p class="bcms-login-sub">We'll email you a link. There's no password to remember.</p>
 
 			{#if notAllowed}
@@ -144,9 +152,12 @@ function changeEmail() {
 		gap: 14px;
 		box-shadow: var(--bcms-shadow-lg);
 	}
-	:global(.bcms-login-card .bcms-login-title) {
+	:global(.bcms-login-card .bcms-login-heading) {
 		margin: 0;
 		outline: none;
+		font-size: var(--bcms-text-lg);
+		font-weight: 600;
+		letter-spacing: -0.01em;
 	}
 	:global(.bcms-login-text) {
 		margin: 0;

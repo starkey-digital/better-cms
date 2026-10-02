@@ -1,9 +1,18 @@
-import { NOT_A_WEB_ADDRESS } from './errors.js';
+import { NOT_AN_EMAIL, NOT_A_WEB_ADDRESS } from './errors.js';
 import type { CmsMetaField } from './types.js';
 
-export const isUrlField = (name: string, f: CmsMetaField): boolean =>
-	f.kind === 'text' &&
-	(f.editor?.props?.format === 'url' || f.editor?.props?.url === true || /url$/i.test(name));
+export type TextFormat = 'url' | 'email';
+
+/** The schema's declared format; the field name is only a fallback for untagged strings. */
+export function textFormat(name: string, f: CmsMetaField): TextFormat | undefined {
+	if (f.kind !== 'text') return undefined;
+	const declared = f.editor?.props?.format;
+	if (declared === 'url' || declared === 'email') return declared;
+	if (f.editor?.props?.url === true || (declared === undefined && /url$/i.test(name))) return 'url';
+	return undefined;
+}
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function isWebAddress(s: string): boolean {
 	try {
@@ -50,8 +59,10 @@ export function missingRequired(
 /** Check a value in the browser before bothering the server. Returns plain words or null. */
 export function checkValue(name: string, f: CmsMetaField, v: unknown): string | null {
 	if (isEmpty(v)) return f.required && f.kind !== 'boolean' ? 'This is needed' : null;
-	if (isUrlField(name, f) && typeof v === 'string' && !isWebAddress(v.trim()))
-		return NOT_A_WEB_ADDRESS;
+	if (typeof v !== 'string') return null;
+	const format = textFormat(name, f);
+	if (format === 'url' && !isWebAddress(v.trim())) return NOT_A_WEB_ADDRESS;
+	if (format === 'email' && !EMAIL.test(v.trim())) return NOT_AN_EMAIL;
 	return null;
 }
 

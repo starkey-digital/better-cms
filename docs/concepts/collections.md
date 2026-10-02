@@ -37,9 +37,12 @@ export const shows = collection({
 		sort: { field: 'date', direction: 'desc' },      // default list order
 		previewUrl: '/shows/{slug}',                     // "view on site" link
 		group: 'Live',                                   // sidebar group
+		itemLabel: 'show',                               // "Add a show", "Delete this show?"
 	},
 });
 ```
+
+`itemLabel` is optional; without it the admin singularises the collection label. `z.url()` and `z.email()` fields get a URL / email input with plain-language errors in the admin.
 
 Field names are validated when the collection is built; a typo (`title: '{venu}'`) throws immediately with the list of known fields. `admin.sort.field` must be a stored column (scalars and system fields, not arrays, objects or rich text).
 

@@ -17,7 +17,7 @@ type Stored = {
 };
 
 type Props = {
-	field: CmsMetaField & { label?: string };
+	field: CmsMetaField;
 	value: unknown;
 	onchange: (next: unknown) => void;
 };
@@ -75,11 +75,10 @@ function saveAlt() {
 	if (current) onchange({ ...current, alt: altDraft.trim() });
 	editingAlt = false;
 }
-
-const label = $derived(field.label ?? 'Photo');
 </script>
 
-<div class="bcms-media" role="group" aria-label={label}>
+<!-- FieldShell renders the fieldset + legend, so this must not be a second named group. -->
+<div class="bcms-media">
 	{#if current}
 		<div class="bcms-media-current">
 			{#if kind === 'image'}

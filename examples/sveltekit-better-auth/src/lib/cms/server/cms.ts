@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { libsqlAdapter } from 'better-cms/adapters/libsql';
 import { betterAuthContext } from 'better-cms/auth/better-auth';
+import { s3Media } from 'better-cms/media/s3';
 import { collection, createCms, image, slug } from 'better-cms/sveltekit/server';
 import { z } from 'zod';
 import { auth } from '../../server/auth.ts';
@@ -79,6 +80,7 @@ export const cms = createCms({
 				sort: { field: 'date', direction: 'asc' },
 				previewUrl: '/#shows',
 				group: 'Live',
+				itemLabel: 'show',
 			},
 		}),
 		releases: collection({
@@ -98,6 +100,18 @@ export const cms = createCms({
 		url: process.env.DATABASE_URL ?? 'file:./local.db',
 		authToken: process.env.DATABASE_AUTH_TOKEN || undefined,
 	}),
+	// Photo uploads switch on when S3_BUCKET is set (R2, Wasabi, AWS, local MinIO/rclone...).
+	media: process.env.S3_BUCKET
+		? s3Media({
+				bucket: process.env.S3_BUCKET,
+				endpoint: process.env.S3_ENDPOINT,
+				region: process.env.S3_REGION,
+				accessKeyId: process.env.S3_ACCESS_KEY_ID,
+				secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
+				publicBaseUrl: process.env.S3_PUBLIC_URL,
+			})
+		: undefined,
+	mediaAccess: { upload: (ctx) => ctx?.user.role === 'admin' },
 	auth: { context },
 	access: {
 		read: () => true,

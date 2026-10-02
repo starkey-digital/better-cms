@@ -111,10 +111,16 @@ describe('collection admin options', () => {
 				sort: { field: 'date', direction: 'desc' },
 				previewUrl: '/shows/{slug}',
 				group: 'Live',
+				itemLabel: 'show',
 			},
 		});
+		expect(def.admin?.itemLabel).toBe('show');
 		expect(def.label).toBe('Shows');
 		expect(def.admin?.sort).toEqual({ field: 'date', direction: 'desc' });
+	});
+
+	test('itemLabel must not be blank', () => {
+		expect(() => collection({ schema, admin: { itemLabel: ' ' } })).toThrow(/itemLabel/);
 	});
 
 	test('a bare title is a field name', () => {

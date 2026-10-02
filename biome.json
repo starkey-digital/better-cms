@@ -26,6 +26,16 @@
 			"trailingCommas": "all"
 		}
 	},
+	"overrides": [
+		{
+			"include": ["**/*.svelte"],
+			"linter": {
+				"rules": {
+					"style": { "useConst": "off", "useImportType": "off" }
+				}
+			}
+		}
+	],
 	"files": {
 		"ignore": ["**/node_modules/**", "**/dist/**", "**/.svelte-kit/**", "**/build/**"]
 	}

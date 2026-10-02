@@ -149,17 +149,21 @@ onMount(() => {
 {:else if auth && !gateOpen && signInUrl}
 	<div class="bcms bcms-login">
 		<div class="bcms-login-card">
-			<h1 class="bcms-login-title">Sign in</h1>
+			<p class="bcms-login-brand">
+				<span class="bcms-login-title">{title}</span>
+			</p>
+			<h1 class="bcms-login-heading">Sign in</h1>
 			<p class="bcms-login-sub">Sign in to manage this site.</p>
 			<a class="bcms-btn bcms-btn-primary bcms-login-submit" href={signInUrl}>Sign in</a>
 		</div>
 	</div>
 {:else if auth && !gateOpen && magicLink}
-	<MagicLinkScreen options={magicOptions} expired={linkExpired} {notAllowed} />
+	<MagicLinkScreen options={magicOptions} expired={linkExpired} {notAllowed} {title} />
 {:else if auth && !gateOpen}
 	<LoginScreen
 		{client}
 		{turnstileSiteKey}
+		{title}
 		onlogin={() => {
 			void (async () => {
 				await checkAuth();

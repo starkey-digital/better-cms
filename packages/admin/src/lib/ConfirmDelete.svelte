@@ -9,7 +9,6 @@ type Props = {
 	onconfirm: () => void;
 };
 
-// biome-ignore lint/style/useConst: $bindable props are reassigned by the parent binding
 let {
 	open = $bindable(),
 	heading,

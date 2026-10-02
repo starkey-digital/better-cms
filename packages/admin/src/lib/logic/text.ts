@@ -27,7 +27,7 @@ export function depluralise(word: string): string {
 
 /** The name of one record, lower case: "show". `admin.itemLabel` wins when the schema sets it. */
 export function itemName(name: string, def: CmsMetaCollection): string {
-	const explicit = (def.admin as { itemLabel?: string } | undefined)?.itemLabel;
+	const explicit = def.admin?.itemLabel?.trim();
 	if (explicit) return explicit.toLowerCase();
 	return depluralise(collectionLabel(name, def)).toLowerCase();
 }
