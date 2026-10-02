@@ -2,13 +2,13 @@
 
 Mount the handler, render the admin, read content from server load functions or remote functions.
 
-The whole CMS config lives under `$lib/cms/server/`, which SvelteKit's bundler refuses to import from client code — adapter credentials, media keys, and auth secrets stay on the server. Components reach the CMS through remote functions, or through the HTTP client for the admin UI.
+The whole CMS config lives under `src/lib/cms/server/`, which SvelteKit's bundler refuses to import from client code — adapter credentials, media keys, and auth secrets stay on the server. Components reach the CMS through remote functions, or through the HTTP client for the admin UI.
 
 ## Handler
 
 ```ts
 // src/hooks.server.ts
-import cms from '$lib/cms/server/cms';
+import cms from '#lib/cms/server/cms.ts';
 import { cmsHandle } from 'better-cms/sveltekit/server';
 
 export const handle = cmsHandle(cms);
@@ -38,7 +38,7 @@ Use it from any server load function, hook, or remote function:
 
 ```ts
 // src/routes/blog/+page.server.ts
-import { cms } from '$lib/cms/server/cms';
+import { cms } from '#lib/cms/server/cms.ts';
 
 export async function load() {
 	const posts = await cms.posts.list({ limit: 20 });
@@ -48,7 +48,7 @@ export async function load() {
 
 ```ts
 // src/routes/blog/[slug]/+page.server.ts
-import { cms } from '$lib/cms/server/cms';
+import { cms } from '#lib/cms/server/cms.ts';
 import { error } from '@sveltejs/kit';
 
 export async function load({ params }) {
@@ -71,7 +71,7 @@ Components can't import `cms` — it's server-only. Use a remote function:
 ```svelte
 <!-- src/routes/blog/[slug]/+page.svelte -->
 <script lang="ts">
-	import { postBySlug } from '$lib/cms/cms.remote';
+	import { postBySlug } from '#lib/cms/cms.remote.ts';
 	const { params } = $props();
 	const post = $derived(await postBySlug(params.slug));
 </script>
@@ -86,7 +86,7 @@ The HTTP client (`createCmsClient`) also exists, but it's aimed at the admin UI 
 ```ts
 // src/lib/cms/cms.remote.ts
 import { command, query } from '$app/server';
-import { cms } from '$lib/cms/server/cms';
+import { cms } from '#lib/cms/server/cms.ts';
 import { z } from 'zod';
 
 const RecentLimit = z.number().int().min(1).max(50);
@@ -146,7 +146,7 @@ export const togglePublished = command(ToggleInput, async ({ id, published }) =>
 ```svelte
 <!-- src/routes/cms/+page.svelte -->
 <script lang="ts">
-	import { cmsClient } from '$lib/cms/client';
+	import { cmsClient } from '#lib/cms/client.ts';
 	import { CmsAdmin } from 'better-cms/admin';
 </script>
 
@@ -204,7 +204,7 @@ The full token list lives at the top of `packages/admin/src/lib/CmsAdmin.svelte`
 
 ```ts
 // src/routes/+layout.server.ts
-import { cms } from '$lib/cms/server/cms';
+import { cms } from '#lib/cms/server/cms.ts';
 
 export async function load() {
 	const ctx = await cms.auth.context();
