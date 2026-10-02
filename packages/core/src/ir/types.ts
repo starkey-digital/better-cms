@@ -52,8 +52,13 @@ export interface FieldObjectIR {
 
 export interface FieldDef<TOut = unknown> {
 	kind: FieldKind;
+	/** Display name shown by the admin. */
 	label?: string;
+	/** Help text shown under the input. */
 	description?: string;
+	placeholder?: string;
+	/** Keep the field out of the admin form. */
+	hidden?: boolean;
 	storage: StorageHint;
 	columnType?: ColumnType;
 	scalarType?: ScalarType;
@@ -149,12 +154,28 @@ export interface CollectionSchemas {
 	readonly form: StandardSchemaV1<any, Record<string, unknown>>;
 }
 
+/** Admin presentation options for a collection. All values are plain data and reach the browser via `/_meta`. */
+export interface CollectionAdminIR {
+	/** A field name, or a template such as `'{date} {venue}'`. */
+	title?: string;
+	/** Default list order. `field` must be a column-stored field. */
+	sort?: { field: string; direction: 'asc' | 'desc' };
+	/** Link target for "view on site", e.g. `'/#shows'` or `'/releases/{slug}'`. */
+	previewUrl?: string;
+	/** Sidebar group. */
+	group?: string;
+}
+
 export interface CollectionDef<
 	F extends FieldsRecord = FieldsRecord,
 	K extends CollectionKind = CollectionKind,
 > {
 	kind: K;
 	tableName?: string;
+	/** Display name shown by the admin. */
+	label?: string;
+	description?: string;
+	admin?: CollectionAdminIR;
 	fields: F;
 	indexes?: CollectionIndexIR[];
 	hooks?: HooksIR<any, any>;

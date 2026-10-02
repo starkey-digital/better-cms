@@ -17,19 +17,38 @@ function sqlColumnType(field: FieldDef): string {
 	}
 }
 
-export function ddlForCollection(name: string, def: CollectionDef): string[] {
-	const tn = tableName(name, def);
-	const cols: string[] = [];
-	const indexedFields = new Set<string>();
-	for (const [field, fd] of Object.entries(def.fields)) {
-		const safe = quoteIdent(field);
-		const type = sqlColumnType(fd);
+export function expectedColumnType(field: FieldDef): string {
+	return sqlColumnType(field);
+}
+
+export function createTableSql(name: string, def: CollectionDef): string {
+	const cols = Object.entries(def.fields).map(([field, fd]) => {
 		const pk = field === 'id' ? ' PRIMARY KEY' : '';
 		const unique = fd.unique && field !== 'id' ? ' UNIQUE' : '';
-		cols.push(`${safe} ${type}${pk}${unique}`);
-		if (fd.indexed) indexedFields.add(field);
-	}
-	const stmts = [`CREATE TABLE IF NOT EXISTS ${quoteIdent(tn)} (\n  ${cols.join(',\n  ')}\n)`];
+		return `${quoteIdent(field)} ${sqlColumnType(fd)}${pk}${unique}`;
+	});
+	return `CREATE TABLE IF NOT EXISTS ${quoteIdent(tableName(name, def))} (\n  ${cols.join(',\n  ')}\n)`;
+}
+
+/** ADD COLUMN can't carry PRIMARY KEY or UNIQUE, and must stay nullable; uniqueness is enforced by {@link uniqueIndexSql}. */
+export function addColumnSql(name: string, def: CollectionDef, field: string): string {
+	const fd = def.fields[field]!;
+	return `ALTER TABLE ${quoteIdent(tableName(name, def))} ADD COLUMN ${quoteIdent(field)} ${sqlColumnType(fd)}`;
+}
+
+export function uniqueIndexSql(name: string, def: CollectionDef, field: string): string {
+	const tn = tableName(name, def);
+	return `CREATE UNIQUE INDEX IF NOT EXISTS ${quoteIdent(`uniq_${tn}_${field}`)} ON ${quoteIdent(tn)} (${quoteIdent(field)})`;
+}
+
+export function indexSql(name: string, def: CollectionDef): string[] {
+	const tn = tableName(name, def);
+	const indexedFields = new Set(
+		Object.entries(def.fields)
+			.filter(([, fd]) => fd.indexed)
+			.map(([field]) => field),
+	);
+	const stmts: string[] = [];
 	for (const idx of def.indexes ?? []) {
 		const idxName = idx.name ?? `idx_${tn}_${idx.fields.join('_')}`;
 		const u = idx.unique ? 'UNIQUE ' : '';
@@ -46,6 +65,10 @@ export function ddlForCollection(name: string, def: CollectionDef): string[] {
 		);
 	}
 	return stmts;
+}
+
+export function ddlForCollection(name: string, def: CollectionDef): string[] {
+	return [createTableSql(name, def), ...indexSql(name, def)];
 }
 
 export function ddlForSchema(schema: SchemaIR): string[] {

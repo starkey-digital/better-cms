@@ -80,9 +80,11 @@
         "@better-cms/core": "workspace:*",
       },
       "devDependencies": {
+        "@better-cms/zod": "workspace:*",
         "@libsql/client": "^0.14.0",
         "bun-types": "^1.3.7",
         "typescript": "^6.0.3",
+        "zod": "^4.0.0",
       },
       "peerDependencies": {
         "@libsql/client": "^0.14.0 || ^0.15.0 || ^0.16.0 || ^0.17.0",

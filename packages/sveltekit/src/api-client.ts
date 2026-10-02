@@ -4,8 +4,9 @@ import type {
 	CollectionDef,
 	CollectionsRecord,
 	FieldsRecord,
-	FindManyQuery,
 	InferRows,
+	ListQuery,
+	ListResult,
 	SchemaIR,
 	SingletonApi,
 	WhereClause,
@@ -163,7 +164,7 @@ function whereParams(where: WhereClause | undefined, target: URLSearchParams): v
  * property and the URLs differ by route.
  */
 function collectionOrSingleton(basePath: string, name: string, fetcher: typeof fetch) {
-	function listQuery(opts?: FindManyQuery): string {
+	function listQuery(opts?: ListQuery): string {
 		const params = new URLSearchParams();
 		if (opts?.limit != null) params.set('limit', String(opts.limit));
 		if (opts?.offset != null) params.set('offset', String(opts.offset));
@@ -173,12 +174,20 @@ function collectionOrSingleton(basePath: string, name: string, fetcher: typeof f
 				opts.orderBy.map((o) => `${o.dir === 'desc' ? '-' : ''}${o.field}`).join(','),
 			);
 		}
+		if (opts?.sort) {
+			params.set('sort', opts.sort.field);
+			if (opts.sort.direction) params.set('direction', opts.sort.direction);
+		}
 		whereParams(opts?.where, params);
 		const qs = params.toString();
 		return qs ? `?${qs}` : '';
 	}
 
-	async function list(opts?: FindManyQuery) {
+	async function listPage(opts?: ListQuery) {
+		const res = await fetcher(`${basePath}/collections/${name}${listQuery(opts)}`);
+		return (await jsonOrThrow<ListResult<unknown>>(res)) as never;
+	}
+	async function list(opts?: ListQuery) {
 		const res = await fetcher(`${basePath}/collections/${name}${listQuery(opts)}`);
 		const body = await jsonOrThrow<{ rows: unknown[] }>(res);
 		return body.rows as never;
@@ -235,6 +244,7 @@ function collectionOrSingleton(basePath: string, name: string, fetcher: typeof f
 
 	return {
 		list,
+		listPage,
 		find,
 		get,
 		count,

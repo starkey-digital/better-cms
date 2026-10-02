@@ -58,7 +58,7 @@ export async function load({ params }) {
 }
 ```
 
-Each collection key has `list / find / get / count / create / update / delete`; each singleton has `get / set`. Methods are typed from your zod schemas — `cms.posts.list()` returns `Post[]`, `cms.settings.get()` returns `Settings | null`.
+Each collection key has `list / listPage / find / get / count / create / update / delete` (`listPage` returns `{ rows, total, limit, offset }` — see [Collections](/concepts/collections#listing)); each singleton has `get / set`. Methods are typed from your zod schemas — `cms.posts.list()` returns `Post[]`, `cms.settings.get()` returns `Settings | null`.
 
 This is the same implementation the HTTP endpoints call, so reads and writes apply the same access policies and return the same decoded values either way — booleans as booleans, dates as `Date`s, json fields parsed. Mutations run through `applyOps` and publish live events. The first call lazily boots the CMS; subsequent calls reuse it.
 

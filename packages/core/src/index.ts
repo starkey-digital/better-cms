@@ -5,6 +5,7 @@ export type {
 	InferRows,
 	FieldOf,
 	FieldsRecord,
+	CollectionAdminIR,
 	CollectionDef,
 	CollectionKind,
 	CollectionSchemas,
