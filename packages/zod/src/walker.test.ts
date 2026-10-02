@@ -39,6 +39,22 @@ describe('zodToFields — primitives', () => {
 		});
 	});
 
+	test('z.url() / z.email() carry editor format; plain strings do not', () => {
+		const f = zodToFields(
+			z.object({
+				site: z.url(),
+				mail: z.email().optional(),
+				legacy: z.string().url(),
+				name: z.string(),
+			}),
+		);
+		expect(f.site!.editor?.props).toMatchObject({ format: 'url' });
+		expect(f.mail!.editor?.props).toMatchObject({ format: 'email' });
+		expect(f.mail!.required).toBe(false);
+		expect(f.legacy!.editor?.props).toMatchObject({ format: 'url' });
+		expect(f.name!.editor?.props).not.toHaveProperty('format');
+	});
+
 	test('z.date → date', () => {
 		const f = zodToFields(z.object({ at: z.date() }));
 		expect(f.at).toMatchObject({ kind: 'date', columnType: 'integer', scalarType: 'date' });

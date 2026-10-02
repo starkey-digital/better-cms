@@ -41,4 +41,7 @@ export function validateAdminOptions(
 	if (admin.group !== undefined && !admin.group.trim()) {
 		throw new Error('[better-cms/zod] admin.group must not be empty.');
 	}
+	if (admin.itemLabel !== undefined && !admin.itemLabel.trim()) {
+		throw new Error('[better-cms/zod] admin.itemLabel must not be empty.');
+	}
 }

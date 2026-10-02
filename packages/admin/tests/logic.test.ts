@@ -9,6 +9,7 @@ import {
 } from '../src/lib/logic/autosave.ts';
 import { formatDate, fromLocalInput, toDateInput, toLocalInput } from '../src/lib/logic/dates.ts';
 import {
+	NOT_AN_EMAIL,
 	NOT_A_WEB_ADDRESS,
 	errorFor,
 	errorsWithin,
@@ -22,6 +23,7 @@ import {
 	checkValue,
 	isWebAddress,
 	missingRequired,
+	textFormat,
 	toCreatePayload,
 } from '../src/lib/logic/values.ts';
 
@@ -66,6 +68,12 @@ describe('titles', () => {
 		expect(depluralise('Companies')).toBe('Company');
 		expect(depluralise('Releases')).toBe('Release');
 		expect(itemName('news', { kind: 'collection', slugField: null, fields: {} })).toBe('news');
+	});
+	test('admin.itemLabel wins over the derived singular', () => {
+		const gigs = { ...shows, admin: { ...shows.admin, itemLabel: 'Gig' } };
+		expect(itemName('shows', gigs)).toBe('gig');
+		expect(addLabel('shows', gigs)).toBe('Add a gig');
+		expect(addLabel('shows', { ...gigs, admin: { itemLabel: 'event' } })).toBe('Add an event');
 	});
 	test('preview url needs its fields', () => {
 		expect(previewHref(shows, { slug: 'a b' })).toBe('/shows/a%20b');
@@ -145,6 +153,21 @@ describe('values', () => {
 		expect(isWebAddress('a.com')).toBe(false);
 		expect(checkValue('ticketUrl', shows.fields.ticketUrl!, 'nope')).toBe(NOT_A_WEB_ADDRESS);
 		expect(checkValue('ticketUrl', shows.fields.ticketUrl!, '')).toBeNull();
+	});
+	test('declared format wins over the field name', () => {
+		const url = text({ editor: { component: 'TextField', props: { format: 'url' } } });
+		const email = text({ editor: { component: 'TextField', props: { format: 'email' } } });
+		expect(textFormat('link', url)).toBe('url');
+		expect(textFormat('contact', email)).toBe('email');
+		expect(checkValue('contact', email, 'nope')).toBe(NOT_AN_EMAIL);
+		expect(checkValue('contact', email, 'a@b.co')).toBeNull();
+		expect(checkValue('homeUrl', email, 'https://x.com')).toBe(NOT_AN_EMAIL);
+	});
+	test('name guess is only a fallback for untagged text', () => {
+		expect(textFormat('ticketUrl', text())).toBe('url');
+		expect(textFormat('venue', text())).toBeUndefined();
+		const plain = text({ editor: { component: 'TextField', props: { multiline: false } } });
+		expect(textFormat('ticketUrl', plain)).toBe('url');
 	});
 	test('create payload omits empties', () => {
 		expect(

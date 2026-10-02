@@ -4,10 +4,12 @@ export type ParsedError = { fields: Record<string, string>; general: string | nu
 const FIELD_ERROR = /^([A-Za-z0-9_]+)\.([A-Za-z0-9_.-]+): (.*)$/s;
 
 export const NOT_A_WEB_ADDRESS = "That isn't a web address — it should start with https://";
+export const NOT_AN_EMAIL = "That isn't an email address — it should look like name@example.com";
 
 /** Plain-words version of a zod/server message. */
 export function plainMessage(raw: string): string {
 	const m = raw.toLowerCase();
+	if (m.includes('invalid email') || m.includes('email address')) return NOT_AN_EMAIL;
 	if (m.includes('invalid url') || m.includes('web address')) return NOT_A_WEB_ADDRESS;
 	if (m.includes('received undefined') || m.includes('received null') || m.includes('required'))
 		return 'This is needed';

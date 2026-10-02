@@ -246,15 +246,20 @@ function walkField(schema: z.ZodType, adminMeta: ZodAdminMeta): FieldDef {
 	}
 
 	switch (innerDef.type) {
-		case 'string':
+		case 'string': {
+			const format = stringFormat(innerDef);
 			return {
 				...base,
 				kind: 'text',
 				storage: 'column',
 				columnType: 'text',
 				scalarType: 'string',
-				editor: { component: 'TextField', props: { multiline: false } },
+				editor: {
+					component: 'TextField',
+					props: format ? { multiline: false, format } : { multiline: false },
+				},
 			};
+		}
 		case 'number': {
 			const isInt = isIntegerNumber(innerDef);
 			return {
@@ -384,4 +389,12 @@ function isIntegerNumber(def: ZodDef): boolean {
 		if (f && /int/i.test(f)) return true;
 	}
 	return false;
+}
+
+const EDITOR_FORMATS = ['url', 'email'] as const;
+
+/** zod v4 string formats the admin has a dedicated input for (`z.url()`, `z.email()`, or `.url()`/`.email()` checks). */
+function stringFormat(def: ZodDef): (typeof EDITOR_FORMATS)[number] | undefined {
+	const formats = [def.format, ...(def.checks ?? []).map((c) => c?._zod?.def?.format)];
+	return EDITOR_FORMATS.find((f) => formats.includes(f));
 }

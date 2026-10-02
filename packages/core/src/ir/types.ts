@@ -164,6 +164,8 @@ export interface CollectionAdminIR {
 	previewUrl?: string;
 	/** Sidebar group. */
 	group?: string;
+	/** What one record is called, singular, e.g. `'show'`. Drives "Add a show" and "Delete this show?". Derived from the label when absent. */
+	itemLabel?: string;
 }
 
 export interface CollectionDef<
