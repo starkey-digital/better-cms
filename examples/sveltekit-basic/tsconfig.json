@@ -12,5 +12,5 @@
 		"moduleResolution": "bundler",
 		"types": ["bun-types"]
 	},
-	"exclude": ["tests/unit/**"]
+	"exclude": ["tests/unit/**", "vite.config.ts"]
 }
