@@ -12,9 +12,7 @@
 	"description": "better-cms CLI (`bcms`): init, generate, mcp.",
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
-	"files": [
-		"dist"
-	],
+	"files": ["dist"],
 	"bin": {
 		"bcms": "./dist/bin.js"
 	},
@@ -35,7 +33,7 @@
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit",
-		"build": "tsc -p tsconfig.build.json && chmod +x dist/bin.js"
+		"build": "rm -rf dist && tsc -p tsconfig.build.json && chmod +x dist/bin.js"
 	},
 	"dependencies": {
 		"@better-cms/core": "workspace:*",

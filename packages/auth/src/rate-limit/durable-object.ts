@@ -32,6 +32,17 @@ export function durableObjectStore(namespace: DurableObjectNamespaceLike): RateL
 		async reset(key) {
 			await getStub(key).fetch('https://rl/reset', { method: 'POST' });
 		},
+		async lock(key, ttlSec) {
+			const res = await getStub(key).fetch('https://rl/lock', {
+				method: 'POST',
+				body: JSON.stringify({ ttlSec }),
+			});
+			return ((await res.json()) as { until: number }).until;
+		},
+		async lockedUntil(key) {
+			const res = await getStub(key).fetch('https://rl/locked', { method: 'POST' });
+			return ((await res.json()) as { until: number | null }).until;
+		},
 	};
 }
 
@@ -78,6 +89,20 @@ export class RateLimiter {
 				? await this.state.blockConcurrencyWhile(run)
 				: await run();
 			return Response.json(hit);
+		}
+		if (url.pathname === '/lock' && request.method === 'POST') {
+			const { ttlSec } = (await request.json()) as { ttlSec: number };
+			const until = Date.now() + ttlSec * 1000;
+			await this.state.storage.put('lock', until);
+			return Response.json({ until });
+		}
+		if (url.pathname === '/locked' && request.method === 'POST') {
+			const until = await this.state.storage.get<number>('lock');
+			if (until === undefined || until <= Date.now()) {
+				if (until !== undefined) await this.state.storage.delete('lock');
+				return Response.json({ until: null });
+			}
+			return Response.json({ until });
 		}
 		if (url.pathname === '/reset' && request.method === 'POST') {
 			await this.state.storage.delete('hit');

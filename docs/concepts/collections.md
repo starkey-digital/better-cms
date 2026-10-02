@@ -23,6 +23,50 @@ export const posts = collection({ schema: PostSchema });
 
 The walker (`@better-cms/zod`) reads the zod schema, emits the IR, and bakes Standard Schema validators (`posts.schemas.create / .update / .full`) for use anywhere — SvelteKit `command`/`query`, tRPC, hono, etc.
 
+## Admin options
+
+`collection()` and `singleton()` take presentation options. They are plain data, served to the admin through `GET /_meta`.
+
+```ts
+export const shows = collection({
+	schema: z.object({ venue: z.string(), date: z.date(), slug: slug() }),
+	label: 'Shows',
+	description: 'Upcoming and past gigs',
+	admin: {
+		title: '{date} {venue}',                         // field name, or a {field} template
+		sort: { field: 'date', direction: 'desc' },      // default list order
+		previewUrl: '/shows/{slug}',                     // "view on site" link
+		group: 'Live',                                   // sidebar group
+		itemLabel: 'show',                               // "Add a show", "Delete this show?"
+	},
+});
+```
+
+`itemLabel` is optional; without it the admin singularises the collection label. `z.url()` and `z.email()` fields get a URL / email input with plain-language errors in the admin.
+
+Field names are validated when the collection is built; a typo (`title: '{venu}'`) throws immediately with the list of known fields. `admin.sort.field` must be a stored column (scalars and system fields, not arrays, objects or rich text).
+
+## Listing
+
+```ts
+const page = await cms.shows.listPage({
+	sort: { field: 'date', direction: 'desc' },
+	limit: 20,
+	offset: 40,
+	where: { published: true },
+});
+// { rows, total, limit, offset }
+
+const rows = await cms.shows.list({ limit: 5 }); // rows only
+```
+
+- Order: explicit `orderBy`, else `sort`, else the collection's `admin.sort`, else `createdAt` descending. `id` is appended as a tiebreaker so pages never overlap.
+- Sorting on a field that is not a column is rejected (`400` over HTTP).
+- `limit` is capped at 500. `listPage` defaults to 50; `list` is unbounded unless you pass one (the HTTP route defaults to 50).
+- `total` counts rows matching `where`, ignoring paging.
+
+Over HTTP: `GET /collections/shows?sort=date&direction=desc&limit=20&offset=40` returns `{ rows, total, limit, offset }`. The typed client mirrors the in-process API: `cmsClient.shows.listPage({...})`.
+
 ## Singletons
 
 For one-off documents (site settings, homepage hero) use `singleton({ schema })`. The record uses a fixed id of `"default"` and gets dedicated `GET` / `PUT /singletons/:name` routes.
@@ -60,7 +104,7 @@ const AuthorSchema = z.object({
 
 ```ts
 import type { z } from 'zod';
-import type { PostSchema } from '$lib/cms/schemas';
+import type { PostSchema } from '#lib/cms/schemas.ts';
 
 type Post = z.infer<typeof PostSchema>;
 // or via the helper export:

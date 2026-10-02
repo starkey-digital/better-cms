@@ -8,20 +8,28 @@ import type {
 } from '@better-cms/core';
 import { errors } from '@better-cms/core';
 import { type Client, type InValue, createClient } from '@libsql/client';
-import { compileWhere, ddlForSchema, quoteIdent, tableName } from './sql.js';
+import { migrateSchema } from './migrate.js';
+import { compileWhere, quoteIdent, tableName } from './sql.js';
 
-export interface LibsqlAdapterOpts {
-	url: string;
-	authToken?: string;
-	client?: Client;
+interface LibsqlAdapterCommon {
+	/** Create tables and add missing columns on init. Default true; set false when another tool (drizzle-kit) owns DDL. */
+	migrate?: boolean;
 }
 
+/** Either connection details, or a ready `client` (e.g. one shared with `libsqlStore`). */
+export type LibsqlAdapterOpts = LibsqlAdapterCommon &
+	(
+		| { url: string; authToken?: string; client?: Client }
+		| { client: Client; url?: string; authToken?: string }
+	);
+
 /**
- * Direct libsql ContentStore. Owns DDL — `init(schema)` runs CREATE TABLE IF NOT EXISTS.
- * For users who don't want a drizzle build step.
+ * Direct libsql ContentStore. Owns DDL — `init(schema)` creates missing tables
+ * and adds missing columns (never drops or alters). For users who don't want a
+ * drizzle build step.
  */
 export function libsqlAdapter(opts: LibsqlAdapterOpts): ContentStore {
-	const client = opts.client ?? createClient({ url: opts.url, authToken: opts.authToken });
+	const client = opts.client ?? createClient({ url: opts.url!, authToken: opts.authToken });
 	let schema: SchemaIR | null = null;
 
 	function defOf(collection: string): CollectionDef {
@@ -54,9 +62,7 @@ export function libsqlAdapter(opts: LibsqlAdapterOpts): ContentStore {
 	return {
 		async init(s) {
 			schema = s;
-			for (const stmt of ddlForSchema(s)) {
-				await client.execute(stmt);
-			}
+			if (opts.migrate ?? true) await migrateSchema(client, s);
 		},
 
 		async create(collection, data) {

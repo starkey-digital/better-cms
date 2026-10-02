@@ -4,11 +4,19 @@ Five-minute setup for SvelteKit. Schema-first, zod-powered.
 
 ## 1. Scaffold
 
+> **SvelteKit 3 or 2.** These docs show SvelteKit 3 setup: configuration lives in the `sveltekit()` Vite plugin (no `svelte.config.js`), and `$lib` is replaced by a `#lib` alias declared in `package.json`:
+>
+> ```json
+> { "imports": { "#lib": "./src/lib/index.ts", "#lib/*": "./src/lib/*" } }
+> ```
+>
+> Imports then carry a file extension, e.g. `#lib/cms/server/cms.ts`. SvelteKit 2 (`^2.20`) still works: keep your config in `svelte.config.js` under `kit`, and import from `$lib/cms/server/cms` instead.
+
 ```bash
 bunx -p @better-cms/cli bcms init
 ```
 
-Writes the `$lib/cms/` layout:
+Writes the `src/lib/cms/` layout:
 
 - `src/lib/cms/server/cms.ts` — schemas, collections, adapter, plugins, auth. Server-only.
 - `src/lib/cms/cms.remote.ts` — remote `query` / `command` / `form` endpoints
@@ -85,7 +93,7 @@ The `({ collection, singleton })` builder form pins `Ctx` from `auth.context`, s
 
 ```ts
 // src/hooks.server.ts
-import cms from '$lib/cms/server/cms';
+import cms from '#lib/cms/server/cms.ts';
 import { cmsHandle } from 'better-cms/sveltekit/server';
 
 export const handle = cmsHandle(cms);
@@ -99,7 +107,7 @@ Inside the SvelteKit server — load functions, remote functions, `+server.ts` �
 
 ```ts
 // src/routes/+page.server.ts
-import { cms } from '$lib/cms/server/cms';
+import { cms } from '#lib/cms/server/cms.ts';
 
 export async function load() {
 	return {
@@ -127,7 +135,7 @@ export const cmsClient = createCmsClient<Cms>({ basePath: '/api/cms' });
 ```svelte
 <!-- src/routes/cms/+page.svelte -->
 <script lang="ts">
-	import { cmsClient } from '$lib/cms/client';
+	import { cmsClient } from '#lib/cms/client.ts';
 	import { CmsAdmin } from 'better-cms/admin';
 </script>
 
@@ -143,7 +151,7 @@ export const cmsClient = createCmsClient<Cms>({ basePath: '/api/cms' });
 ```ts
 // src/lib/cms/cms.remote.ts
 import { command, form, query } from '$app/server';
-import { cms } from '$lib/cms/server/cms';
+import { cms } from '#lib/cms/server/cms.ts';
 import { z } from 'zod';
 
 export const recentPosts = query(async () =>
@@ -165,7 +173,24 @@ export const deletePost = command(z.string(), async (id) => {
 });
 ```
 
-Remote functions need `kit.experimental.remoteFunctions` in `svelte.config.js`, and `compilerOptions.experimental.async` for `$derived(await ...)` in templates.
+Remote functions need `experimental: { remoteFunctions: true }` and `compilerOptions: { experimental: { async: true } }` (for `$derived(await ...)` in templates) passed to the `sveltekit()` plugin in `vite.config.ts`:
+
+```ts
+// vite.config.ts
+import adapter from '@sveltejs/adapter-auto';
+import { sveltekit } from '@sveltejs/kit/vite';
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+	plugins: [
+		sveltekit({
+			adapter: adapter(),
+			compilerOptions: { experimental: { async: true } },
+			experimental: { remoteFunctions: true },
+		}),
+	],
+});
+```
 
 > **Access policies apply here.** A `query` compiles to a public HTTP endpoint, so `query(() => cms.secrets.list())` exposes whatever that collection's `read` policy permits — and nothing more.
 

@@ -3,7 +3,6 @@ const TURNSTILE_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
 // Module-scoped so the Turnstile script is injected once per page, not once
 // per component mount. Reassigned below — biome's useConst autofix cannot see
 // the writes across the module/instance script boundary, so keep `let`.
-// biome-ignore lint/style/useConst: reassigned in loadTurnstile()
 let scriptLoaded = false;
 </script>
 
@@ -17,10 +16,12 @@ type Props = {
 		};
 	};
 	turnstileSiteKey?: string;
+	/** Name shown above the form. */
+	title?: string;
 	onlogin: () => void;
 };
 
-const { client, turnstileSiteKey, onlogin }: Props = $props();
+const { client, turnstileSiteKey, title = 'better-cms', onlogin }: Props = $props();
 
 function loadTurnstile() {
 	if (scriptLoaded || typeof document === 'undefined') return;
@@ -73,8 +74,7 @@ async function submit(e: SubmitEvent) {
 <div class="bcms bcms-login">
 	<form onsubmit={submit}>
 		<h1 class="bcms-login-brand">
-			<span class="bcms-brand-dot" aria-hidden="true"></span>
-			<span class="bcms-login-title">better-cms</span>
+			<span class="bcms-login-title">{title}</span>
 		</h1>
 		<p class="bcms-login-sub">Sign in to manage content</p>
 

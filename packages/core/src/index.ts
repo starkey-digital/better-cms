@@ -5,6 +5,7 @@ export type {
 	InferRows,
 	FieldOf,
 	FieldsRecord,
+	CollectionAdminIR,
 	CollectionDef,
 	CollectionKind,
 	CollectionSchemas,
@@ -34,6 +35,7 @@ export * from './plugin/types.js';
 export * from './auth/types.js';
 export { generateId } from './util/id.js';
 export { contentKey, extensionForMime } from './util/media-key.js';
+export { imageSize, type ImageSize } from './util/image-size.js';
 export { slugify, detectSlugField } from './util/slug.js';
 export { CmsError, errors, ok, err, type Result } from './util/result.js';
 export { serializeRow, deserializeRow, coerceScalar, serializeWhere } from './util/validate.js';

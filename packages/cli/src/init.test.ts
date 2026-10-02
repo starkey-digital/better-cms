@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { init } from './init.js';
+import { detectKitMajor, init } from './init.js';
 
 let dir: string;
 
@@ -117,5 +117,71 @@ describe('init', () => {
 		writeFileSync(join(dir, 'bun.lock'), '# stub');
 		const res = await init({ cwd: dir });
 		expect(res.installed).toEqual([]);
+	});
+
+	describe('SvelteKit version', () => {
+		test('Kit 2 (declared) keeps $lib imports and writes no vite config or imports map', async () => {
+			writePackageJson({ devDependencies: { '@sveltejs/kit': '^2.20.0' } });
+			await init({ cwd: dir, skipInstall: true });
+			const hooks = readFileSync(join(dir, 'src/hooks.server.ts'), 'utf8');
+			expect(hooks).toContain(`from '$lib/cms/server/cms'`);
+			expect(existsSync(join(dir, 'vite.config.ts'))).toBe(false);
+			expect(JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')).imports).toBeUndefined();
+		});
+
+		test('unknown Kit version falls back to the Kit 2 scaffold', async () => {
+			writePackageJson();
+			await init({ cwd: dir, skipInstall: true });
+			expect(readFileSync(join(dir, 'src/hooks.server.ts'), 'utf8')).toContain('$lib/');
+		});
+
+		test('Kit 3 scaffolds #lib imports with extensions, imports map and vite config', async () => {
+			writePackageJson({ devDependencies: { '@sveltejs/kit': '^3.0.0' } });
+			await init({ cwd: dir, skipInstall: true });
+			const read = (p: string) => readFileSync(join(dir, p), 'utf8');
+			expect(read('src/hooks.server.ts')).toContain(`from '#lib/cms/server/cms.ts'`);
+			expect(read('src/routes/cms/+page.svelte')).toContain(`from '#lib/cms/client.ts'`);
+			expect(read('src/lib/cms/client.ts')).toContain(`from './server/cms.ts'`);
+			expect(read('src/lib/cms/cms.remote.ts')).toContain(`from '#lib/cms/server/cms.ts'`);
+			for (const p of [
+				'src/hooks.server.ts',
+				'src/routes/cms/+page.svelte',
+				'src/lib/cms/cms.remote.ts',
+			]) {
+				expect(read(p)).not.toContain('$lib');
+			}
+			expect(JSON.parse(read('package.json')).imports).toEqual({
+				'#lib': './src/lib/index.ts',
+				'#lib/*': './src/lib/*',
+			});
+			expect(read('vite.config.ts')).toContain('remoteFunctions: true');
+			expect(read('vite.config.ts')).toContain('async: true');
+		});
+
+		test('Kit major comes from the installed package before the declared range', async () => {
+			writePackageJson({ devDependencies: { '@sveltejs/kit': '^2.0.0' } });
+			mkdirSync(join(dir, 'node_modules/@sveltejs/kit'), { recursive: true });
+			writeFileSync(
+				join(dir, 'node_modules/@sveltejs/kit/package.json'),
+				JSON.stringify({ version: '3.1.0' }),
+			);
+			expect(detectKitMajor(dir)).toBe(3);
+		});
+
+		test('Kit 3 keeps an existing imports map and vite config that already has the flags', async () => {
+			writePackageJson({
+				devDependencies: { '@sveltejs/kit': '^3.0.0' },
+				imports: { '#lib/*': './custom/*' },
+			});
+			writeFileSync(
+				join(dir, 'vite.config.ts'),
+				'sveltekit({ experimental: { remoteFunctions: true } })',
+			);
+			const res = await init({ cwd: dir, skipInstall: true });
+			const imports = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')).imports;
+			expect(imports['#lib/*']).toBe('./custom/*');
+			expect(imports['#lib']).toBe('./src/lib/index.ts');
+			expect(res.skipped.some((p) => p.endsWith('vite.config.ts'))).toBe(false);
+		});
 	});
 });

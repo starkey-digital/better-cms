@@ -2,10 +2,12 @@ import type { RateLimitHit, RateLimitStore } from './types.js';
 
 export interface MemoryStoreOpts {
 	silent?: boolean;
+	/** Allow in-memory counters on Cloudflare Workers, where each isolate gets its own. Testing only. */
 	force?: boolean;
 }
 
-function isCloudflareWorkers(): boolean {
+/** Any one of these markers is enough; the `navigator.userAgent` sniff alone is not reliable across compat flags. */
+export function isCloudflareWorkers(): boolean {
 	const g = globalThis as unknown as {
 		WebSocketPair?: unknown;
 		navigator?: { userAgent?: string };
@@ -13,22 +15,29 @@ function isCloudflareWorkers(): boolean {
 	};
 	if (typeof g.WebSocketPair === 'function') return true;
 	if (g.navigator?.userAgent === 'Cloudflare-Workers') return true;
-	if (g.caches && typeof g.caches === 'object' && 'default' in g.caches) return true;
-	return false;
+	return Boolean(g.caches && typeof g.caches === 'object' && 'default' in g.caches);
 }
 
+export const WORKERS_MEMORY_STORE_ERROR =
+	'[better-cms] in-memory rate limiting cannot work on Cloudflare Workers: every isolate has its own counters, so lockouts and limits are trivially bypassed. Pass a shared store, e.g. passwordAuth({ rateLimit: { store: libsqlStore(client) } }) (or durableObjectStore() / upstashStore()). memoryStore({ force: true }) overrides this for testing only.';
+
+/**
+ * Per-process counters. Resets on restart and is not shared across instances,
+ * so it is for development and single-process servers. Refuses to run on
+ * Workers unless `force` is set.
+ */
 export function memoryStore(opts: MemoryStoreOpts = {}): RateLimitStore {
-	if (!opts.force && isCloudflareWorkers()) {
-		throw new Error(
-			'[better-cms] memoryStore() detected Cloudflare Workers runtime. In-memory state does not work across isolates — use durableObjectStore() or upstashStore(). Pass { force: true } to override (testing only).',
-		);
-	}
+	const onWorkers = isCloudflareWorkers();
+	if (onWorkers && !opts.force) throw new Error(WORKERS_MEMORY_STORE_ERROR);
 	if (!opts.silent) {
 		console.warn(
-			'[better-cms] passwordAuth using in-memory rate limit. Resets on restart, breaks across instances. Use durableObjectStore() or upstashStore() in production.',
+			onWorkers
+				? '[better-cms] memoryStore({ force: true }) on Cloudflare Workers: counters are per-isolate, so limits are best-effort only.'
+				: '[better-cms] passwordAuth using in-memory rate limit. Resets on restart, breaks across instances. Use libsqlStore(), durableObjectStore() or upstashStore() in production.',
 		);
 	}
 	const map = new Map<string, RateLimitHit>();
+	const locks = new Map<string, number>();
 
 	function sweep(now: number): void {
 		for (const [k, v] of map) if (v.resetAt <= now) map.delete(k);
@@ -49,6 +58,20 @@ export function memoryStore(opts: MemoryStoreOpts = {}): RateLimitStore {
 		},
 		async reset(key) {
 			map.delete(key);
+		},
+		async lock(key, ttlSec) {
+			const until = Date.now() + ttlSec * 1000;
+			locks.set(key, until);
+			return until;
+		},
+		async lockedUntil(key) {
+			const until = locks.get(key);
+			if (until === undefined) return null;
+			if (until <= Date.now()) {
+				locks.delete(key);
+				return null;
+			}
+			return until;
 		},
 	};
 }

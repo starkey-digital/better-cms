@@ -1,5 +1,5 @@
 import type { FieldDef, FieldsRecord } from '@better-cms/core';
-import type { z } from 'zod';
+import { z } from 'zod';
 import { type BcmsFieldMeta, bcmsRegistry } from './registry.js';
 
 export interface ZodLike {
@@ -52,11 +52,91 @@ export function zodToFields(objectSchema: z.ZodType): FieldsRecord {
 
 /** Walk one field schema to its IR. Exported so the form-schema builder can reuse the unwrap + type detection. */
 export function zodToField(schema: z.ZodType): FieldDef {
+	const adminMeta: ZodAdminMeta = {};
+	const field = walkField(schema, adminMeta);
+	return applyAdminMeta(field, adminMeta);
+}
+
+/** Display metadata authors attach with `.meta()` / `.describe()`. */
+interface ZodAdminMeta {
+	label?: string;
+	description?: string;
+	placeholder?: string;
+	multiline?: boolean;
+	dateOnly?: boolean;
+	hidden?: boolean;
+	itemLabel?: string;
+	/** Image crop shape(s): a width/height ratio, a list of them, or `'free'`. */
+	aspect?: number | number[] | 'free';
+	aspectLabel?: string | string[];
+	/** Longest edge, in pixels, an uploaded image is downscaled to in the browser. */
+	maxSize?: number;
+}
+
+const STRING_KEYS = ['label', 'description', 'placeholder', 'itemLabel'] as const;
+const BOOLEAN_KEYS = ['multiline', 'dateOnly', 'hidden'] as const;
+
+/**
+ * Fold one schema layer's `.meta()` into `into`. Layers are visited outermost
+ * first and the first writer wins, so meta on `z.string().meta(...).optional()`
+ * and on `z.string().optional().meta(...)` both survive, and the outer one
+ * takes precedence when both are set.
+ */
+function collectMeta(layer: ZodLike, into: ZodAdminMeta): void {
+	const meta = z.globalRegistry.get(layer as unknown as z.ZodType) as
+		| Record<string, unknown>
+		| undefined;
+	if (!meta) return;
+	for (const key of STRING_KEYS) {
+		const v = meta[key];
+		if (typeof v === 'string' && into[key] === undefined) into[key] = v;
+	}
+	for (const key of BOOLEAN_KEYS) {
+		const v = meta[key];
+		if (typeof v === 'boolean' && into[key] === undefined) into[key] = v;
+	}
+	if (into.aspect === undefined) {
+		const a = meta.aspect;
+		if (a === 'free' || (typeof a === 'number' && a > 0)) into.aspect = a;
+		else if (Array.isArray(a) && a.every((n) => typeof n === 'number' && n > 0)) into.aspect = a;
+	}
+	const label = meta.aspectLabel;
+	if (into.aspectLabel === undefined) {
+		if (typeof label === 'string') into.aspectLabel = label;
+		else if (Array.isArray(label) && label.every((l) => typeof l === 'string'))
+			into.aspectLabel = label;
+	}
+	if (into.maxSize === undefined && typeof meta.maxSize === 'number' && meta.maxSize > 0) {
+		into.maxSize = meta.maxSize;
+	}
+}
+
+function applyAdminMeta(field: FieldDef, meta: ZodAdminMeta): FieldDef {
+	if (meta.label !== undefined) field.label = meta.label;
+	if (meta.description !== undefined) field.description = meta.description;
+	if (meta.placeholder !== undefined) field.placeholder = meta.placeholder;
+	if (meta.hidden) field.hidden = true;
+
+	const props: Record<string, unknown> = { ...field.editor?.props };
+	if (meta.multiline && field.kind === 'text') props.multiline = true;
+	if (meta.dateOnly && field.kind === 'date') props.dateOnly = true;
+	if (meta.itemLabel !== undefined && field.kind === 'array') props.itemLabel = meta.itemLabel;
+	if (field.kind === 'image') {
+		if (meta.aspect !== undefined) props.aspect = meta.aspect;
+		if (meta.aspectLabel !== undefined) props.aspectLabel = meta.aspectLabel;
+		if (meta.maxSize !== undefined) props.maxSize = meta.maxSize;
+	}
+	if (field.editor && Object.keys(props).length) field.editor = { ...field.editor, props };
+	return field;
+}
+
+function walkField(schema: z.ZodType, adminMeta: ZodAdminMeta): FieldDef {
 	let inner = schema as unknown as ZodLike;
 	let required = true;
 	let defaultValue: unknown;
 
 	while (true) {
+		collectMeta(inner, adminMeta);
 		const def = inner._zod.def;
 		if (def.type === 'optional' || def.type === 'nullable') {
 			required = false;
@@ -166,15 +246,20 @@ export function zodToField(schema: z.ZodType): FieldDef {
 	}
 
 	switch (innerDef.type) {
-		case 'string':
+		case 'string': {
+			const format = stringFormat(innerDef);
 			return {
 				...base,
 				kind: 'text',
 				storage: 'column',
 				columnType: 'text',
 				scalarType: 'string',
-				editor: { component: 'TextField', props: { multiline: false } },
+				editor: {
+					component: 'TextField',
+					props: format ? { multiline: false, format } : { multiline: false },
+				},
 			};
+		}
 		case 'number': {
 			const isInt = isIntegerNumber(innerDef);
 			return {
@@ -304,4 +389,12 @@ function isIntegerNumber(def: ZodDef): boolean {
 		if (f && /int/i.test(f)) return true;
 	}
 	return false;
+}
+
+const EDITOR_FORMATS = ['url', 'email'] as const;
+
+/** zod v4 string formats the admin has a dedicated input for (`z.url()`, `z.email()`, or `.url()`/`.email()` checks). */
+function stringFormat(def: ZodDef): (typeof EDITOR_FORMATS)[number] | undefined {
+	const formats = [def.format, ...(def.checks ?? []).map((c) => c?._zod?.def?.format)];
+	return EDITOR_FORMATS.find((f) => formats.includes(f));
 }

@@ -40,5 +40,13 @@ export function upstashStore(opts: UpstashOpts): RateLimitStore {
 		async reset(key) {
 			await exec([['DEL', prefix + key]]);
 		},
+		async lock(key, ttlSec) {
+			await exec([['SET', `${prefix}lock:${key}`, '1', 'PX', String(ttlSec * 1000)]]);
+			return Date.now() + ttlSec * 1000;
+		},
+		async lockedUntil(key) {
+			const [pttl] = (await exec([['PTTL', `${prefix}lock:${key}`]])) as [number];
+			return pttl > 0 ? Date.now() + pttl : null;
+		},
 	};
 }

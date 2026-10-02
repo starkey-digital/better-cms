@@ -1,0 +1,11 @@
+{
+	"extends": "$app/tsconfig",
+	"include": ["src", "scripts", "e2e", "*.ts"],
+	"compilerOptions": {
+		"allowJs": true,
+		"checkJs": true,
+		"strict": true,
+		"skipLibCheck": true,
+		"types": ["bun-types", "$app/types"]
+	}
+}

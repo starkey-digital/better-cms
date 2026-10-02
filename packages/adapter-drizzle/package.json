@@ -12,9 +12,7 @@
 	"description": "better-cms Drizzle ContentStore adapter.",
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
-	"files": [
-		"dist"
-	],
+	"files": ["dist"],
 	"exports": {
 		".": {
 			"dev-source": "./src/index.ts",
@@ -24,14 +22,14 @@
 	},
 	"scripts": {
 		"typecheck": "tsc --noEmit",
-		"build": "tsc -p tsconfig.build.json"
+		"build": "rm -rf dist && tsc -p tsconfig.build.json"
 	},
 	"dependencies": {
 		"@better-cms/core": "workspace:*",
 		"@better-cms/adapter-libsql": "workspace:*"
 	},
 	"peerDependencies": {
-		"@libsql/client": "^0.14.0 || ^0.15.0 || ^0.16.0 || ^0.17.0",
+		"@libsql/client": "^0.14.0 || ^0.15.0 || ^0.16.0 || ^0.17.0 || ^0.18.0",
 		"drizzle-orm": ">=0.36.0"
 	},
 	"peerDependenciesMeta": {

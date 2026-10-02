@@ -35,14 +35,22 @@ export default cms;
 export type Cms = typeof cms;
 ```
 
+```ts
+// src/lib/cms/client.ts
+import { createCmsClient } from 'better-cms/sveltekit';
+import type { Cms } from './server/cms';
+
+export const cmsClient = createCmsClient<Cms>({ basePath: '/api/cms' });
+```
+
 ```svelte
 <!-- src/routes/cms/+page.svelte -->
 <script>
   import { CmsAdmin } from 'better-cms/admin';
-  import config from '$lib/cms.config';
+  import { cmsClient } from '#lib/cms/client.ts';
 </script>
 
-<CmsAdmin config={{ collections: config.collections, basePath: '/api/cms' }} auth />
+<CmsAdmin client={cmsClient} auth />
 ```
 
 ## Endpoints
@@ -64,7 +72,28 @@ Mounted under `config.basePath` (default `/api/cms`):
 passwordAuth({ passwordHash, secret });
 ```
 
-Fine for dev, single-instance Node/Bun, single Docker container. Throws hard error if Cloudflare Workers detected.
+Fine for dev, single-instance Node/Bun, single Docker container. On Cloudflare Workers it still runs but each isolate keeps its own counters, so the limit is best-effort — use `libsqlStore` there.
+
+### Your own libsql database (recommended on Workers)
+
+No extra service: one small table (`bcms_rate_limit`, created on first use) in the database the CMS already uses. Each increment is a single atomic upsert, so the count is correct across isolates.
+
+```ts
+import { createClient } from '@libsql/client';
+import { libsqlAdapter } from 'better-cms/adapters/libsql';
+import { passwordAuth, libsqlStore } from 'better-cms/auth';
+
+const client = createClient({ url: process.env.DATABASE_URL!, authToken: process.env.DATABASE_AUTH_TOKEN });
+
+passwordAuth({
+  passwordHash,
+  secret,
+  rateLimit: { store: libsqlStore(client) },
+});
+// adapter: libsqlAdapter({ client })
+```
+
+Costs one extra DB round trip per login attempt. Options: `table`, `sweepProbability` (chance an increment also prunes expired rows, default `0.02`).
 
 ### Cloudflare Durable Object
 
@@ -122,6 +151,8 @@ REST-only — no `@upstash/redis` dependency, works on Workers/edge.
 | `rateLimit.lockoutMinutes` | `15` |
 | `turnstile.after`          | `3` (failed attempts before requiring token) |
 
+Exceeding `perIp.max` locks that IP out for `lockoutMinutes` (measured from the moment it trips, independent of the 1-minute counter window); `retry-after` reports the time left. Built-in stores keep the lock themselves. A custom `RateLimitStore` can implement the optional `lock(key, ttlSec)` / `lockedUntil(key)` pair for a lockout shared across instances; without them the lockout is per-process.
+
 Exponential backoff (`250ms × 2^(n-1)`, capped at `8s`) is applied per failed attempt and is not configurable.
 
 ## Turnstile (optional)
@@ -139,7 +170,7 @@ passwordAuth({
 ```
 
 ```svelte
-<CmsAdmin config={...} auth turnstileSiteKey={env.PUBLIC_TURNSTILE_SITE_KEY} />
+<CmsAdmin client={cmsClient} auth turnstileSiteKey={env.PUBLIC_TURNSTILE_SITE_KEY} />
 ```
 
 After 3 failed login attempts per IP, the server requires a valid Turnstile token. Admin UI auto-loads the widget script and submits the token in the next attempt.

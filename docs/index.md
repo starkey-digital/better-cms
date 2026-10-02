@@ -22,7 +22,7 @@ Database drivers and storage SDKs are the exception: they are **optional peer de
 | --- | --- |
 | `libsqlAdapter` | `@libsql/client` |
 | `drizzleAdapter` | `drizzle-orm` (plus your driver) |
-| `s3Media` | `@aws-sdk/client-s3` `@aws-sdk/s3-request-presigner` |
+| `s3Media` | nothing — it signs with the bundled `aws4fetch` (runs on Workers) |
 
 ## Quick links
 

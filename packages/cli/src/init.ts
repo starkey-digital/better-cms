@@ -62,7 +62,7 @@ export type Cms = typeof cms;
 `;
 
 const CLIENT_TEMPLATE = `import { createCmsClient } from 'better-cms/sveltekit';
-import type { Cms } from './server/cms';
+import type { Cms } from './server/cms@@EXT@@';
 
 // HTTP client for the admin UI. Server code should import \`cms\` from
 // ./server/cms directly instead — same API, no round trip.
@@ -70,7 +70,7 @@ export const cmsClient = createCmsClient<Cms>({ basePath: '/api/cms' });
 `;
 
 const REMOTE_TEMPLATE = `import { command, form, query } from '$app/server';
-import { cms } from '$lib/cms/server/cms';
+import { cms } from '@@LIB@@/cms/server/cms@@EXT@@';
 import { z } from 'zod';
 
 export const recentPosts = query(async () =>
@@ -106,14 +106,14 @@ S3_PUBLIC_URL=
 `;
 
 const HOOKS_TEMPLATE = `import { cmsHandle } from 'better-cms/sveltekit/server';
-import cms from '$lib/cms/server/cms';
+import cms from '@@LIB@@/cms/server/cms@@EXT@@';
 
 export const handle = cmsHandle(cms);
 `;
 
 const ADMIN_PAGE_TEMPLATE = `<script lang="ts">
 import { CmsAdmin } from 'better-cms/admin';
-import { cmsClient } from '$lib/cms/client';
+import { cmsClient } from '@@LIB@@/cms/client@@EXT@@';
 </script>
 
 <CmsAdmin client={cmsClient} />
@@ -132,6 +132,22 @@ export default defineConfig({
 	},
 });
 `;
+
+const VITE_CONFIG_TEMPLATE = `import { sveltekit } from '@sveltejs/kit/vite';
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+	plugins: [
+		sveltekit({
+			// Required by the scaffolded cms.remote.ts and the admin UI.
+			compilerOptions: { experimental: { async: true } },
+			experimental: { remoteFunctions: true },
+		}),
+	],
+});
+`;
+
+const KIT3_IMPORTS = { '#lib': './src/lib/index.ts', '#lib/*': './src/lib/*' };
 
 export interface InitOpts {
 	cwd?: string;
@@ -183,6 +199,33 @@ function detectPackageManager(cwd: string): PackageManager | null {
 const RUNTIME_DEPS = ['better-cms', 'zod', 'dotenv', '@libsql/client'];
 const DEV_DEPS = ['drizzle-kit'];
 
+/**
+ * Major version of the project's `@sveltejs/kit`: the installed package first,
+ * then the declared range. Unknown falls back to 2 (the legacy scaffold).
+ */
+export function detectKitMajor(cwd: string): number {
+	type Pkg = {
+		version?: string;
+		dependencies?: Record<string, string>;
+		devDependencies?: Record<string, string>;
+	};
+	const read = (p: string): Pkg | null => {
+		try {
+			return JSON.parse(readFileSync(p, 'utf8')) as Pkg;
+		} catch {
+			return null;
+		}
+	};
+	const installed = read(resolve(cwd, 'node_modules/@sveltejs/kit/package.json'))?.version;
+	const root = read(resolve(cwd, 'package.json'));
+	const declared =
+		root?.devDependencies?.['@sveltejs/kit'] ?? root?.dependencies?.['@sveltejs/kit'];
+	const m = /(\d+)/.exec(installed ?? declared ?? '');
+	return m ? Number(m[1]) : 2;
+}
+
+const VITE_CONFIGS = ['vite.config.ts', 'vite.config.js', 'vite.config.mts', 'vite.config.mjs'];
+
 function readInstalled(cwd: string): Set<string> {
 	const pkgJsonPath = resolve(cwd, 'package.json');
 	if (!existsSync(pkgJsonPath)) return new Set();
@@ -208,6 +251,33 @@ function runInstall(cwd: string, pm: PackageManager, deps: string[], dev: boolea
 	return res.status === 0;
 }
 
+function scaffoldKit3(cwd: string, written: string[], skipped: string[]) {
+	const pkgJsonPath = resolve(cwd, 'package.json');
+	const pkg = JSON.parse(readFileSync(pkgJsonPath, 'utf8')) as {
+		imports?: Record<string, string>;
+	};
+	const missing = Object.entries(KIT3_IMPORTS).filter(([k]) => !pkg.imports?.[k]);
+	if (missing.length) {
+		pkg.imports = { ...pkg.imports, ...Object.fromEntries(missing) };
+		writeFileSync(pkgJsonPath, `${JSON.stringify(pkg, null, 2)}\n`, 'utf8');
+		written.push(pkgJsonPath);
+	}
+
+	const existing = VITE_CONFIGS.map((f) => resolve(cwd, f)).find(existsSync);
+	if (!existing) {
+		const path = resolve(cwd, 'vite.config.ts');
+		writeFileSync(path, VITE_CONFIG_TEMPLATE, 'utf8');
+		written.push(path);
+	} else if (!readFileSync(existing, 'utf8').includes('remoteFunctions')) {
+		skipped.push(existing);
+		console.warn(
+			`[better-cms] ${existing} needs these options on the sveltekit() plugin (SvelteKit 3 no longer reads svelte.config.js):
+  compilerOptions: { experimental: { async: true } },
+  experimental: { remoteFunctions: true },`,
+		);
+	}
+}
+
 export async function init(
 	opts: InitOpts = {},
 ): Promise<{ written: string[]; installed: string[]; skipped: string[] }> {
@@ -222,14 +292,18 @@ export async function init(
 		);
 	}
 
+	const kit3 = detectKitMajor(cwd) >= 3;
+	const render = (t: string) =>
+		t.replaceAll('@@LIB@@', kit3 ? '#lib' : '$lib').replaceAll('@@EXT@@', kit3 ? '.ts' : '');
+
 	const files: { path: string; content: string }[] = [
-		{ path: resolve(cwd, 'src/lib/cms/server/cms.ts'), content: CONFIG_TEMPLATE },
-		{ path: resolve(cwd, 'src/lib/cms/client.ts'), content: CLIENT_TEMPLATE },
-		{ path: resolve(cwd, 'src/lib/cms/cms.remote.ts'), content: REMOTE_TEMPLATE },
-		{ path: resolve(cwd, '.env.example'), content: ENV_TEMPLATE },
-		{ path: resolve(cwd, 'src/hooks.server.ts'), content: HOOKS_TEMPLATE },
-		{ path: resolve(cwd, 'drizzle.config.ts'), content: DRIZZLE_CONFIG_TEMPLATE },
-		{ path: resolve(cwd, 'src/routes/cms/+page.svelte'), content: ADMIN_PAGE_TEMPLATE },
+		{ path: resolve(cwd, 'src/lib/cms/server/cms.ts'), content: render(CONFIG_TEMPLATE) },
+		{ path: resolve(cwd, 'src/lib/cms/client.ts'), content: render(CLIENT_TEMPLATE) },
+		{ path: resolve(cwd, 'src/lib/cms/cms.remote.ts'), content: render(REMOTE_TEMPLATE) },
+		{ path: resolve(cwd, '.env.example'), content: render(ENV_TEMPLATE) },
+		{ path: resolve(cwd, 'src/hooks.server.ts'), content: render(HOOKS_TEMPLATE) },
+		{ path: resolve(cwd, 'drizzle.config.ts'), content: render(DRIZZLE_CONFIG_TEMPLATE) },
+		{ path: resolve(cwd, 'src/routes/cms/+page.svelte'), content: render(ADMIN_PAGE_TEMPLATE) },
 	];
 
 	for (const file of files) {
@@ -241,6 +315,10 @@ export async function init(
 		mkdirSync(dirname(file.path), { recursive: true });
 		writeFileSync(file.path, file.content, 'utf8');
 		written.push(file.path);
+	}
+
+	if (kit3) {
+		scaffoldKit3(cwd, written, skipped);
 	}
 
 	const installedDeps = readInstalled(cwd);

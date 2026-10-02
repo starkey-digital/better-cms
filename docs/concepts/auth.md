@@ -2,6 +2,8 @@
 
 better-cms is bring-your-own-auth. The core knows nothing about users — wire any auth provider (the bundled `passwordAuth` plugin, your own session resolver, better-auth, JWT, NextAuth) by giving the CMS a `context(request)` function that returns whatever shape your app uses.
 
+Using better-auth? `betterAuthContext()` plus the admin's magic-link sign-in screen is the supported path — see [Sign in with better-auth](/guides/better-auth).
+
 Authorization (who can read/write each collection) is a separate layer — see [Access control](/concepts/access-control). Hooks for lifecycle side-effects are in [Hooks](/concepts/hooks).
 
 ## File layout
@@ -16,7 +18,7 @@ src/lib/cms/
 └── client.ts           # browser-safe — uses `import type` to lift AppCtx
 ```
 
-`schemas.ts` is imported by both server and browser. `server/cms.ts` is server-only — SvelteKit's `$lib/.../server/` guard rejects browser-side runtime imports. `client.ts` imports the runtime values from `schemas.ts` and the `AppCtx` *type* from `server/cms.ts` via `import type` (TypeScript erases type-only imports before Vite bundles, so no server runtime ships to the browser).
+`schemas.ts` is imported by both server and browser. `server/cms.ts` is server-only — SvelteKit's `src/lib/**/server/` guard rejects browser-side runtime imports. `client.ts` imports the runtime values from `schemas.ts` and the `AppCtx` *type* from `server/cms.ts` via `import type` (TypeScript erases type-only imports before Vite bundles, so no server runtime ships to the browser).
 
 ## The auth contract
 
@@ -131,14 +133,14 @@ The single `Cms` generic carries both the collection shapes and `AppCtx`, so not
 
 | Field | Type | Default | Notes |
 |---|---|---|---|
-| `password` | `string` | — | Plain-text admin password. Hashed once at boot. Mutually exclusive with `passwordHash`. |
-| `passwordHash` | `string` | — | Pre-hashed password (`bcms hash-password <pw>`). Use when you don't want the plain credential to appear in env dumps. |
+| `password` | `string` | — | Plain-text admin password, compared by SHA-256 digest (no PBKDF2 cost). Mutually exclusive with `passwordHash`. |
+| `passwordHash` | `string` | — | Pre-hashed password (`bcms hash-password <pw> [--iterations=N]`, PBKDF2-SHA256, default 100k iterations). Use when you don't want the plain credential to appear in env dumps. |
 | `secret` | `string` | — | HMAC key for signing session cookies. ≥16 chars. Generate with `bcms gen-secret 32`. |
 | `cookieName` | `string` | `bcms_session` | Override if you have multiple CMSes on one domain. |
 | `cookieTtl` | `string \| number` | `24h` | Accepts `'7d'`, `'1h'`, or seconds as a number. |
 | `cookieSecure` | `boolean` | `true` | Set to `false` for local dev over HTTP. |
 | `userId` | `string` | `admin` | The `id` placed into `context`'s return value. |
-| `rateLimit` | object | in-memory | Per-IP and global throttles. Pass `durableObjectStore()` or `upstashStore()` for production. |
+| `rateLimit` | object | in-memory | Per-IP and global throttles. Pass `libsqlStore(client)` (uses your CMS database, recommended on Workers), `durableObjectStore()` or `upstashStore()` for production. |
 | `turnstile` | object | — | Cloudflare Turnstile after N failed attempts. |
 | `onFailedAttempt` | callback | — | Audit hook for security logging. |
 
@@ -157,7 +159,7 @@ The cookie is HttpOnly, SameSite=Lax, and signed with `secret` — tampering inv
 
 ```ts
 // src/routes/+layout.server.ts
-import { cms } from '$lib/cms/server/cms';
+import { cms } from '#lib/cms/server/cms.ts';
 
 export async function load() {
   const ctx = await cms.auth.context();
@@ -206,7 +208,7 @@ This costs an extra HTTP round trip per page-load — prefer the layout-loader p
 The browser-safe `cmsClient.auth.context()` is typed against `AppCtx` thanks to the `import type` propagation in `client.ts` — no `as` casts needed:
 
 ```ts
-import { cmsClient } from '$lib/cms/client';
+import { cmsClient } from '#lib/cms/client.ts';
 
 const ctx = await cmsClient.auth.context();
 //    ^? AppCtx | null
@@ -228,6 +230,6 @@ Whatever shape you return becomes the `ctx` argument in every `access` function 
 
 - **Generate a real `CMS_AUTH_SECRET`** — `bcms gen-secret 32`. Never reuse the example value.
 - **Use a strong password** — `passwordAuth` rate-limits brute force, but a good password is the first defence. Consider `bcms hash-password` if you don't want plaintext in env dumps.
-- **Switch the rate limiter** to a shared store (`upstashStore` or `durableObjectStore`) — the in-memory default resets on every deploy and doesn't share state across multiple instances.
+- **Switch the rate limiter** to a shared store (`libsqlStore`, `upstashStore` or `durableObjectStore`) — the in-memory default resets on every deploy and doesn't share state across multiple instances.
 - **Enable Turnstile** if the admin URL is publicly discoverable. The plugin demands a token after the configured number of failures.
 - **Set `cookieSecure: true`** in production (the example template ties this to `NODE_ENV`).

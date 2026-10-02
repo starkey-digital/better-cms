@@ -4,8 +4,9 @@ import type {
 	CollectionDef,
 	CollectionsRecord,
 	FieldsRecord,
-	FindManyQuery,
 	InferRows,
+	ListQuery,
+	ListResult,
 	SchemaIR,
 	SingletonApi,
 	WhereClause,
@@ -44,7 +45,7 @@ export type CmsClient<C extends CollectionsRecord, Ctx = unknown> = {
 /**
  * Type helpers — extract collections and Ctx from the user's resolved `Cms`
  * (the value of `createCms(...)`). Type-only imports erase before bundling, so
- * a client module can `import type { Cms }` from `$lib/cms/server/cms` without
+ * a client module can `import type { Cms }` from `#lib/cms/server/cms.ts` without
  * dragging server runtime into the browser.
  */
 type CollectionsOf<T> = T extends { __collections?: infer C extends CollectionsRecord }
@@ -69,7 +70,7 @@ export interface CreateCmsClientOpts {
  * service, an MCP tool. Inside a SvelteKit app, prefer the `cms` object from
  * `createCms()`: it skips the HTTP round trip and is the same implementation.
  *
- *   import type { Cms } from '$lib/cms/server/cms';
+ *   import type { Cms } from '#lib/cms/server/cms.ts';
  *   export const cmsClient = createCmsClient<Cms>({ basePath: '/api/cms' });
  *
  * The Proxy dispatches collection / singleton names lazily — no manifest is
@@ -163,7 +164,7 @@ function whereParams(where: WhereClause | undefined, target: URLSearchParams): v
  * property and the URLs differ by route.
  */
 function collectionOrSingleton(basePath: string, name: string, fetcher: typeof fetch) {
-	function listQuery(opts?: FindManyQuery): string {
+	function listQuery(opts?: ListQuery): string {
 		const params = new URLSearchParams();
 		if (opts?.limit != null) params.set('limit', String(opts.limit));
 		if (opts?.offset != null) params.set('offset', String(opts.offset));
@@ -173,21 +174,29 @@ function collectionOrSingleton(basePath: string, name: string, fetcher: typeof f
 				opts.orderBy.map((o) => `${o.dir === 'desc' ? '-' : ''}${o.field}`).join(','),
 			);
 		}
+		if (opts?.sort) {
+			params.set('sort', opts.sort.field);
+			if (opts.sort.direction) params.set('direction', opts.sort.direction);
+		}
 		whereParams(opts?.where, params);
 		const qs = params.toString();
 		return qs ? `?${qs}` : '';
 	}
 
-	async function list(opts?: FindManyQuery) {
+	async function listPage(opts?: ListQuery) {
+		const res = await fetcher(`${basePath}/collections/${name}${listQuery(opts)}`);
+		return await jsonOrThrow<ListResult<unknown>>(res);
+	}
+	async function list(opts?: ListQuery) {
 		const res = await fetcher(`${basePath}/collections/${name}${listQuery(opts)}`);
 		const body = await jsonOrThrow<{ rows: unknown[] }>(res);
-		return body.rows as never;
+		return body.rows;
 	}
 	async function find(id: string) {
 		const res = await fetcher(`${basePath}/collections/${name}/${encodeURIComponent(id)}`);
 		if (res.status === 404) return null;
 		const body = await jsonOrThrow<{ row: unknown }>(res);
-		return body.row as never;
+		return body.row;
 	}
 	async function count(where?: WhereClause) {
 		const params = new URLSearchParams({ count: '1' });
@@ -200,13 +209,13 @@ function collectionOrSingleton(basePath: string, name: string, fetcher: typeof f
 		const body = await opsRequest(basePath, fetcher, [
 			{ op: 'create', collection: name, data: data as Record<string, unknown> },
 		]);
-		return (body.results[0]?.row ?? data) as never;
+		return body.results[0]?.row ?? data;
 	}
 	async function update(id: string, data: unknown) {
 		const body = await opsRequest(basePath, fetcher, [
 			{ op: 'set', collection: name, id, data: data as Record<string, unknown> },
 		]);
-		return (body.results[0]?.row ?? data) as never;
+		return body.results[0]?.row ?? data;
 	}
 	async function deleteOne(id: string) {
 		await opsRequest(basePath, fetcher, [{ op: 'remove', collection: name, id }]);
@@ -215,7 +224,7 @@ function collectionOrSingleton(basePath: string, name: string, fetcher: typeof f
 		const res = await fetcher(`${basePath}/singletons/${name}`);
 		if (res.status === 404) return null;
 		const body = await jsonOrThrow<{ row: unknown }>(res);
-		return body.row as never;
+		return body.row;
 	}
 	async function setSingleton(data: unknown) {
 		const res = await fetcher(`${basePath}/singletons/${name}`, {
@@ -224,7 +233,7 @@ function collectionOrSingleton(basePath: string, name: string, fetcher: typeof f
 			body: JSON.stringify(data),
 		});
 		const body = await jsonOrThrow<{ row: unknown }>(res);
-		return body.row as never;
+		return body.row;
 	}
 
 	// `get(idOrSlug)` (collection) and `get()` (singleton) share a name. Disambiguate by argument count.
@@ -235,6 +244,7 @@ function collectionOrSingleton(basePath: string, name: string, fetcher: typeof f
 
 	return {
 		list,
+		listPage,
 		find,
 		get,
 		count,

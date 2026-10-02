@@ -1,6 +1,6 @@
-import { base } from '$app/paths';
-import { docs, getDoc, renderMarkdown } from '$lib/content';
+import { resolve } from '$app/paths';
 import { error } from '@sveltejs/kit';
+import { docs, getDoc, renderMarkdown } from '#lib/content.ts';
 
 export const prerender = true;
 
@@ -13,6 +13,6 @@ export async function load({ params }: { params: { slug: string } }) {
 	if (!doc) throw error(404, `No doc at ${params.slug}`);
 	return {
 		title: doc.title,
-		html: await renderMarkdown(doc.source, base),
+		html: await renderMarkdown(doc.source, resolve('').replace(/\/$/, '')),
 	};
 }

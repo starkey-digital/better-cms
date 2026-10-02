@@ -148,9 +148,18 @@ async function validateAgainst(
 	collection: string,
 ): Promise<Record<string, unknown>> {
 	const schema = def.schemas[variant];
-	const result = await schema['~standard'].validate(input);
+	// A cleared optional field arrives as null (the admin sends null, storage
+	// holds null) but optional schemas accept undefined, not null. Keeping the
+	// key as undefined still clears the column.
+	const cleared = Object.fromEntries(
+		Object.entries(input).map(([k, v]) => [
+			k,
+			v === null && def.fields[k]?.required === false ? undefined : v,
+		]),
+	);
+	const result = await schema['~standard'].validate(cleared);
 	if (result.issues) throw errors.validation(formatIssues(collection, result.issues));
-	return (result.value ?? input) as Record<string, unknown>;
+	return (result.value ?? cleared) as Record<string, unknown>;
 }
 
 function formatIssues(collection: string, issues: ReadonlyArray<StandardSchemaV1.Issue>): string {

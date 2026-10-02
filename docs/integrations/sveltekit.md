@@ -2,13 +2,13 @@
 
 Mount the handler, render the admin, read content from server load functions or remote functions.
 
-The whole CMS config lives under `$lib/cms/server/`, which SvelteKit's bundler refuses to import from client code — adapter credentials, media keys, and auth secrets stay on the server. Components reach the CMS through remote functions, or through the HTTP client for the admin UI.
+The whole CMS config lives under `src/lib/cms/server/`, which SvelteKit's bundler refuses to import from client code — adapter credentials, media keys, and auth secrets stay on the server. Components reach the CMS through remote functions, or through the HTTP client for the admin UI.
 
 ## Handler
 
 ```ts
 // src/hooks.server.ts
-import cms from '$lib/cms/server/cms';
+import cms from '#lib/cms/server/cms.ts';
 import { cmsHandle } from 'better-cms/sveltekit/server';
 
 export const handle = cmsHandle(cms);
@@ -38,7 +38,7 @@ Use it from any server load function, hook, or remote function:
 
 ```ts
 // src/routes/blog/+page.server.ts
-import { cms } from '$lib/cms/server/cms';
+import { cms } from '#lib/cms/server/cms.ts';
 
 export async function load() {
 	const posts = await cms.posts.list({ limit: 20 });
@@ -48,7 +48,7 @@ export async function load() {
 
 ```ts
 // src/routes/blog/[slug]/+page.server.ts
-import { cms } from '$lib/cms/server/cms';
+import { cms } from '#lib/cms/server/cms.ts';
 import { error } from '@sveltejs/kit';
 
 export async function load({ params }) {
@@ -58,7 +58,7 @@ export async function load({ params }) {
 }
 ```
 
-Each collection key has `list / find / get / count / create / update / delete`; each singleton has `get / set`. Methods are typed from your zod schemas — `cms.posts.list()` returns `Post[]`, `cms.settings.get()` returns `Settings | null`.
+Each collection key has `list / listPage / find / get / count / create / update / delete` (`listPage` returns `{ rows, total, limit, offset }` — see [Collections](/concepts/collections#listing)); each singleton has `get / set`. Methods are typed from your zod schemas — `cms.posts.list()` returns `Post[]`, `cms.settings.get()` returns `Settings | null`.
 
 This is the same implementation the HTTP endpoints call, so reads and writes apply the same access policies and return the same decoded values either way — booleans as booleans, dates as `Date`s, json fields parsed. Mutations run through `applyOps` and publish live events. The first call lazily boots the CMS; subsequent calls reuse it.
 
@@ -71,7 +71,7 @@ Components can't import `cms` — it's server-only. Use a remote function:
 ```svelte
 <!-- src/routes/blog/[slug]/+page.svelte -->
 <script lang="ts">
-	import { postBySlug } from '$lib/cms/cms.remote';
+	import { postBySlug } from '#lib/cms/cms.remote.ts';
 	const { params } = $props();
 	const post = $derived(await postBySlug(params.slug));
 </script>
@@ -86,7 +86,7 @@ The HTTP client (`createCmsClient`) also exists, but it's aimed at the admin UI 
 ```ts
 // src/lib/cms/cms.remote.ts
 import { command, query } from '$app/server';
-import { cms } from '$lib/cms/server/cms';
+import { cms } from '#lib/cms/server/cms.ts';
 import { z } from 'zod';
 
 const RecentLimit = z.number().int().min(1).max(50);
@@ -146,7 +146,7 @@ export const togglePublished = command(ToggleInput, async ({ id, published }) =>
 ```svelte
 <!-- src/routes/cms/+page.svelte -->
 <script lang="ts">
-	import { cmsClient } from '$lib/cms/client';
+	import { cmsClient } from '#lib/cms/client.ts';
 	import { CmsAdmin } from 'better-cms/admin';
 </script>
 
@@ -154,6 +154,8 @@ export const togglePublished = command(ToggleInput, async ({ id, published }) =>
 ```
 
 No `+page.server.ts` needed. `<CmsAdmin>` fetches its field metadata from `GET /api/cms/_meta`, which serves static editor descriptors only — validators, access policies and hooks never reach the browser.
+
+Pass `title` to brand the sidebar (`<CmsAdmin client={cmsClient} auth title="PELLT" />`). Edits save when the editor leaves a field; there are no Save buttons.
 
 ### Routing
 
@@ -204,7 +206,7 @@ The full token list lives at the top of `packages/admin/src/lib/CmsAdmin.svelte`
 
 ```ts
 // src/routes/+layout.server.ts
-import { cms } from '$lib/cms/server/cms';
+import { cms } from '#lib/cms/server/cms.ts';
 
 export async function load() {
 	const ctx = await cms.auth.context();

@@ -16,14 +16,16 @@ function b64url(buf: Buffer): string {
 	return buf.toString('base64url');
 }
 
-export async function hashPasswordCli(input?: string): Promise<string> {
+export async function hashPasswordCli(input?: string, iterations = PBKDF2_ITER): Promise<string> {
 	const password = input ?? (await prompt('Password: '));
 	if (!password || password.length < 8) {
 		throw new Error('password must be ≥8 characters');
 	}
+	if (!Number.isInteger(iterations) || iterations < 1)
+		throw new Error('iterations must be a positive integer');
 	const salt = randomBytes(PBKDF2_SALTLEN);
-	const hash = await pbkdf2(password, salt, PBKDF2_ITER, PBKDF2_KEYLEN, 'sha256');
-	return `pbkdf2$sha256$${PBKDF2_ITER}$${b64url(salt)}$${b64url(hash)}`;
+	const hash = await pbkdf2(password, salt, iterations, PBKDF2_KEYLEN, 'sha256');
+	return `pbkdf2$sha256$${iterations}$${b64url(salt)}$${b64url(hash)}`;
 }
 
 export function genSecret(bytes = 32): string {
