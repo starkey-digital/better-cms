@@ -27,6 +27,43 @@ Wrappers:
 - `.default(v)` → `required: false` + `defaultValue: v`
 - `.transform()`, `z.lazy()`, `z.union(...)`, etc. → fallback to `kind: 'json'`, `storage: 'json'` (round-trip the value verbatim; admin gets a JSON editor)
 
+## Labels, help text and other admin metadata
+
+Attach display metadata with zod's own `.meta()` / `.describe()`. The walker copies it onto the field and `GET /_meta` serves it to the admin. Nothing here affects validation or storage.
+
+```ts
+z.object({
+	title: z.string().meta({ label: 'Headline', placeholder: 'Spring tour announced' }),
+	blurb: z.string().describe('Shown on the home page').meta({ multiline: true }),
+	doors: z.date().meta({ label: 'Doors', dateOnly: true }),
+	internalNote: z.string().optional().meta({ hidden: true }),
+	tracks: z
+		.array(z.object({ title: z.string().meta({ label: 'Song' }), length: z.string().optional() }))
+		.meta({ label: 'Tracks', itemLabel: 'Track' }),
+});
+```
+
+| Key | Type | Effect |
+|---|---|---|
+| `label` | string | Display name of the field. |
+| `description` | string | Help text. `.describe('...')` sets the same thing. |
+| `placeholder` | string | Input placeholder. |
+| `multiline` | boolean | On strings: `editor.props.multiline = true` (textarea). |
+| `dateOnly` | boolean | On dates: `editor.props.dateOnly = true` (see [Dates](#dates)). |
+| `hidden` | boolean | Keep the field out of the admin form. |
+| `itemLabel` | string | On arrays: singular name for one item (`editor.props.itemLabel`). |
+
+Meta can sit anywhere in a wrapper chain: `z.string().meta(m).optional()`, `z.string().optional().meta(m)` and `.nullable().default(...)` variants all work. If both layers set a key, the outer one wins. For arrays of objects every sub-field keeps its own meta, so the admin can label repeater columns.
+
+## Dates
+
+`z.date()` fields accept ISO-8601 strings on every write path (`create`, `update`, `form`, `/ops`) without `z.coerce`. JSON transport only carries strings, and the schemas convert them. Responses always return ISO strings over HTTP.
+
+- A **datetime** (default) is an instant. `"2026-05-01T20:30:00Z"` is stored as that moment. A bare `YYYY-MM-DD` is read as 00:00:00Z.
+- A **dateOnly** (`.meta({ dateOnly: true })`) is a calendar date. It is stored as 00:00:00Z of that day, and any time component sent is dropped. The admin displays and edits it in UTC, so it never shifts a day with the viewer's timezone.
+
+Only top-level date fields are coerced; a `z.date()` nested inside an object or array is stored through JSON and is not converted.
+
 ## Helpers (`better-cms/zod`)
 
 ```ts

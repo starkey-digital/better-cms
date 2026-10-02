@@ -13,22 +13,23 @@ bun add better-cms
 ```
 
 ```ts
-import { defineCMS, collection, text, richText, image } from 'better-cms';
+// src/lib/cms/server/cms.ts
+import { createCms } from 'better-cms/sveltekit/server';
+import { richText, image } from 'better-cms/zod';
 import { libsqlAdapter } from 'better-cms/adapters/libsql';
-import { s3Media } from 'better-cms/media/s3';
+import { z } from 'zod';
 
-export default defineCMS({
-  collections: {
+export const cms = createCms({
+  collections: ({ collection }) => ({
     posts: collection({
-      fields: {
-        title: text({ required: true }),
-        body:  richText(),
-        cover: image(),
-      },
+      schema: z.object({
+        title: z.string().min(1).meta({ label: 'Headline' }),
+        body: richText(),
+        cover: image().optional(),
+      }),
     }),
-  },
+  }),
   adapter: libsqlAdapter({ url: process.env.DATABASE_URL! }),
-  media:   s3Media({ bucket: process.env.S3_BUCKET! }),
 });
 ```
 
@@ -55,7 +56,8 @@ End users only `bun add better-cms`. Internal `@better-cms/*` packages are pulle
 ```sh
 bun install
 bun run --filter '*' typecheck
-cd packages/better-cms && bun run build   # tsdown emits dist/
+bun run --filter './packages/*' build    # emits dist/ per package
+bun test packages
 ```
 
 ## Release

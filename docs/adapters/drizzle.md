@@ -30,3 +30,14 @@ For greenfield SQLite use [libSQL](/adapters/libsql) — fewer moving parts.
 ## Schema integration
 
 The adapter exposes the generated Drizzle schema via `getCmsTables(config)`. You can reference CMS tables in your own queries.
+
+## Migrations
+
+**drizzle-kit owns migrations.** Unlike the [libSQL adapter](/adapters/libsql), this adapter never creates tables or adds columns by default (`skipDDL: true`). After adding or changing a field, regenerate the schema and migrate:
+
+```bash
+bunx -p @better-cms/cli bcms generate
+bunx drizzle-kit generate && bunx drizzle-kit migrate   # or `drizzle-kit push` in dev
+```
+
+Sorting, `limit`/`offset` and totals work the same as on every adapter.

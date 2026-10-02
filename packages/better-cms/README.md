@@ -28,57 +28,73 @@ bun add -D @better-cms/cli
 
 ## Define content
 
+Schema-first: write a zod schema, the CMS derives fields, validators and the admin form from it.
+
 ```ts
-// src/lib/cms.config.ts
-import { createCms, collection, singleton, text, slug, richText, image, boolean } from 'better-cms';
+// src/lib/cms/server/cms.ts  (server-only: any `server/` path segment is guarded by SvelteKit)
+import { createCms } from 'better-cms/sveltekit/server';
 import { libsqlAdapter } from 'better-cms/adapters/libsql';
 import { s3Media } from 'better-cms/media/s3';
+import { image, richText, slug } from 'better-cms/zod';
+import { z } from 'zod';
 
-export default createCms({
-  collections: {
+export const cms = createCms({
+  collections: ({ collection, singleton }) => ({
     posts: collection({
-      fields: {
-        title: text({ required: true, max: 120 }),
-        slug:  slug({ from: 'title' }),
-        body:  richText(),
-        cover: image(),
-        published: boolean({ defaultValue: false }),
-      },
+      label: 'Blog posts',
+      schema: z.object({
+        title: z.string().min(1).max(120).meta({ label: 'Headline' }),
+        slug: slug(),
+        body: richText(),
+        cover: image().optional(),
+        published: z.boolean().default(false),
+      }),
+      admin: { title: 'title', sort: { field: 'createdAt', direction: 'desc' } },
     }),
     settings: singleton({
-      fields: {
-        siteTitle: text({ required: true }),
-        logo: image(),
-      },
+      schema: z.object({ siteTitle: z.string(), logo: image().optional() }),
     }),
-  },
+  }),
   adapter: libsqlAdapter({ url: process.env.DATABASE_URL!, authToken: process.env.DATABASE_AUTH_TOKEN }),
-  media:   s3Media({ bucket: process.env.S3_BUCKET!, /* ... */ }),
-  auth:    { context: async () => ({ user: { id: 'dev', role: 'admin' as const } }) },
+  media: s3Media({ bucket: process.env.S3_BUCKET!, /* ... */ }),
+  auth: { context: async () => ({ user: { id: 'dev', role: 'admin' as const } }) },
 });
+
+export type Cms = typeof cms;
 ```
 
 ## Wire SvelteKit
 
 ```ts
 // src/hooks.server.ts
-import { cmsHandle } from 'better-cms/sveltekit';
-import config from '$lib/cms.config';
-export const handle = cmsHandle(config);
+import { cmsHandle } from 'better-cms/sveltekit/server';
+import { cms } from '$lib/cms/server/cms';
+export const handle = cmsHandle(cms);
 ```
 
 ## Drop-in admin UI
+
+The admin takes a client, not a config. It reads field metadata from `GET /api/cms/_meta`.
+
+```ts
+// src/lib/cms/client.ts
+import { createCmsClient } from 'better-cms/sveltekit';
+import type { Cms } from './server/cms';
+export const cmsClient = createCmsClient<Cms>({ basePath: '/api/cms' });
+```
 
 ```svelte
 <!-- src/routes/cms/+page.svelte -->
 <script>
   import { CmsAdmin } from 'better-cms/admin';
-  import config from '$lib/cms.config';
+  import { cmsClient } from '$lib/cms/client';
 </script>
-<CmsAdmin {config} />
+<CmsAdmin client={cmsClient} />
 ```
 
-## Generate drizzle schema
+## Database schema
+
+`libsqlAdapter` creates tables and adds new columns on startup. With `drizzleAdapter`, generate the schema and let drizzle-kit migrate:
 
 ```sh
 bunx -p @better-cms/cli bcms generate
@@ -91,11 +107,11 @@ bunx drizzle-kit push
 |---|---|
 | `better-cms` | Core runtime + types (`createCMS`, `RowOf`, `CollectionDef`, ops). |
 | `better-cms/zod` | Schema-first DSL — `collection`, `singleton`, `richText`, `image`, `slug`, `relation`. |
-| `better-cms/adapters/libsql` | Direct libsql `ContentStore`. Owns DDL via `init(schema)`. |
+| `better-cms/adapters/libsql` | Direct libsql `ContentStore`. Creates tables and adds missing columns on init. |
 | `better-cms/adapters/drizzle` | Drizzle `ContentStore`. drizzle-kit owns DDL. |
 | `better-cms/media/s3` | S3-compatible `MediaStore` (R2/Wasabi/B2/MinIO/AWS). |
 | `better-cms/sveltekit` | Browser-safe: `createCmsClient` (admin UI + external clients). |
-| `better-cms/sveltekit/server` | Server-only: `createCms`, `cmsHandle`, `uploadMedia`, the DSL re-exports. |
+| `better-cms/sveltekit/server` | Server-only: `createCms`, `cmsHandle`. |
 | `better-cms/auth` | Password plugin, signed-cookie sessions, rate limiting, Turnstile. |
 | `better-cms/admin` | `<CmsAdmin>` and `<FieldEditor>` Svelte 5 components. |
 | `better-cms/types` | Re-export of every public type. |
