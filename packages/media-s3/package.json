@@ -1,6 +1,6 @@
 {
 	"name": "@better-cms/media-s3",
-	"version": "0.3.0",
+	"version": "0.4.0",
 	"author": "Starkey Digital Ltd",
 	"repository": {
 		"type": "git",
@@ -24,7 +24,9 @@
 		}
 	},
 	"description": "better-cms S3-compatible MediaStore adapter (R2/Wasabi/B2/MinIO/AWS).",
-	"files": ["dist"],
+	"files": [
+		"dist"
+	],
 	"license": "SEE LICENSE IN LICENSE",
 	"peerDependenciesMeta": {
 		"@aws-sdk/client-s3": {

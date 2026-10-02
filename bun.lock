@@ -98,7 +98,7 @@
     },
     "packages/adapter-drizzle": {
       "name": "@better-cms/adapter-drizzle",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "dependencies": {
         "@better-cms/adapter-libsql": "workspace:*",
         "@better-cms/core": "workspace:*",
@@ -120,7 +120,7 @@
     },
     "packages/adapter-libsql": {
       "name": "@better-cms/adapter-libsql",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "dependencies": {
         "@better-cms/core": "workspace:*",
       },
@@ -140,7 +140,7 @@
     },
     "packages/admin": {
       "name": "@better-cms/admin",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "dependencies": {
         "@better-cms/core": "workspace:*",
         "@better-cms/sveltekit": "workspace:*",
@@ -160,7 +160,7 @@
     },
     "packages/auth": {
       "name": "@better-cms/auth",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "dependencies": {
         "@better-cms/core": "workspace:*",
       },
@@ -172,7 +172,7 @@
     },
     "packages/better-cms": {
       "name": "better-cms",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "dependencies": {
         "@better-cms/adapter-drizzle": "workspace:*",
         "@better-cms/adapter-libsql": "workspace:*",
@@ -207,7 +207,7 @@
     },
     "packages/cli": {
       "name": "@better-cms/cli",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "bin": {
         "bcms": "./dist/bin.js",
       },
@@ -223,7 +223,7 @@
     },
     "packages/core": {
       "name": "@better-cms/core",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "devDependencies": {
         "bun-types": "^1.3.7",
         "typescript": "^6.0.3",
@@ -231,7 +231,7 @@
     },
     "packages/media-s3": {
       "name": "@better-cms/media-s3",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "dependencies": {
         "@better-cms/core": "workspace:*",
         "aws4fetch": "^1.0.20",
@@ -251,7 +251,7 @@
     },
     "packages/sveltekit": {
       "name": "@better-cms/sveltekit",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "dependencies": {
         "@better-cms/core": "workspace:*",
         "@better-cms/zod": "workspace:*",
@@ -267,7 +267,7 @@
     },
     "packages/zod": {
       "name": "@better-cms/zod",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "dependencies": {
         "@better-cms/core": "workspace:*",
       },
