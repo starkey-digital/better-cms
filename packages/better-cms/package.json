@@ -110,7 +110,7 @@
 		"@modelcontextprotocol/sdk": "^1.0.4",
 		"@sveltejs/kit": "^2.0.0 || ^3.0.0",
 		"drizzle-orm": ">=0.36.0",
-		"svelte": "^5.0.0"
+		"svelte": "^5.40.0"
 	},
 	"peerDependenciesMeta": {
 		"better-auth": {
