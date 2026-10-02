@@ -1,16 +1,12 @@
 {
-	"extends": "./.svelte-kit/tsconfig.json",
+	"extends": "$app/tsconfig",
+	"include": ["src", "tests", "*.ts"],
 	"compilerOptions": {
 		"allowJs": true,
 		"checkJs": true,
-		"esModuleInterop": true,
-		"forceConsistentCasingInFileNames": true,
-		"resolveJsonModule": true,
 		"skipLibCheck": true,
-		"sourceMap": true,
 		"strict": true,
 		"moduleResolution": "bundler",
-		"types": ["bun-types"]
-	},
-	"exclude": ["tests/unit/**", "vite.config.ts"]
+		"types": ["bun-types", "$app/types"]
+	}
 }

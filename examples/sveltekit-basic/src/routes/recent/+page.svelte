@@ -1,5 +1,5 @@
 <script lang="ts">
-import { recentPosts, togglePublished } from '$lib/cms/cms.remote';
+import { recentPosts, togglePublished } from '#lib/cms/cms.remote.ts';
 
 const posts = $derived(await recentPosts(5));
 

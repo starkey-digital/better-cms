@@ -33,7 +33,7 @@ The libsql adapter creates `local.db` and the schema automatically on first requ
 Inside the SvelteKit server, call `cms` directly:
 
 ```ts
-import { cms } from '$lib/cms/server/cms';
+import { cms } from '#lib/cms/server/cms.ts';
 const posts = await cms.posts.list({ limit: 10 });
 ```
 

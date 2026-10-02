@@ -1,6 +1,6 @@
 import { command, form, prerender, query } from '$app/server';
-import { cms } from '$lib/cms/server/cms';
 import { z } from 'zod';
+import { cms } from '#lib/cms/server/cms.ts';
 
 const RecentLimit = z.number().int().min(1).max(50);
 const ToggleInput = z.object({ id: z.string(), published: z.boolean() });

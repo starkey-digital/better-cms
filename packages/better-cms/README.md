@@ -65,7 +65,7 @@ export type Cms = typeof cms;
 ```ts
 // src/hooks.server.ts
 import { cmsHandle } from 'better-cms/sveltekit/server';
-import { cms } from '$lib/cms/server/cms';
+import { cms } from '#lib/cms/server/cms.ts';
 export const handle = cmsHandle(cms);
 ```
 
@@ -84,7 +84,7 @@ export const cmsClient = createCmsClient<Cms>({ basePath: '/api/cms' });
 <!-- src/routes/cms/+page.svelte -->
 <script>
   import { CmsAdmin } from 'better-cms/admin';
-  import { cmsClient } from '$lib/cms/client';
+  import { cmsClient } from '#lib/cms/client.ts';
 </script>
 <CmsAdmin client={cmsClient} />
 ```

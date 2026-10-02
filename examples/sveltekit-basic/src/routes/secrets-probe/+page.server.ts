@@ -1,4 +1,4 @@
-import { cms } from '$lib/cms/server/cms';
+import { cms } from '#lib/cms/server/cms.ts';
 
 /**
  * Exists to prove access policies apply to in-process reads, not just HTTP.

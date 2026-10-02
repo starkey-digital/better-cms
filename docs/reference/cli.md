@@ -10,7 +10,7 @@ bunx -p @better-cms/cli bcms <command>
 
 ### `bcms init`
 
-Scaffold a new better-cms setup in an existing SvelteKit project. Writes the `$lib/cms/` layout: `server/cms.ts` (schemas, collections, adapter, plugins — server-only), `cms.remote.ts` (remote `query` / `command` / `form` endpoints), `client.ts` (`cmsClient` for the admin UI). Plus `src/hooks.server.ts`, `src/routes/cms/+page.svelte`, `.env.example`, `drizzle.config.ts`. Installs `better-cms` + `zod` + `dotenv` (runtime) plus `drizzle-kit` + `@libsql/client` (dev) using the project's package manager.
+Scaffold a new better-cms setup in an existing SvelteKit project. Writes the `src/lib/cms/` layout: `server/cms.ts` (schemas, collections, adapter, plugins — server-only), `cms.remote.ts` (remote `query` / `command` / `form` endpoints), `client.ts` (`cmsClient` for the admin UI). Plus `src/hooks.server.ts`, `src/routes/cms/+page.svelte`, `.env.example`, `drizzle.config.ts`. Installs `better-cms` + `zod` + `dotenv` (runtime) plus `drizzle-kit` + `@libsql/client` (dev) using the project's package manager.
 
 Flags:
 - `--force` — overwrite existing files

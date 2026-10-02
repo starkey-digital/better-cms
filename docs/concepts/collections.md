@@ -101,7 +101,7 @@ const AuthorSchema = z.object({
 
 ```ts
 import type { z } from 'zod';
-import type { PostSchema } from '$lib/cms/schemas';
+import type { PostSchema } from '#lib/cms/schemas.ts';
 
 type Post = z.infer<typeof PostSchema>;
 // or via the helper export:

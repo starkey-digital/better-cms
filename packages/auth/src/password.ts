@@ -8,6 +8,7 @@ import {
 	verifySession,
 } from './cookie.js';
 import { enc, timingSafeEqual, verifyPassword } from './crypto.js';
+import { lockoutFor } from './rate-limit/lockout.js';
 import { memoryStore } from './rate-limit/memory.js';
 import type { RateLimitStore } from './rate-limit/types.js';
 import { type TurnstileOpts, verifyTurnstile } from './turnstile.js';
@@ -98,7 +99,8 @@ export function passwordAuth(opts: PasswordAuthOpts): PasswordAuthResult {
 	const store = opts.rateLimit?.store ?? memoryStore();
 	const perIp = opts.rateLimit?.perIp ?? { window: '1m', max: 5 };
 	const globalLimit = opts.rateLimit?.global ?? { window: '1m', max: 100 };
-	const lockoutMs = (opts.rateLimit?.lockoutMinutes ?? 15) * 60 * 1000;
+	const lockoutSec = Math.round((opts.rateLimit?.lockoutMinutes ?? 15) * 60);
+	const lockout = lockoutFor(store);
 	const perIpWindow = parseTtl(perIp.window);
 	const globalWindow = parseTtl(globalLimit.window);
 	const turnstileAfter = opts.turnstile?.after ?? 3;
@@ -123,13 +125,20 @@ export function passwordAuth(opts: PasswordAuthOpts): PasswordAuthResult {
 					const fail = (count: number, reason: string) =>
 						opts.onFailedAttempt?.({ ip, count, reason });
 
+					const lockedUntil = await lockout.lockedUntil(ipKey);
+					if (lockedUntil) {
+						fail(0, 'locked-out');
+						return rateLimited(lockedUntil - Date.now());
+					}
+
 					const [ipHit, globalHit] = await Promise.all([
 						store.incr(ipKey, perIpWindow),
 						store.incr(globalKey, globalWindow),
 					]);
 					if (ipHit.count > perIp.max) {
 						fail(ipHit.count, 'per-ip');
-						return rateLimited(ipHit.resetAt - Date.now() + lockoutMs);
+						const until = lockoutSec > 0 ? await lockout.lock(ipKey, lockoutSec) : ipHit.resetAt;
+						return rateLimited(until - Date.now());
 					}
 					if (globalHit.count > globalLimit.max) {
 						fail(globalHit.count, 'global');

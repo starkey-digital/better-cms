@@ -12,6 +12,8 @@ export interface LibsqlStoreOpts {
 	sweepProbability?: number;
 }
 
+const LOCK_PREFIX = 'lock:';
+
 /**
  * Rate-limit counters in the CMS's own libsql database — no extra service, and
  * correct across Workers isolates because every increment is one atomic upsert.
@@ -62,6 +64,25 @@ RETURNING count, reset_at`,
 		async reset(key) {
 			await ensureTable();
 			await client.execute({ sql: `DELETE FROM ${table} WHERE key = ?`, args: [key] });
+		},
+		async lock(key, ttlSec) {
+			await ensureTable();
+			const until = Date.now() + ttlSec * 1000;
+			await client.execute({
+				sql: `INSERT INTO ${table} (key, count, reset_at) VALUES (?, 1, ?)
+ON CONFLICT(key) DO UPDATE SET count = 1, reset_at = excluded.reset_at`,
+				args: [LOCK_PREFIX + key, until],
+			});
+			return until;
+		},
+		async lockedUntil(key) {
+			await ensureTable();
+			const res = await client.execute({
+				sql: `SELECT reset_at FROM ${table} WHERE key = ? AND reset_at > ?`,
+				args: [LOCK_PREFIX + key, Date.now()],
+			});
+			const row = res.rows[0] as { reset_at: number | bigint } | undefined;
+			return row ? Number(row.reset_at) : null;
 		},
 	};
 }

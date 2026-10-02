@@ -47,7 +47,7 @@ export const cmsClient = createCmsClient<Cms>({ basePath: '/api/cms' });
 <!-- src/routes/cms/+page.svelte -->
 <script>
   import { CmsAdmin } from 'better-cms/admin';
-  import { cmsClient } from '$lib/cms/client';
+  import { cmsClient } from '#lib/cms/client.ts';
 </script>
 
 <CmsAdmin client={cmsClient} auth />
@@ -150,6 +150,8 @@ REST-only — no `@upstash/redis` dependency, works on Workers/edge.
 | `rateLimit.global`         | `100 / 1m` |
 | `rateLimit.lockoutMinutes` | `15` |
 | `turnstile.after`          | `3` (failed attempts before requiring token) |
+
+Exceeding `perIp.max` locks that IP out for `lockoutMinutes` (measured from the moment it trips, independent of the 1-minute counter window); `retry-after` reports the time left. Built-in stores keep the lock themselves. A custom `RateLimitStore` can implement the optional `lock(key, ttlSec)` / `lockedUntil(key)` pair for a lockout shared across instances; without them the lockout is per-process.
 
 Exponential backoff (`250ms × 2^(n-1)`, capped at `8s`) is applied per failed attempt and is not configurable.
 

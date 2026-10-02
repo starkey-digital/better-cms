@@ -45,7 +45,7 @@ export type CmsClient<C extends CollectionsRecord, Ctx = unknown> = {
 /**
  * Type helpers — extract collections and Ctx from the user's resolved `Cms`
  * (the value of `createCms(...)`). Type-only imports erase before bundling, so
- * a client module can `import type { Cms }` from `$lib/cms/server/cms` without
+ * a client module can `import type { Cms }` from `#lib/cms/server/cms.ts` without
  * dragging server runtime into the browser.
  */
 type CollectionsOf<T> = T extends { __collections?: infer C extends CollectionsRecord }
@@ -70,7 +70,7 @@ export interface CreateCmsClientOpts {
  * service, an MCP tool. Inside a SvelteKit app, prefer the `cms` object from
  * `createCms()`: it skips the HTTP round trip and is the same implementation.
  *
- *   import type { Cms } from '$lib/cms/server/cms';
+ *   import type { Cms } from '#lib/cms/server/cms.ts';
  *   export const cmsClient = createCmsClient<Cms>({ basePath: '/api/cms' });
  *
  * The Proxy dispatches collection / singleton names lazily — no manifest is

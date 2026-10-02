@@ -91,6 +91,16 @@ export async function renderMarkdown(source: string, base = ''): Promise<string>
 			code(token) {
 				return tokenHtml.get(token.raw) ?? `<pre><code>${token.text}</code></pre>`;
 			},
+			// marked no longer emits heading ids; in-page `#anchor` links need them
+			// (SvelteKit 3 fails prerender on a link to a missing id).
+			heading({ tokens, depth, text }) {
+				const id = text
+					.toLowerCase()
+					.replace(/[^\w\s-]/g, '')
+					.trim()
+					.replace(/\s+/g, '-');
+				return `<h${depth} id="${id}">${this.parser.parseInline(tokens)}</h${depth}>\n`;
+			},
 		},
 	});
 

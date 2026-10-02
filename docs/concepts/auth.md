@@ -18,7 +18,7 @@ src/lib/cms/
 └── client.ts           # browser-safe — uses `import type` to lift AppCtx
 ```
 
-`schemas.ts` is imported by both server and browser. `server/cms.ts` is server-only — SvelteKit's `$lib/.../server/` guard rejects browser-side runtime imports. `client.ts` imports the runtime values from `schemas.ts` and the `AppCtx` *type* from `server/cms.ts` via `import type` (TypeScript erases type-only imports before Vite bundles, so no server runtime ships to the browser).
+`schemas.ts` is imported by both server and browser. `server/cms.ts` is server-only — SvelteKit's `src/lib/**/server/` guard rejects browser-side runtime imports. `client.ts` imports the runtime values from `schemas.ts` and the `AppCtx` *type* from `server/cms.ts` via `import type` (TypeScript erases type-only imports before Vite bundles, so no server runtime ships to the browser).
 
 ## The auth contract
 
@@ -159,7 +159,7 @@ The cookie is HttpOnly, SameSite=Lax, and signed with `secret` — tampering inv
 
 ```ts
 // src/routes/+layout.server.ts
-import { cms } from '$lib/cms/server/cms';
+import { cms } from '#lib/cms/server/cms.ts';
 
 export async function load() {
   const ctx = await cms.auth.context();
@@ -208,7 +208,7 @@ This costs an extra HTTP round trip per page-load — prefer the layout-loader p
 The browser-safe `cmsClient.auth.context()` is typed against `AppCtx` thanks to the `import type` propagation in `client.ts` — no `as` casts needed:
 
 ```ts
-import { cmsClient } from '$lib/cms/client';
+import { cmsClient } from '#lib/cms/client.ts';
 
 const ctx = await cmsClient.auth.context();
 //    ^? AppCtx | null
