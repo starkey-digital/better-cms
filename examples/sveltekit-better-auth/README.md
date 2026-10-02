@@ -16,3 +16,12 @@ Without a mail provider the link is only logged. Set `RESEND_API_KEY` and `MAIL_
 No mail at all? `bun run login-link you@example.com` prints a link.
 
 See [docs/guides/better-auth.md](../../docs/guides/better-auth.md).
+
+## End-to-end check
+
+`bun run e2e` drives the admin in Chrome on a desktop and a phone viewport (singleton, shows, release tracks, cover photo, deletes, sign-out) and writes screenshots to `/tmp/final-*.png`. It is not run in CI. It uses `playwright-core` with your installed Chrome, so nothing is downloaded. It needs the S3 settings in `.env` (see `.env.example`; `rclone serve s3 /tmp/bcms-s3 --addr 127.0.0.1:9000` works locally) and `BASE_URL` pointing at the running dev server:
+
+```sh
+bun run dev --port 5273            # BETTER_AUTH_URL in .env must match
+BASE_URL=http://localhost:5273 bun run e2e
+```

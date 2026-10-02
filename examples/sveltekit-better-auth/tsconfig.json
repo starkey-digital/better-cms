@@ -1,6 +1,6 @@
 {
 	"extends": "$app/tsconfig",
-	"include": ["src", "scripts", "*.ts"],
+	"include": ["src", "scripts", "e2e", "*.ts"],
 	"compilerOptions": {
 		"allowJs": true,
 		"checkJs": true,
