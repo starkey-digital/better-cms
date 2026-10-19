@@ -3,6 +3,7 @@ import { tick, untrack } from 'svelte';
 import ConfirmDelete from './ConfirmDelete.svelte';
 import Control from './Control.svelte';
 import FieldEditor from './FieldEditor.svelte';
+import Icon from './Icon.svelte';
 import { sameValue } from './logic/autosave.js';
 import {
 	type RepeaterRow,
@@ -182,23 +183,26 @@ function ask(row: RepeaterRow) {
 				<div class="bcms-rep-actions">
 					<button
 						type="button"
-						class="bcms-btn bcms-btn-quiet"
+						class="bcms-btn bcms-btn-quiet bcms-btn-icon"
 						disabled={i === 0}
 						aria-label="Move {noun} {i + 1} up"
-						onclick={() => save(moveRow(rows, row.id, -1))}>Up</button
+						title="Move {noun} {i + 1} up"
+						onclick={() => save(moveRow(rows, row.id, -1))}><Icon name="up" /></button
 					>
 					<button
 						type="button"
-						class="bcms-btn bcms-btn-quiet"
+						class="bcms-btn bcms-btn-quiet bcms-btn-icon"
 						disabled={i === rows.length - 1}
 						aria-label="Move {noun} {i + 1} down"
-						onclick={() => save(moveRow(rows, row.id, 1))}>Down</button
+						title="Move {noun} {i + 1} down"
+						onclick={() => save(moveRow(rows, row.id, 1))}><Icon name="down" /></button
 					>
 					<button
 						type="button"
-						class="bcms-btn bcms-btn-danger"
+						class="bcms-btn bcms-btn-danger bcms-btn-icon"
 						aria-label="Delete {noun} {i + 1}"
-						onclick={() => ask(row)}>Delete</button
+						title="Delete {noun} {i + 1}"
+						onclick={() => ask(row)}><Icon name="delete" /></button
 					>
 				</div>
 			</li>

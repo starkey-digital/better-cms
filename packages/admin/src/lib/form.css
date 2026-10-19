@@ -261,11 +261,8 @@ textarea.bcms-input {
 }
 .bcms-rep-actions {
 	display: flex;
-	flex-wrap: wrap;
+	justify-content: flex-end;
 	gap: 0.375rem;
-}
-.bcms-rep-actions .bcms-btn {
-	flex: 1 1 5rem;
 }
 
 @media (min-width: 52rem) {
@@ -277,7 +274,8 @@ textarea.bcms-input {
 		display: grid;
 		gap: 0.75rem;
 		padding-left: calc(0.875rem + 1px);
-		width: calc(100% - 14rem - 0.875rem - 1px);
+		/* Stops where the row's three action buttons (and the gap before them) begin. */
+		width: calc(100% - 3 * var(--bcms-tap) - 2 * 0.375rem - 0.5rem - 0.875rem - 1px);
 		font-size: var(--bcms-text-sm);
 		font-weight: 600;
 		color: var(--bcms-muted);
@@ -292,12 +290,6 @@ textarea.bcms-input {
 	}
 	.bcms-rep-actions {
 		flex: none;
-		flex-wrap: nowrap;
-		width: 13.5rem;
-	}
-	.bcms-rep-actions .bcms-btn {
-		flex: 1 1 0;
-		padding-inline: 0.5rem;
 	}
 	/* Column names live in the header on wide screens. */
 	.bcms-rep-label:not(.bcms-sr) {

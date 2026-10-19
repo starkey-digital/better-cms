@@ -382,6 +382,20 @@
 .bcms-btn-danger:hover {
 	background: var(--bcms-danger-soft);
 }
+.bcms-btn-icon {
+	width: var(--bcms-tap);
+	padding: 0;
+}
+.bcms-icon {
+	flex: none;
+	width: 1.25rem;
+	height: 1.25rem;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 2;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
 
 /* Lists */
 .bcms-count {

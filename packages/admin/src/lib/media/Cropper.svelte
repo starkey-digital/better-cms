@@ -1,4 +1,5 @@
 <script lang="ts">
+import Icon from '../Icon.svelte';
 import {
 	type Box,
 	type Shape,
@@ -189,8 +190,12 @@ export function apply(): Promise<File> {
 
 	<div class="bcms-crop-foot">
 		<div class="bcms-crop-zoom">
-			<button class="bcms-btn bcms-btn-ghost" type="button" onclick={() => zoom(1.1)}>Zoom out</button>
-			<button class="bcms-btn bcms-btn-ghost" type="button" onclick={() => zoom(0.9)}>Zoom in</button>
+			<button class="bcms-btn bcms-btn-ghost bcms-btn-icon" type="button" aria-label="Zoom out" title="Zoom out" onclick={() => zoom(1.1)}
+				><Icon name="zoom-out" /></button
+			>
+			<button class="bcms-btn bcms-btn-ghost bcms-btn-icon" type="button" aria-label="Zoom in" title="Zoom in" onclick={() => zoom(0.9)}
+				><Icon name="zoom-in" /></button
+			>
 		</div>
 		{#if output}
 			<span class="bcms-crop-size" aria-live="polite">Saved at {sizeLabel(output)}</span>
