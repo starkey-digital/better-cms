@@ -155,7 +155,7 @@ export const togglePublished = command(ToggleInput, async ({ id, published }) =>
 
 No `+page.server.ts` needed. `<CmsAdmin>` fetches its field metadata from `GET /api/cms/_meta`, which serves static editor descriptors only — validators, access policies and hooks never reach the browser.
 
-Pass `title` to brand the sidebar (`<CmsAdmin client={cmsClient} auth title="PELLT" />`). Edits save when the editor leaves a field, unless a collection sets `admin.autosave: false` for a Save button (see [Save and Publish buttons](../concepts/collections.md#save-and-publish-buttons)).
+Pass `title` to brand the sidebar (`<CmsAdmin client={cmsClient} auth title="PELLT" />`). Edits save when the editor leaves a field, unless a collection sets `admin.autosave: false` for a Save button (see [Save and Publish buttons](/concepts/collections#save-and-publish-buttons)).
 
 ### Routing
 
