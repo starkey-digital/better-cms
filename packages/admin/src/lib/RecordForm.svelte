@@ -37,7 +37,7 @@ type Props = {
 };
 
 const { name, def, mode, id, oncreated, ondeleted }: Props = $props();
-const { client, notify } = getAdmin();
+const { client, notify, leave } = getAdmin();
 const apiOf = () => client[name] as RecordApi;
 const status = new SaveStatus();
 
@@ -66,13 +66,16 @@ let askDelete = $state(false);
 let creating = false;
 // With `admin.autosave: false`, edits wait here (as wire values) until Save.
 let pending = $state.raw<Row>({});
-const unsaved = $derived(Object.keys(pending).length > 0);
+// Text still in a field: it only commits on blur, but leaving now would lose it too.
+let editing = $state(false);
+const unsaved = $derived(Object.keys(pending).length > 0 || editing);
 const strip = $derived(stripText(status.state, manual ? { unsaved } : undefined));
 const saving = $derived(status.state.pending > 0);
 const published = $derived(publishKey ? values[publishKey] === true : false);
 
 const noun = $derived(itemName(name, def));
 const missing = $derived(exists ? [] : missingRequired(def.fields, values));
+const missingText = $derived(sentenceList(missing.map((k) => fieldLabel(k, def.fields[k]!))));
 const heading = $derived(
 	mode === 'singleton'
 		? collectionLabel(name, def)
@@ -84,10 +87,18 @@ const viewHref = $derived(exists ? previewHref(def, values) : null);
 
 onMount(() => {
 	void load();
+	// The shell asks before a route change or sign-out would drop unsaved edits.
+	const mine = () => manual && unsaved;
+	leave.unsaved = mine;
+	return () => {
+		if (leave.unsaved === mine) leave.unsaved = () => false;
+	};
 });
 
 async function load() {
 	const blank = Object.fromEntries(fields.map(([k, f]) => [k, blankValue(f)]));
+	// New records start as drafts; the flag is sent even though its switch is hidden.
+	if (publishKey) blank[publishKey] = false;
 	try {
 		if (mode === 'new') {
 			values = blank;
@@ -158,8 +169,9 @@ async function persist(key: string, patch: Row, message = 'Saved'): Promise<bool
 	}
 }
 
-async function create(message = 'Saved'): Promise<boolean> {
-	if (creating || missingRequired(def.fields, values).length) return false;
+/** Creates the record from `values`; returns what was sent, or null if it wasn't created. */
+async function create(message = 'Saved'): Promise<Row | null> {
+	if (creating || missingRequired(def.fields, values).length) return null;
 	creating = true;
 	status.start();
 	const payload = toCreatePayload(def.fields, values);
@@ -172,20 +184,23 @@ async function create(message = 'Saved'): Promise<boolean> {
 		status.done('create');
 		notify(message);
 		if (mode === 'new') oncreated(recordId);
-		for (const [k, f] of fields) {
-			const now = toWire(k, f, values[k]);
-			if (now != null && !sameValue(now, payload[k])) await persist(k, { [k]: now });
-		}
-		return true;
+		// Autosave: fields edited while the create was in flight save now. Manual mode keeps them pending.
+		if (!manual)
+			for (const [k, f] of fields) {
+				const now = toWire(k, f, values[k]);
+				if (now != null && !sameValue(now, payload[k])) await persist(k, { [k]: now });
+			}
+		return payload;
 	} catch (e) {
 		failure('create', e);
-		return false;
+		return null;
 	} finally {
 		creating = false;
 	}
 }
 
 async function commit(key: string, next: unknown) {
+	editing = false;
 	const patch: Row = { [key]: toWire(key, def.fields[key]!, next) };
 	if (slugKey && key === sourceKey) {
 		const current = values[slugKey];
@@ -197,7 +212,11 @@ async function commit(key: string, next: unknown) {
 		const problem = checkValue(k, def.fields[k]!, v);
 		if (problem) {
 			setErrors({ ...errors, [k]: problem });
-			if (manual) return;
+			// Manual mode: the bad edit still counts as unsaved, so leaving asks first.
+			if (manual) {
+				editing = true;
+				return;
+			}
 			status.failed(k, `${labelOf(k)}: ${problem}`);
 			notify("That didn't save", 'bad');
 			return;
@@ -205,6 +224,7 @@ async function commit(key: string, next: unknown) {
 		clearErrors(k);
 		status.clear(k);
 	}
+	status.clear('save');
 	if (manual) {
 		// A save already in flight must not overwrite these newer values when it lands.
 		for (const k of Object.keys(patch)) saveSeq[k] = ++saveCount;
@@ -224,26 +244,24 @@ async function commit(key: string, next: unknown) {
 async function save(extra: Row = {}, message = 'Saved'): Promise<boolean> {
 	// A failed Save leaves a general `save` error; only field errors block retrying.
 	clearErrors('save');
+	status.clear('save');
 	if (Object.keys(errors).length) {
 		notify('Fix the fields marked in red first', 'bad');
 		return false;
 	}
 	if (!exists) {
-		const gaps = missingRequired(def.fields, values);
-		if (gaps.length) {
-			notify(
-				`Fill in ${sentenceList(gaps.map((k) => fieldLabel(k, def.fields[k]!)))} first`,
-				'bad',
-			);
+		if (missing.length) {
+			notify(`Fill in ${missingText} first`, 'bad');
 			return false;
 		}
-		const before = values;
+		const before = Object.fromEntries(Object.keys(extra).map((k) => [k, values[k]]));
 		values = { ...values, ...extra };
-		if (!(await create(message))) {
-			values = before;
+		const sent = await create(message);
+		if (!sent) {
+			values = { ...values, ...before };
 			return false;
 		}
-		pending = {};
+		pending = stillPending(pending, sent);
 		return true;
 	}
 	const patch = { ...pending, ...extra };
@@ -253,13 +271,11 @@ async function save(extra: Row = {}, message = 'Saved'): Promise<boolean> {
 	return ok;
 }
 
-const setPublished = (on: boolean) => save({ [publishKey!]: on }, on ? 'Published' : 'Unpublished');
-
-/** In-admin links would drop unsaved edits without a word, so ask first. */
-function guardLeave(e: MouseEvent) {
-	if (!unsaved || !(e.target instanceof Element) || !e.target.closest('a[href^="#"]')) return;
-	if (!confirm('Leave without saving? Your changes will be lost.')) e.preventDefault();
-}
+/** Publish saves what's on screen with it; Unpublish only flips the flag, so it is never blocked. */
+const setPublished = (on: boolean) =>
+	on || !exists
+		? save({ [publishKey!]: on }, on ? 'Published' : 'Unpublished')
+		: persist('save', { [publishKey!]: false }, 'Unpublished');
 
 async function remove() {
 	try {
@@ -276,9 +292,6 @@ const shown = (f: CmsMetaField) =>
 		? { ...f, description: 'Part of the web address. Filled in for you from the title.' }
 		: f;
 </script>
-
-<svelte:window onbeforeunload={(e) => unsaved && e.preventDefault()} />
-<svelte:document onclickcapture={guardLeave} />
 
 <header class="bcms-page-head">
 	{#if mode !== 'singleton'}
@@ -302,31 +315,33 @@ const shown = (f: CmsMetaField) =>
 	{#if mode === 'singleton' && def.description}<p class="bcms-lede">{def.description}</p>{/if}
 </header>
 
-{#if (manual || publishKey) && !loading && !loadError}
-	<StatusStrip tone={strip.tone} text={strip.text}>
-		{#if manual}
-			<button
-				type="button"
-				class={['bcms-btn', !publishKey && 'bcms-btn-primary']}
-				disabled={saving || (exists && !unsaved)}
-				onclick={() => save()}
-			>
-				Save
-			</button>
-		{/if}
-		{#if publishKey && published}
-			<button type="button" class="bcms-btn bcms-btn-quiet" disabled={saving} onclick={() => setPublished(false)}>
-				Unpublish
-			</button>
-		{:else if publishKey}
-			<button type="button" class="bcms-btn bcms-btn-primary" disabled={saving} onclick={() => setPublished(true)}>
-				Publish
-			</button>
-		{/if}
-	</StatusStrip>
-{:else}
-	<StatusStrip tone={strip.tone} text={strip.text} />
-{/if}
+{#snippet actions()}
+	{#if manual}
+		<button
+			type="button"
+			class={['bcms-btn', !publishKey && 'bcms-btn-primary']}
+			disabled={saving}
+			onclick={() => save()}
+		>
+			Save
+		</button>
+	{/if}
+	{#if publishKey && published}
+		<button type="button" class="bcms-btn bcms-btn-quiet" disabled={saving} onclick={() => setPublished(false)}>
+			Unpublish
+		</button>
+	{:else if publishKey}
+		<button type="button" class="bcms-btn bcms-btn-primary" disabled={saving} onclick={() => setPublished(true)}>
+			Publish
+		</button>
+	{/if}
+{/snippet}
+
+<StatusStrip
+	tone={strip.tone}
+	text={strip.text}
+	children={(manual || publishKey) && !loading && !loadError ? actions : undefined}
+/>
 
 {#if loading}
 	<div class="bcms-skel" aria-hidden="true"></div>
@@ -339,10 +354,17 @@ const shown = (f: CmsMetaField) =>
 {:else}
 	{#if missing.length}
 		<p class="bcms-note">
-			Fill in {sentenceList(missing.map((k) => fieldLabel(k, def.fields[k]!)))} to save this {noun}.
+			Fill in {missingText} to save this {noun}.
 		</p>
 	{/if}
-	<form class="bcms-form" novalidate onsubmit={(e) => e.preventDefault()}>
+	<form
+		class="bcms-form"
+		novalidate
+		onsubmit={(e) => e.preventDefault()}
+		oninput={() => {
+			if (manual) editing = true;
+		}}
+	>
 		{#each fields as [key, f] (key)}
 			<FieldEditor
 				name={key}

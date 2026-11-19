@@ -4,7 +4,7 @@ import ListView from './ListView.svelte';
 import RecordForm from './RecordForm.svelte';
 import Sidebar from './Sidebar.svelte';
 import Toast from './Toast.svelte';
-import { type ToastTone, setAdmin } from './context.js';
+import { type LeaveGuard, type ToastTone, setAdmin } from './context.js';
 import type { AdminClient } from './logic/types.js';
 import type { Route } from './route.js';
 
@@ -17,9 +17,11 @@ type Props = {
 	error: string | null;
 	navigate: (path: string, replace?: boolean) => void;
 	onsignout: () => void;
+	leave: LeaveGuard;
 };
 
-const { client, meta, route, title, canSignOut, error, navigate, onsignout }: Props = $props();
+const { client, meta, route, title, canSignOut, error, navigate, onsignout, leave }: Props =
+	$props();
 
 setAdmin({
 	get client() {
@@ -29,6 +31,9 @@ setAdmin({
 		return meta;
 	},
 	notify,
+	get leave() {
+		return leave;
+	},
 });
 
 let navOpen = $state(false);
