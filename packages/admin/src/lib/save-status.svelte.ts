@@ -1,17 +1,8 @@
-import {
-	type SaveState,
-	begin,
-	clearError,
-	fail,
-	idleState,
-	stripText,
-	succeed,
-} from './logic/autosave.js';
+import { type SaveState, begin, clearError, fail, idleState, succeed } from './logic/autosave.js';
 
 /** Reactive wrapper over the pure autosave state for one open record. */
 export class SaveStatus {
 	state = $state.raw<SaveState>(idleState());
-	strip = $derived(stripText(this.state));
 
 	start() {
 		this.state = begin(this.state);

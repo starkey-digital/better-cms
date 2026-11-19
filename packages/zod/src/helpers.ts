@@ -81,12 +81,16 @@ export function relation<M extends boolean = false>(
 
 /** Mark a field as `UNIQUE` at the column level. */
 export function unique<T extends z.ZodType>(s: T): T {
-	bcmsRegistry.add(s, { unique: true });
-	return s;
+	return tag(s, { unique: true });
 }
 
 /** Mark a field as indexed (single-column index). */
 export function indexed<T extends z.ZodType>(s: T): T {
-	bcmsRegistry.add(s, { indexed: true });
+	return tag(s, { indexed: true });
+}
+
+/** `add` replaces a schema's entry, so merge: `unique(slug())` must stay a slug. */
+function tag<T extends z.ZodType>(s: T, meta: { unique?: true; indexed?: true }): T {
+	bcmsRegistry.add(s, { ...bcmsRegistry.get(s), ...meta });
 	return s;
 }

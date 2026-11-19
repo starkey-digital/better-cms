@@ -5,6 +5,7 @@ import {
 	idleState,
 	mergeSaved,
 	sameValue,
+	stillPending,
 	stripText,
 	succeed,
 } from '../src/lib/logic/autosave.ts';
@@ -148,6 +149,20 @@ describe('autosave state', () => {
 		expect(stripText(s).tone).toBe('error');
 		s = succeed(begin(s), 'url');
 		expect(stripText(s).tone).toBe('saved');
+	});
+	test('manual save: says when edits wait for Save', () => {
+		expect(stripText(idleState(), { unsaved: false }).text).toBe(
+			'Changes save when you press Save',
+		);
+		expect(stripText(idleState(), { unsaved: true }).tone).toBe('unsaved');
+		expect(stripText(begin(idleState()), { unsaved: true }).tone).toBe('saving');
+		const failed = fail(begin(idleState()), 'save', 'no network');
+		expect(stripText(failed, { unsaved: true }).tone).toBe('error');
+	});
+	test('stillPending keeps edits made while a save was in flight', () => {
+		const sent = { title: 'Old', body: 'Same' };
+		expect(stillPending({ title: 'New', body: 'Same' }, sent)).toEqual({ title: 'New' });
+		expect(stillPending(sent, sent)).toEqual({});
 	});
 	test('sameValue ignores blank differences and compares deeply', () => {
 		expect(sameValue('', null)).toBe(true);

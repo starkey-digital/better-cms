@@ -42,7 +42,26 @@ export const shows = collection({
 });
 ```
 
-`itemLabel` is optional; without it the admin singularises the collection label. `z.url()` and `z.email()` fields get a URL / email input with plain-language errors in the admin.
+`itemLabel` is optional; without it the admin singularises the collection label.
+
+### Save and Publish buttons
+
+By default each field saves when the editor leaves it. Two options change that for one collection:
+
+```ts
+export const posts = collection({
+	schema: z.object({ title: z.string(), slug: unique(slug()), body: z.string(), published: z.boolean().optional() }),
+	admin: {
+		autosave: false,           // edits wait for a Save button
+		publishField: 'published', // Publish / Unpublish buttons and a Draft / Published badge
+	},
+});
+```
+
+- **`autosave: false`** keeps edits in the form until the editor presses **Save**. The status bar says when there are unsaved changes. Leaving the page, or following a link inside the admin, asks first.
+- **`publishField`** names a boolean field. The admin hides its switch and shows **Publish** / **Unpublish** buttons, a badge beside the title and a *Draft* tag in the list. New records start as drafts. With `autosave: false`, Publish also saves any waiting edits.
+
+`publishField` is only a flag: the admin never hides anything. Filter your public queries on it, e.g. `cms.posts.list({ where: { published: true } })`. Both options work alone or together. `z.url()` and `z.email()` fields get a URL / email input with plain-language errors in the admin.
 
 Field names are validated when the collection is built; a typo (`title: '{venu}'`) throws immediately with the list of known fields. `admin.sort.field` must be a stored column (scalars and system fields, not arrays, objects or rich text).
 
