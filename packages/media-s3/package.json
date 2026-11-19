@@ -1,6 +1,6 @@
 {
 	"name": "@better-cms/media-s3",
-	"version": "0.4.1",
+	"version": "0.5.0",
 	"author": "Starkey Digital Ltd",
 	"repository": {
 		"type": "git",
