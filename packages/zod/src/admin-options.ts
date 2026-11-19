@@ -44,4 +44,15 @@ export function validateAdminOptions(
 	if (admin.itemLabel !== undefined && !admin.itemLabel.trim()) {
 		throw new Error('[better-cms/zod] admin.itemLabel must not be empty.');
 	}
+	if (admin.autosave !== undefined && typeof admin.autosave !== 'boolean') {
+		throw new Error('[better-cms/zod] admin.autosave must be true or false.');
+	}
+	if (admin.publishField !== undefined) {
+		assertField(fields, 'admin.publishField', admin.publishField);
+		if (fields[admin.publishField]!.kind !== 'boolean') {
+			throw new Error(
+				`[better-cms/zod] admin.publishField "${admin.publishField}" must be a boolean field.`,
+			);
+		}
+	}
 }

@@ -166,6 +166,17 @@ export interface CollectionAdminIR {
 	group?: string;
 	/** What one record is called, singular, e.g. `'show'`. Drives "Add a show" and "Delete this show?". Derived from the label when absent. */
 	itemLabel?: string;
+	/**
+	 * `false` keeps edits in the form until the editor presses Save, and asks before
+	 * leaving with unsaved changes. Defaults to `true`: each field saves when the editor leaves it.
+	 */
+	autosave?: boolean;
+	/**
+	 * A boolean field the admin shows as Publish / Unpublish buttons and a Draft / Published
+	 * badge, in place of a checkbox. New records start as drafts. Only the admin reads it:
+	 * filter your public queries on it, e.g. `where: { published: true }`.
+	 */
+	publishField?: string;
 }
 
 export interface CollectionDef<

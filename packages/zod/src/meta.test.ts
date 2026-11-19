@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { z } from 'zod';
 import { collection, singleton } from './collection.js';
-import { image, slug } from './helpers.js';
+import { image, indexed, slug, unique } from './helpers.js';
 import { zodToFields } from './walker.js';
 
 describe('field meta', () => {
@@ -93,6 +93,21 @@ describe('field meta', () => {
 	});
 });
 
+describe('field helpers', () => {
+	test('unique and indexed keep a slug a slug', () => {
+		const f = zodToFields(
+			z.object({
+				a: unique(slug()),
+				b: indexed(slug()).meta({ label: 'B' }),
+			}),
+		);
+		expect(f.a!.kind).toBe('slug');
+		expect(f.a!.unique).toBe(true);
+		expect(f.b!.kind).toBe('slug');
+		expect(f.b!.indexed).toBe(true);
+	});
+});
+
 describe('collection admin options', () => {
 	const schema = z.object({
 		venue: z.string(),
@@ -151,6 +166,23 @@ describe('collection admin options', () => {
 		expect(() =>
 			collection({ schema, admin: { sort: { field: 'createdAt', direction: 'desc' } } }),
 		).not.toThrow();
+	});
+
+	test('publishField must name a boolean field', () => {
+		const withFlag = schema.extend({ published: z.boolean().optional() });
+		const def = collection({
+			schema: withFlag,
+			admin: { autosave: false, publishField: 'published' },
+		});
+		expect(def.admin).toEqual({ autosave: false, publishField: 'published' });
+		expect(() => collection({ schema, admin: { publishField: 'live' } })).toThrow(/"live"/);
+		expect(() => collection({ schema, admin: { publishField: 'venue' } })).toThrow(/boolean/);
+	});
+
+	test('autosave must be a boolean', () => {
+		expect(() => collection({ schema, admin: { autosave: 'no' as unknown as boolean } })).toThrow(
+			/autosave/,
+		);
 	});
 });
 

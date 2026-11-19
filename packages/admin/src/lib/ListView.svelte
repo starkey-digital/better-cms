@@ -105,7 +105,12 @@ async function more() {
 			<li>
 				<a class="bcms-row" href="#/{name}/{encodeURIComponent(String(row.id))}">
 					<span class="bcms-row-main">
-						<strong>{recordTitle(name, def, row)}</strong>
+						<strong>
+							{recordTitle(name, def, row)}
+							{#if def.admin?.publishField && row[def.admin.publishField] !== true}
+								<span class="bcms-badge" data-state="draft">Draft</span>
+							{/if}
+						</strong>
 						{#if detail(row)}<small>{detail(row)}</small>{/if}
 					</span>
 					<span class="bcms-row-go" aria-hidden="true">Edit ›</span>

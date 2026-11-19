@@ -306,6 +306,37 @@
 .bcms-strip[data-tone="saved"] .bcms-strip-dot {
 	background: var(--bcms-success);
 }
+.bcms-strip[data-tone="unsaved"] {
+	background: var(--bcms-warning-soft);
+	border-color: color-mix(in oklab, var(--bcms-warning-fg) 30%, white);
+	color: var(--bcms-warning-fg);
+}
+.bcms-strip[data-tone="unsaved"] .bcms-strip-dot {
+	background: var(--bcms-warning-fg);
+}
+.bcms-strip-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin-left: auto;
+}
+.bcms-badge {
+	display: inline-block;
+	padding: 0.125rem 0.5rem;
+	border-radius: 999px;
+	font-size: var(--bcms-text-xs);
+	font-weight: 600;
+	vertical-align: middle;
+	background: var(--bcms-subtle);
+	color: var(--bcms-muted);
+}
+.bcms-page-title .bcms-badge {
+	margin-right: auto;
+}
+.bcms-badge[data-state="published"] {
+	background: var(--bcms-success-soft);
+	color: var(--bcms-success-fg);
+}
 .bcms-strip[data-tone="error"] {
 	background: var(--bcms-danger-soft);
 	border-color: color-mix(in oklab, var(--bcms-danger) 40%, white);

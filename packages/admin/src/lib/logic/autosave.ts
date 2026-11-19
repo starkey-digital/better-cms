@@ -29,16 +29,24 @@ export function clearError(s: SaveState, key: string): SaveState {
 	return { ...s, errors };
 }
 
-export type StripTone = 'idle' | 'saving' | 'saved' | 'error';
+export type StripTone = 'idle' | 'saving' | 'saved' | 'unsaved' | 'error';
 
-export function stripText(s: SaveState): { tone: StripTone; text: string } {
+/** `manual` is set when the form saves on a Save button (`admin.autosave: false`). */
+export function stripText(
+	s: SaveState,
+	manual?: { unsaved: boolean },
+): { tone: StripTone; text: string } {
 	if (s.pending > 0) return { tone: 'saving', text: 'Saving…' };
 	const first = Object.values(s.errors)[0];
 	if (first) return { tone: 'error', text: `That didn't save — ${first}` };
+	if (manual?.unsaved) return { tone: 'unsaved', text: 'You have changes that aren’t saved yet' };
 	if (s.savedAt != null) {
 		return { tone: 'saved', text: `All changes saved · ${clockTime(new Date(s.savedAt))}` };
 	}
-	return { tone: 'idle', text: 'Changes save when you leave a field' };
+	return {
+		tone: 'idle',
+		text: manual ? 'Changes save when you press Save' : 'Changes save when you leave a field',
+	};
 }
 
 /** Structural equality for values that came out of JSON. */
@@ -75,4 +83,17 @@ export function mergeSaved(
 		if (isLatest(key)) next[key] = key in row ? row[key] : patch[key];
 	}
 	return next;
+}
+
+/**
+ * The edits still waiting for Save once `sent` has saved. A field edited again
+ * while the save was in flight keeps its newer value.
+ */
+export function stillPending(
+	pending: Record<string, unknown>,
+	sent: Record<string, unknown>,
+): Record<string, unknown> {
+	return Object.fromEntries(
+		Object.entries(pending).filter(([k, v]) => !(k in sent && sameValue(v, sent[k]))),
+	);
 }

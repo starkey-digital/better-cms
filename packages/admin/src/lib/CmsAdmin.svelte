@@ -6,6 +6,7 @@ import './form.css';
 import LoginScreen from './LoginScreen.svelte';
 import MagicLinkScreen, { type MagicLinkOptions } from './MagicLinkScreen.svelte';
 import Shell from './Shell.svelte';
+import type { LeaveGuard } from './context.js';
 import { setMediaContext } from './media/context.js';
 import { parseRoute } from './route.js';
 
@@ -72,6 +73,11 @@ const gateOpen = $derived(!auth || (authChecked && ctx !== null));
 
 const route = $derived(parseRoute(hash, meta));
 
+// A form with `admin.autosave: false` sets this while it holds unsaved edits.
+const leave: LeaveGuard = { unsaved: () => false };
+const mayLeave = () =>
+	!leave.unsaved() || confirm('Leave without saving? Your changes will be lost.');
+
 function navigate(path: string, replace = false) {
 	if (typeof location === 'undefined') return;
 	const h = `#/${path.replace(/^\/+/, '')}`;
@@ -112,6 +118,7 @@ async function loadMeta() {
 }
 
 async function logout() {
+	if (!mayLeave()) return;
 	if (effectiveSignOutUrl) {
 		await fetch(effectiveSignOutUrl, {
 			method: 'POST',
@@ -127,6 +134,11 @@ async function logout() {
 
 onMount(() => {
 	const onHash = () => {
+		// Back, Forward and every in-admin link land here. Saying no puts the address back.
+		if (location.hash !== hash && !mayLeave()) {
+			history.pushState(null, '', `${location.pathname}${location.search}${hash}`);
+			return;
+		}
 		hash = location.hash;
 	};
 	window.addEventListener('hashchange', onHash);
@@ -141,6 +153,8 @@ onMount(() => {
 	return () => window.removeEventListener('hashchange', onHash);
 });
 </script>
+
+<svelte:window onbeforeunload={(e) => leave.unsaved() && e.preventDefault()} />
 
 {#if auth && !authChecked}
 	<div class="bcms-loading">
@@ -186,5 +200,6 @@ onMount(() => {
 		canSignOut={auth && !!ctx}
 		{navigate}
 		onsignout={logout}
+		{leave}
 	/>
 {/if}
